@@ -1,0 +1,13 @@
+node_modules
+.next
+dist
+.git
+.env
+.env.*
+!.env.production
+*.md
+!apps/web/AGENTS.md
+docs/
+*.pdf
+*.jpg
+*.png

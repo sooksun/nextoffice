@@ -1,6 +1,7 @@
 node_modules
 .env
 .env.*
+!.env.production.example
 dist
 .next
 out
