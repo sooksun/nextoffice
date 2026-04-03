@@ -1,0 +1,565 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─────────────────────────────────────────────
+// PHASE 1: Core / Organizations
+// ─────────────────────────────────────────────
+
+model Organization {
+  id          BigInt   @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  shortName   String?  @map("short_name") @db.VarChar(100)
+  orgCode     String?  @map("org_code") @db.VarChar(50)
+  orgType     String   @map("org_type") @db.VarChar(50) @default("school")
+  address     String?  @db.Text
+  province    String?  @db.VarChar(100)
+  district    String?  @db.VarChar(100)
+  isActive    Boolean  @map("is_active") @default(true)
+  createdAt   DateTime @map("created_at") @default(now())
+  updatedAt   DateTime @map("updated_at") @updatedAt
+
+  profiles             OrganizationProfile[]
+  contextScores        OrganizationContextScore[]
+  lineUsers            LineUser[]
+  inboundCases         InboundCase[]
+  documentIntakes      DocumentIntake[]
+
+  @@map("organizations")
+}
+
+model OrganizationProfile {
+  id                  BigInt   @id @default(autoincrement())
+  organizationId      BigInt   @map("organization_id")
+  profileYear         Int      @map("profile_year")
+  schoolSize          String?  @map("school_size") @db.VarChar(20)
+  studentCount        Int?     @map("student_count")
+  teacherCount        Int?     @map("teacher_count")
+  classroomCount      Int?     @map("classroom_count")
+  internetQuality     String?  @map("internet_quality") @db.VarChar(20)
+  budgetLevel         String?  @map("budget_level") @db.VarChar(20)
+  geographyType       String?  @map("geography_type") @db.VarChar(30)
+  socioeconomicLevel  String?  @map("socioeconomic_level") @db.VarChar(20)
+  languageContext     String?  @map("language_context") @db.VarChar(50)
+  specialConstraints  String?  @map("special_constraints") @db.Text
+  strategicStrengths  String?  @map("strategic_strengths") @db.Text
+  createdAt           DateTime @map("created_at") @default(now())
+  updatedAt           DateTime @map("updated_at") @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("organization_profiles")
+}
+
+model ContextDimension {
+  id              BigInt   @id @default(autoincrement())
+  dimensionCode   String   @map("dimension_code") @db.VarChar(50) @unique
+  dimensionName   String   @map("dimension_name") @db.VarChar(255)
+  description     String?  @db.Text
+  scaleMin        Float    @map("scale_min") @default(1)
+  scaleMax        Float    @map("scale_max") @default(5)
+  createdAt       DateTime @map("created_at") @default(now())
+
+  contextScores OrganizationContextScore[]
+
+  @@map("context_dimensions")
+}
+
+model OrganizationContextScore {
+  id              BigInt   @id @default(autoincrement())
+  organizationId  BigInt   @map("organization_id")
+  dimensionId     BigInt   @map("dimension_id")
+  score           Float
+  level           String?  @db.VarChar(20)
+  note            String?  @db.Text
+  scoredAt        DateTime @map("scored_at") @default(now())
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  dimension    ContextDimension @relation(fields: [dimensionId], references: [id])
+
+  @@map("organization_context_scores")
+}
+
+model Topic {
+  id            BigInt   @id @default(autoincrement())
+  topicCode     String   @map("topic_code") @db.VarChar(50) @unique
+  topicNameTh   String   @map("topic_name_th") @db.VarChar(255)
+  topicNameEn   String?  @map("topic_name_en") @db.VarChar(255)
+  parentTopicId BigInt?  @map("parent_topic_id")
+  level         Int      @default(1)
+  description   String?  @db.Text
+  isActive      Boolean  @map("is_active") @default(true)
+  createdAt     DateTime @map("created_at") @default(now())
+
+  parentTopic    Topic?  @relation("TopicHierarchy", fields: [parentTopicId], references: [id])
+  childTopics    Topic[] @relation("TopicHierarchy")
+  documentTopics DocumentTopic[]
+  caseTopics     CaseTopic[]
+  horizonTopics  HorizonItemTopic[]
+  policyTopics   PolicyClauseTopic[]
+
+  @@map("topics")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 1: Documents
+// ─────────────────────────────────────────────
+
+model Document {
+  id               BigInt    @id @default(autoincrement())
+  documentCode     String?   @map("document_code") @db.VarChar(100)
+  title            String    @db.VarChar(500)
+  sourceType       String    @map("source_type") @db.VarChar(50)
+  documentType     String    @map("document_type") @db.VarChar(50)
+  sourceChannel    String?   @map("source_channel") @db.VarChar(50)
+  issuingAuthority String?   @map("issuing_authority") @db.VarChar(255)
+  sourceUrl        String?   @map("source_url") @db.VarChar(1000)
+  language         String?   @db.VarChar(10) @default("th")
+  jurisdiction     String?   @db.VarChar(50)
+  publishedAt      DateTime? @map("published_at")
+  effectiveDate    DateTime? @map("effective_date")
+  expiryDate       DateTime? @map("expiry_date")
+  status           String    @db.VarChar(30) @default("active")
+  trustLevel       Float?    @map("trust_level")
+  freshnessScore   Float?    @map("freshness_score")
+  summaryText      String?   @map("summary_text") @db.Text
+  fullText         String?   @map("full_text") @db.LongText
+  storagePath      String?   @map("storage_path") @db.VarChar(500)
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  documentTopics  DocumentTopic[]
+  documentChunks  DocumentChunk[]
+  horizonItems    HorizonItem[]
+  policyItems     PolicyItem[]
+  inboundCases    InboundCase[]
+
+  @@index([sourceType])
+  @@index([documentType])
+  @@index([publishedAt])
+  @@map("documents")
+}
+
+model DocumentTopic {
+  id             BigInt  @id @default(autoincrement())
+  documentId     BigInt  @map("document_id")
+  topicId        BigInt  @map("topic_id")
+  relevanceScore Float?  @map("relevance_score")
+
+  document Document @relation(fields: [documentId], references: [id])
+  topic    Topic    @relation(fields: [topicId], references: [id])
+
+  @@index([documentId])
+  @@index([topicId])
+  @@map("document_topics")
+}
+
+model DocumentChunk {
+  id            BigInt   @id @default(autoincrement())
+  documentId    BigInt   @map("document_id")
+  chunkIndex    Int      @map("chunk_index")
+  chunkText     String   @map("chunk_text") @db.Text
+  tokenCount    Int?     @map("token_count")
+  pageNo        Int?     @map("page_no")
+  sectionTitle  String?  @map("section_title") @db.VarChar(255)
+  semanticLabel String?  @map("semantic_label") @db.VarChar(100)
+  embeddingId   String?  @map("embedding_id") @db.VarChar(100)
+  createdAt     DateTime @map("created_at") @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@index([documentId])
+  @@map("document_chunks")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 2: Horizon RAG
+// ─────────────────────────────────────────────
+
+model HorizonItem {
+  id                  BigInt   @id @default(autoincrement())
+  documentId          BigInt   @map("document_id")
+  itemType            String   @map("item_type") @db.VarChar(50)
+  scope               String?  @db.VarChar(50)
+  countryCode         String?  @map("country_code") @db.VarChar(10)
+  sector              String?  @db.VarChar(50)
+  implementationStage String?  @map("implementation_stage") @db.VarChar(30)
+  evidenceStrength    String?  @map("evidence_strength") @db.VarChar(20)
+  budgetRequirement   String?  @map("budget_requirement") @db.VarChar(20)
+  techRequirement     String?  @map("tech_requirement") @db.VarChar(20)
+  scalability         String?  @db.VarChar(20)
+  summary             String?  @db.Text
+  createdAt           DateTime @map("created_at") @default(now())
+  updatedAt           DateTime @map("updated_at") @updatedAt
+
+  document        Document               @relation(fields: [documentId], references: [id])
+  practices       HorizonPractice[]
+  topics          HorizonItemTopic[]
+  contextFitRules HorizonContextFitRule[]
+
+  @@map("horizon_items")
+}
+
+model HorizonItemTopic {
+  id            BigInt @id @default(autoincrement())
+  horizonItemId BigInt @map("horizon_item_id")
+  topicId       BigInt @map("topic_id")
+  relevance     Float? @default(1.0)
+
+  horizonItem HorizonItem @relation(fields: [horizonItemId], references: [id])
+  topic       Topic       @relation(fields: [topicId], references: [id])
+
+  @@map("horizon_item_topics")
+}
+
+model HorizonPractice {
+  id                   BigInt   @id @default(autoincrement())
+  horizonItemId        BigInt   @map("horizon_item_id")
+  practiceTitle        String   @map("practice_title") @db.VarChar(500)
+  problemAddressed     String?  @map("problem_addressed") @db.Text
+  targetGroup          String?  @map("target_group") @db.VarChar(255)
+  implementationMethod String?  @map("implementation_method") @db.Text
+  requiredCapabilities String?  @map("required_capabilities") @db.Text
+  expectedOutcomes     String?  @map("expected_outcomes") @db.Text
+  createdAt            DateTime @map("created_at") @default(now())
+  updatedAt            DateTime @map("updated_at") @updatedAt
+
+  horizonItem     HorizonItem            @relation(fields: [horizonItemId], references: [id])
+  contextFitRules HorizonContextFitRule[]
+
+  @@map("horizon_practices")
+}
+
+model HorizonContextFitRule {
+  id            BigInt  @id @default(autoincrement())
+  horizonItemId BigInt  @map("horizon_item_id")
+  practiceId    BigInt? @map("practice_id")
+  dimensionId   BigInt  @map("dimension_id")
+  minScore      Float   @map("min_score") @default(1)
+  maxScore      Float   @map("max_score") @default(5)
+  fitNote       String? @map("fit_note") @db.Text
+
+  horizonItem HorizonItem      @relation(fields: [horizonItemId], references: [id])
+  practice    HorizonPractice? @relation(fields: [practiceId], references: [id])
+
+  @@map("horizon_context_fit_rules")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 2: Policy RAG
+// ─────────────────────────────────────────────
+
+model PolicyItem {
+  id                  BigInt   @id @default(autoincrement())
+  documentId          BigInt   @map("document_id")
+  policyType          String   @map("policy_type") @db.VarChar(50)
+  issuingAuthority    String?  @map("issuing_authority") @db.VarChar(255)
+  jurisdictionLevel   String?  @map("jurisdiction_level") @db.VarChar(30)
+  policyNumber        String?  @map("policy_number") @db.VarChar(100)
+  effectiveStatus     String   @map("effective_status") @db.VarChar(30) @default("active")
+  supersedesPolicyId  BigInt?  @map("supersedes_policy_id")
+  mandatoryLevel      String?  @map("mandatory_level") @db.VarChar(20)
+  complianceRiskLevel String?  @map("compliance_risk_level") @db.VarChar(20)
+  summaryForAction    String?  @map("summary_for_action") @db.Text
+  createdAt           DateTime @map("created_at") @default(now())
+  updatedAt           DateTime @map("updated_at") @updatedAt
+
+  document Document      @relation(fields: [documentId], references: [id])
+  clauses  PolicyClause[]
+
+  @@map("policy_items")
+}
+
+model PolicyClause {
+  id                BigInt   @id @default(autoincrement())
+  policyItemId      BigInt   @map("policy_item_id")
+  clauseCode        String   @map("clause_code") @db.VarChar(50)
+  clauseText        String   @map("clause_text") @db.Text
+  obligationType    String?  @map("obligation_type") @db.VarChar(30)
+  actionRequired    String?  @map("action_required") @db.VarChar(100)
+  responsibleRole   String?  @map("responsible_role") @db.VarChar(100)
+  applicableContext String?  @map("applicable_context") @db.VarChar(100)
+  triggerCondition  String?  @map("trigger_condition") @db.Text
+  penaltyIfIgnored  String?  @map("penalty_if_ignored") @db.Text
+  remediationNote   String?  @map("remediation_note") @db.Text
+  createdAt         DateTime @map("created_at") @default(now())
+  updatedAt         DateTime @map("updated_at") @updatedAt
+
+  policyItem         PolicyItem               @relation(fields: [policyItemId], references: [id])
+  topics             PolicyClauseTopic[]
+  applicabilityRules PolicyApplicabilityRule[]
+
+  @@map("policy_clauses")
+}
+
+model PolicyClauseTopic {
+  id       BigInt @id @default(autoincrement())
+  clauseId BigInt @map("clause_id")
+  topicId  BigInt @map("topic_id")
+  relevance Float? @default(1.0)
+
+  clause PolicyClause @relation(fields: [clauseId], references: [id])
+  topic  Topic        @relation(fields: [topicId], references: [id])
+
+  @@map("policy_clause_topics")
+}
+
+model PolicyApplicabilityRule {
+  id              BigInt  @id @default(autoincrement())
+  clauseId        BigInt  @map("clause_id")
+  orgType         String? @map("org_type") @db.VarChar(50)
+  dimensionId     BigInt? @map("dimension_id")
+  minScore        Float?  @map("min_score")
+  maxScore        Float?  @map("max_score")
+  condition       String? @db.Text
+  recommendedNote String? @map("recommended_note") @db.Text
+
+  clause PolicyClause @relation(fields: [clauseId], references: [id])
+
+  @@map("policy_applicability_rules")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 3: RAG & Case Management
+// ─────────────────────────────────────────────
+
+model InboundCase {
+  id               BigInt    @id @default(autoincrement())
+  organizationId   BigInt    @map("organization_id")
+  title            String    @db.VarChar(255)
+  description      String?   @db.LongText
+  sourceDocumentId BigInt?   @map("source_document_id")
+  receivedAt       DateTime  @map("received_at") @default(now())
+  dueDate          DateTime? @map("due_date")
+  status           String    @db.VarChar(50) @default("new")
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  organization   Organization          @relation(fields: [organizationId], references: [id])
+  sourceDocument Document?             @relation(fields: [sourceDocumentId], references: [id])
+  topics         CaseTopic[]
+  retrievals     CaseRetrievalResult[]
+  options        CaseOption[]
+
+  @@map("inbound_cases")
+}
+
+model CaseTopic {
+  id            BigInt  @id @default(autoincrement())
+  inboundCaseId BigInt  @map("inbound_case_id")
+  topicId       BigInt  @map("topic_id")
+  relevanceScore Float?  @map("relevance_score")
+
+  inboundCase InboundCase @relation(fields: [inboundCaseId], references: [id])
+  topic       Topic       @relation(fields: [topicId], references: [id])
+
+  @@index([inboundCaseId])
+  @@map("case_topics")
+}
+
+model CaseRetrievalResult {
+  id              BigInt   @id @default(autoincrement())
+  inboundCaseId   BigInt   @map("inbound_case_id")
+  sourceType      String   @map("source_type") @db.VarChar(50)
+  sourceRecordId  BigInt   @map("source_record_id")
+  retrievalRank   Int      @map("retrieval_rank") @default(1)
+  semanticScore   Float?   @map("semantic_score")
+  trustScore      Float?   @map("trust_score")
+  freshnessScore  Float?   @map("freshness_score")
+  contextFitScore Float?   @map("context_fit_score")
+  finalScore      Float?   @map("final_score")
+  rationale       String?  @db.Text
+  createdAt       DateTime @map("created_at") @default(now())
+
+  inboundCase InboundCase @relation(fields: [inboundCaseId], references: [id])
+
+  @@index([inboundCaseId])
+  @@map("case_retrieval_results")
+}
+
+model CaseOption {
+  id                   BigInt   @id @default(autoincrement())
+  inboundCaseId        BigInt   @map("inbound_case_id")
+  optionCode           String   @map("option_code") @db.VarChar(5)
+  title                String   @db.VarChar(500)
+  description          String?  @db.LongText
+  implementationSteps  String?  @map("implementation_steps") @db.Text
+  expectedBenefits     String?  @map("expected_benefits") @db.Text
+  risks                String?  @db.Text
+  policyComplianceNote String?  @map("policy_compliance_note") @db.Text
+  contextFitNote       String?  @map("context_fit_note") @db.Text
+  feasibilityScore     Float?   @map("feasibility_score")
+  innovationScore      Float?   @map("innovation_score")
+  complianceScore      Float?   @map("compliance_score")
+  overallScore         Float?   @map("overall_score")
+  createdAt            DateTime @map("created_at") @default(now())
+  updatedAt            DateTime @map("updated_at") @updatedAt
+
+  inboundCase InboundCase           @relation(fields: [inboundCaseId], references: [id])
+  references  CaseOptionReference[]
+
+  @@index([inboundCaseId])
+  @@map("case_options")
+}
+
+model CaseOptionReference {
+  id               BigInt  @id @default(autoincrement())
+  caseOptionId     BigInt  @map("case_option_id")
+  referenceType    String  @map("reference_type") @db.VarChar(50)
+  sourceRecordId   BigInt  @map("source_record_id")
+  citationText     String? @map("citation_text") @db.Text
+  contributionNote String? @map("contribution_note") @db.Text
+
+  caseOption CaseOption @relation(fields: [caseOptionId], references: [id])
+
+  @@map("case_option_references")
+}
+
+// ─────────────────────────────────────────────
+// LINE Integration
+// ─────────────────────────────────────────────
+
+model LineChannel {
+  id                     BigInt   @id @default(autoincrement())
+  channelName            String   @map("channel_name") @db.VarChar(100)
+  lineChannelId          String   @map("line_channel_id") @db.VarChar(100)
+  lineChannelSecret      String   @map("line_channel_secret") @db.VarChar(255)
+  lineChannelAccessToken String   @map("line_channel_access_token") @db.Text
+  isActive               Boolean  @map("is_active") @default(true)
+  createdAt              DateTime @map("created_at") @default(now())
+  updatedAt              DateTime @map("updated_at") @updatedAt
+
+  lineUsers  LineUser[]
+  lineEvents LineEvent[]
+
+  @@map("line_channels")
+}
+
+model LineUser {
+  id             BigInt   @id @default(autoincrement())
+  lineChannelId  BigInt   @map("line_channel_id")
+  lineUserId     String   @map("line_user_id") @db.VarChar(100) @unique
+  displayName    String?  @map("display_name") @db.VarChar(255)
+  pictureUrl     String?  @map("picture_url") @db.VarChar(500)
+  organizationId BigInt?  @map("organization_id")
+  roleCode       String?  @map("role_code") @db.VarChar(50)
+  status         String   @db.VarChar(30) @default("active")
+  createdAt      DateTime @map("created_at") @default(now())
+  updatedAt      DateTime @map("updated_at") @updatedAt
+
+  lineChannel          LineChannel               @relation(fields: [lineChannelId], references: [id])
+  organization         Organization?             @relation(fields: [organizationId], references: [id])
+  conversationSessions LineConversationSession[]
+
+  @@map("line_users")
+}
+
+model LineEvent {
+  id             BigInt    @id @default(autoincrement())
+  lineChannelId  BigInt    @map("line_channel_id")
+  webhookEventId String    @map("webhook_event_id") @db.VarChar(100) @unique
+  lineUserId     String    @map("line_user_id") @db.VarChar(100)
+  eventType      String    @map("event_type") @db.VarChar(50)
+  messageId      String?   @map("message_id") @db.VarChar(100)
+  messageType    String?   @map("message_type") @db.VarChar(50)
+  replyToken     String?   @map("reply_token") @db.VarChar(255)
+  rawPayloadJson String    @map("raw_payload_json") @db.LongText
+  isRedelivery   Boolean   @map("is_redelivery") @default(false)
+  receiveStatus  String    @map("receive_status") @db.VarChar(30) @default("received")
+  receivedAt     DateTime  @map("received_at") @default(now())
+  processedAt    DateTime? @map("processed_at")
+
+  lineChannel     LineChannel      @relation(fields: [lineChannelId], references: [id])
+  documentIntakes DocumentIntake[]
+
+  @@index([lineUserId])
+  @@map("line_events")
+}
+
+model DocumentIntake {
+  id                  BigInt    @id @default(autoincrement())
+  sourceChannel       String    @map("source_channel") @db.VarChar(50)
+  lineEventId         BigInt?   @map("line_event_id")
+  lineUserIdRef       BigInt?   @map("line_user_id_ref")
+  organizationId      BigInt?   @map("organization_id")
+  originalFileName    String?   @map("original_file_name") @db.VarChar(255)
+  mimeType            String    @map("mime_type") @db.VarChar(100)
+  fileExtension       String?   @map("file_extension") @db.VarChar(20)
+  fileSize            BigInt?   @map("file_size")
+  storagePath         String?   @map("storage_path") @db.VarChar(500)
+  sha256              String?   @db.VarChar(64)
+  googleDriveFileId   String?   @map("google_drive_file_id") @db.VarChar(255)
+  googleDriveFolderId String?   @map("google_drive_folder_id") @db.VarChar(255)
+  uploadStatus        String    @map("upload_status") @db.VarChar(30) @default("received")
+  ocrStatus           String    @map("ocr_status") @db.VarChar(30) @default("pending")
+  classifierStatus    String    @map("classifier_status") @db.VarChar(30) @default("pending")
+  aiStatus            String    @map("ai_status") @db.VarChar(30) @default("pending")
+  createdAt           DateTime  @map("created_at") @default(now())
+  updatedAt           DateTime  @map("updated_at") @updatedAt
+
+  lineEvent            LineEvent?               @relation(fields: [lineEventId], references: [id])
+  organization         Organization?            @relation(fields: [organizationId], references: [id])
+  aiResult             DocumentAiResult?
+  conversationSessions LineConversationSession[]
+
+  @@map("document_intakes")
+}
+
+model DocumentAiResult {
+  id                       BigInt    @id @default(autoincrement())
+  documentIntakeId         BigInt    @map("document_intake_id") @unique
+  isOfficialDocument       Boolean?  @map("is_official_document")
+  classificationLabel      String?   @map("classification_label") @db.VarChar(50)
+  classificationConfidence Float?    @map("classification_confidence")
+  issuingAuthority         String?   @map("issuing_authority") @db.VarChar(255)
+  documentNo               String?   @map("document_no") @db.VarChar(100)
+  documentDate             DateTime? @map("document_date")
+  subjectText              String?   @map("subject_text") @db.Text
+  summaryText              String?   @map("summary_text") @db.LongText
+  extractedText            String?   @map("extracted_text") @db.LongText
+  deadlineDate             DateTime? @map("deadline_date")
+  nextActionJson           String?   @map("next_action_json") @db.LongText
+  createdAt                DateTime  @map("created_at") @default(now())
+  updatedAt                DateTime  @map("updated_at") @updatedAt
+
+  documentIntake DocumentIntake @relation(fields: [documentIntakeId], references: [id])
+
+  @@map("document_ai_results")
+}
+
+model LineConversationSession {
+  id               BigInt    @id @default(autoincrement())
+  lineUserIdRef    BigInt    @map("line_user_id_ref")
+  documentIntakeId BigInt?   @map("document_intake_id")
+  sessionType      String    @map("session_type") @db.VarChar(50)
+  currentStep      String?   @map("current_step") @db.VarChar(100)
+  contextJson      String?   @map("context_json") @db.LongText
+  status           String    @db.VarChar(30) @default("open")
+  expiresAt        DateTime? @map("expires_at")
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  lineUser       LineUser        @relation(fields: [lineUserIdRef], references: [id])
+  documentIntake DocumentIntake? @relation(fields: [documentIntakeId], references: [id])
+  actions        LineSessionAction[]
+
+  @@map("line_conversation_sessions")
+}
+
+model LineSessionAction {
+  id          BigInt   @id @default(autoincrement())
+  sessionId   BigInt   @map("session_id")
+  actionCode  String   @map("action_code") @db.VarChar(50)
+  actionLabel String   @map("action_label") @db.VarChar(255)
+  payloadJson String?  @map("payload_json") @db.LongText
+  createdAt   DateTime @map("created_at") @default(now())
+
+  session LineConversationSession @relation(fields: [sessionId], references: [id])
+
+  @@map("line_session_actions")
+}

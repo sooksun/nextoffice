@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html class="light" lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Next Office - วิเคราะห์เคส</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "tertiary-fixed-dim": "#ddb8ff",
+          "on-primary-fixed": "#00164e",
+          "on-surface-variant": "#444651",
+          "tertiary-container": "#5f00a5",
+          "on-surface": "#171c1f",
+          "surface-container-high": "#e4e9ed",
+          "surface-variant": "#dfe3e7",
+          "surface": "#f6fafe",
+          "outline-variant": "#c5c5d3",
+          "primary": "#00236f",
+          "surface-container-highest": "#dfe3e7",
+          "secondary-fixed-dim": "#c3c0ff",
+          "on-tertiary": "#ffffff",
+          "surface-dim": "#d6dade",
+          "secondary": "#4b41e1",
+          "on-background": "#171c1f",
+          "background": "#f6fafe",
+          "inverse-on-surface": "#edf1f5",
+          "primary-fixed": "#dce1ff",
+          "on-error": "#ffffff",
+          "on-primary-container": "#90a8ff",
+          "inverse-primary": "#b6c4ff",
+          "on-tertiary-fixed": "#2c0051",
+          "outline": "#757682",
+          "surface-bright": "#f6fafe",
+          "surface-container-lowest": "#ffffff",
+          "on-secondary-fixed": "#0f0069",
+          "on-secondary-container": "#fffbff",
+          "on-tertiary-fixed-variant": "#6800b4",
+          "on-primary": "#ffffff",
+          "on-secondary-fixed-variant": "#3323cc",
+          "on-primary-fixed-variant": "#264191",
+          "surface-container": "#eaeef2",
+          "secondary-fixed": "#e2dfff",
+          "primary-container": "#1e3a8a",
+          "inverse-surface": "#2c3134",
+          "tertiary-fixed": "#f0dbff",
+          "surface-tint": "#4059aa",
+          "error-container": "#ffdad6",
+          "on-secondary": "#ffffff",
+          "surface-container-low": "#f0f4f8",
+          "primary-fixed-dim": "#b6c4ff",
+          "error": "#ba1a1a",
+          "on-error-container": "#93000a",
+          "secondary-container": "#645efb",
+          "tertiary": "#410073",
+          "on-tertiary-container": "#ca95ff"
+        },
+        borderRadius: {
+          DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"
+        },
+        fontFamily: {
+          headline: ["Be Vietnam Pro"],
+          body: ["Inter"],
+          label: ["Inter"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  h1, h2, h3, h4, .font-headline { font-family: 'Be Vietnam Pro', sans-serif; }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #c5c5d3; border-radius: 10px; }
+</style>
+</head>
+<body class="bg-surface text-on-surface">
+
+<!-- ═══════════════════════════════════════════════
+     SIDEBAR — fixed, same pattern as all screens
+═══════════════════════════════════════════════ -->
+<aside class="h-screen w-64 flex flex-col fixed left-0 top-0 bg-[#f0f4f8] dark:bg-slate-900 font-['Be_Vietnam_Pro'] text-sm font-medium p-4 border-r border-slate-200/20 z-50">
+  <!-- Brand -->
+  <div class="mb-8 px-2 flex items-center gap-3">
+    <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+      <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1;">account_tree</span>
+    </div>
+    <div>
+      <h1 class="text-xl font-bold text-[#00236f] dark:text-blue-200 leading-tight">Next Office</h1>
+      <p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Education AI</p>
+    </div>
+  </div>
+
+  <!-- New Document -->
+  <button class="mb-6 w-full py-3 px-4 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-primary/20">
+    <span class="material-symbols-outlined text-sm">add</span>
+    <span>เอกสารใหม่</span>
+  </button>
+
+  <!-- Nav -->
+  <nav class="flex-1 space-y-1">
+    <a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-[#00236f] hover:bg-[#f6fafe] transition-colors rounded-2xl" href="#">
+      <span class="material-symbols-outlined">dashboard</span><span>ภาพรวม</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 bg-[#00236f]/10 text-[#00236f] rounded-2xl font-bold" href="#">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">description</span><span>เอกสาร</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-[#00236f] hover:bg-[#f6fafe] transition-colors rounded-2xl" href="#">
+      <span class="material-symbols-outlined">chat</span><span>กล่องรับเข้า</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-[#00236f] hover:bg-[#f6fafe] transition-colors rounded-2xl" href="#">
+      <span class="material-symbols-outlined">groups</span><span>การประชุม</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-[#00236f] hover:bg-[#f6fafe] transition-colors rounded-2xl" href="#">
+      <span class="material-symbols-outlined">account_tree</span><span>หน่วยงาน</span>
+    </a>
+    <a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-[#00236f] hover:bg-[#f6fafe] transition-colors rounded-2xl" href="#">
+      <span class="material-symbols-outlined">settings</span><span>ตั้งค่า</span>
+    </a>
+  </nav>
+
+  <!-- Footer -->
+  <div class="pt-4 mt-auto border-t border-slate-200/40">
+    <a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-[#00236f] hover:bg-[#f6fafe] transition-colors rounded-2xl" href="#">
+      <span class="material-symbols-outlined">help</span><span>ศูนย์ช่วยเหลือ</span>
+    </a>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════════
+     HEADER — fixed, consistent with all screens
+═══════════════════════════════════════════════ -->
+<header class="fixed top-0 left-64 right-0 z-40 h-16 px-6 flex justify-between items-center bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800/50 shadow-sm">
+  <!-- Left: Search + Nav Tabs -->
+  <div class="flex items-center gap-8">
+    <div class="relative">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-xl">search</span>
+      <input class="block w-72 pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 transition-all" placeholder="ค้นหาหนังสือสั่งการหรือเอกสาร..." type="text"/>
+    </div>
+    <nav class="hidden lg:flex items-center gap-6 font-['Be_Vietnam_Pro'] text-base tracking-tight">
+      <a class="text-[#00236f] font-bold border-b-2 border-[#00236f] pb-1" href="#">หนังสือสั่งการ</a>
+      <a class="text-slate-600 hover:text-[#4b41e1] transition-all" href="#">หนังสือเวียน</a>
+      <a class="text-slate-600 hover:text-[#4b41e1] transition-all" href="#">คลังเอกสาร</a>
+    </nav>
+  </div>
+
+  <!-- Right: Actions + Notifications + User -->
+  <div class="flex items-center gap-3">
+    <!-- Export button -->
+    <button class="hidden md:flex items-center gap-2 px-4 py-2 border border-outline-variant rounded-full text-sm font-medium text-on-surface-variant hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined text-base">download</span>ส่งออก
+    </button>
+    <!-- Share button -->
+    <button class="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-full text-sm font-bold shadow-md shadow-primary/20 hover:brightness-110 transition-all">
+      <span class="material-symbols-outlined text-base">share</span>แชร์
+    </button>
+    <div class="w-px h-6 bg-slate-200 mx-1"></div>
+    <button class="p-2 text-slate-500 hover:bg-surface-container-high rounded-full transition-colors relative">
+      <span class="material-symbols-outlined">notifications</span>
+      <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full ring-2 ring-white"></span>
+    </button>
+    <button class="p-2 text-slate-500 hover:bg-surface-container-high rounded-full transition-colors">
+      <span class="material-symbols-outlined">apps</span>
+    </button>
+    <div class="w-9 h-9 rounded-full overflow-hidden border-2 border-primary-fixed cursor-pointer shadow-sm">
+      <img alt="User Profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC82aCzczQ_Dpi_iQhBma29UNgTLVH8JNCzUNaqSNTdKFYJRjgcKwZ70Jyk2a4zLMliU0syhP0-VQFQWQsWI_ro24wtQXgnMgGvyxZH9lrpwl60pBkLlz0GCNJq1KTwwK38mIQZa5ysCIFUODDXtOgRx6HU9gWgVlYOpjuD1r77D-RAQuv8CrPe8Vwn73ZLesne8WYrrl3pa1zBiutNtKzpIpsjBG9FtOU64se2XRk35dYXU0Yn_QCE4XBkvNt8akoK5Nv25ZwMVxo" class="w-full h-full object-cover"/>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN — ml-64 pt-16, flex row, full-height
+═══════════════════════════════════════════════ -->
+<main class="ml-64 pt-16 flex h-screen overflow-hidden">
+
+  <!-- ─── LEFT: Scrollable Content ─── -->
+  <section class="flex-1 overflow-y-auto custom-scrollbar">
+    <div class="p-8">
+
+      <!-- Breadcrumb + Page Header -->
+      <div class="mb-8">
+        <nav class="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-3 uppercase tracking-widest">
+          <a href="#" class="hover:text-primary transition-colors">หนังสือสั่งการ</a>
+          <span class="material-symbols-outlined text-[10px]">chevron_right</span>
+          <a href="#" class="hover:text-primary transition-colors">เอกสาร</a>
+          <span class="material-symbols-outlined text-[10px]">chevron_right</span>
+          <span class="text-on-primary-fixed-variant">วิเคราะห์เคส #AI-882</span>
+        </nav>
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-3xl font-black text-primary font-headline tracking-tight mb-1">การเปรียบเทียบแนวทางนโยบาย</h2>
+            <p class="text-on-surface-variant max-w-2xl">การวิเคราะห์เชิงกลยุทธ์ของแนวทางการบูรณาการโมดูลความรู้ดิจิทัลในหลักสูตรมัธยมศึกษา เลือกตัวเลือกที่เหมาะสมที่สุดเพื่อเริ่มกระบวนการอนุมัติ</p>
+          </div>
+          <!-- Status badge -->
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="px-3 py-1.5 bg-error-container text-on-error-container text-xs font-bold rounded-full flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 bg-error rounded-full animate-pulse"></span>
+              รอการตัดสินใจ
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── AI INSIGHTS BANNER (from Dashboard pattern) ─── -->
+      <div class="mb-8 bg-gradient-to-br from-[#00236f] to-[#4b41e1] rounded-3xl p-6 text-white relative overflow-hidden shadow-xl shadow-primary/20">
+        <div class="relative z-10 flex flex-col md:flex-row gap-6 items-start">
+          <!-- Icon + Title -->
+          <div class="flex items-center gap-3 shrink-0">
+            <div class="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+              <span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings:'FILL' 1;">auto_awesome</span>
+            </div>
+            <div>
+              <p class="text-[10px] uppercase tracking-widest text-white/60 font-bold">การวิเคราะห์ AI</p>
+              <h3 class="text-lg font-bold font-headline">คำแนะนำอัจฉริยะ</h3>
+            </div>
+          </div>
+          <!-- Divider -->
+          <div class="hidden md:block w-px h-12 bg-white/20 self-center"></div>
+          <!-- Insights -->
+          <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">check_circle</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-white/70">ตัวเลือกที่ดีที่สุด</span>
+              </div>
+              <p class="text-sm font-semibold leading-snug"><span class="font-black">ตัวเลือก ข</span> — รูปแบบสัมมนาผสมผสานได้คะแนนสูงสุดด้านความเป็นไปได้และนวัตกรรม</p>
+            </div>
+            <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">policy</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-white/70">การปฏิบัติตาม</span>
+              </div>
+              <p class="text-sm font-semibold leading-snug">สอดคล้องกับ <span class="font-black">หนังสือเวียน ศธ. 2024/042</span> ด้านความรู้ดิจิทัลสำหรับปีการศึกษา 2567–68</p>
+            </div>
+            <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">alarm</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-white/70">กำหนดส่ง</span>
+              </div>
+              <p class="text-sm font-semibold leading-snug">ต้องตัดสินใจภายใน <span class="font-black">15 พ.ย. 2566</span> เพื่อให้ทันหน้าต่างการจัดสรรงบประมาณ</p>
+            </div>
+          </div>
+        </div>
+        <!-- Background decoration -->
+        <div class="absolute -bottom-16 -right-16 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -top-8 right-40 w-32 h-32 bg-secondary/30 rounded-full blur-2xl pointer-events-none"></div>
+      </div>
+
+      <!-- ─── OPTION CARDS (A / B / C) ─── -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+
+        <!-- Option A -->
+        <div class="bg-surface-container-lowest rounded-3xl p-6 flex flex-col shadow-sm border border-outline-variant/20 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+          <div class="flex justify-between items-start mb-5">
+            <span class="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black rounded-full uppercase tracking-wider">ตัวเลือก ก</span>
+            <div class="p-2.5 bg-primary-fixed rounded-xl text-primary group-hover:scale-110 transition-transform">
+              <span class="material-symbols-outlined">rocket_launch</span>
+            </div>
+          </div>
+          <div class="mb-5">
+            <h3 class="text-xl font-black font-headline text-primary mb-1.5">การบูรณาการเชิงลึก</h3>
+            <p class="text-sm text-on-surface-variant leading-relaxed">การฝังโมดูล AI เข้ากับวิชาหลักที่มีอยู่โดยตรง พร้อมการอำนวยการโดยครูอย่างเข้มข้น</p>
+          </div>
+          <!-- Metrics -->
+          <div class="space-y-3.5 mb-6">
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">ความเป็นไปได้</span>
+                <span class="text-primary">3/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-primary rounded-full w-[60%] transition-all"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">การปฏิบัติตาม</span>
+                <span class="text-secondary">5/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-secondary rounded-full w-full transition-all"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">นวัตกรรม</span>
+                <span class="text-tertiary">2/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-tertiary rounded-full w-[40%] transition-all"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Risks -->
+          <div class="bg-surface-container-low rounded-2xl p-4 flex-1 mb-5">
+            <h4 class="text-[10px] font-black text-primary uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">warning</span>ความเสี่ยงหลัก
+            </h4>
+            <ul class="space-y-2 text-sm text-on-surface-variant">
+              <li class="flex items-start gap-2">
+                <span class="w-1.5 h-1.5 bg-error rounded-full mt-1.5 shrink-0"></span>ภาระการฝึกอบรมครูสูง
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="w-1.5 h-1.5 bg-error rounded-full mt-1.5 shrink-0"></span>ความเสี่ยงต่อหลักสูตรหลัก
+              </li>
+            </ul>
+          </div>
+          <div class="space-y-2.5">
+            <button class="w-full py-3.5 bg-primary text-on-primary rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:brightness-110 flex items-center justify-center gap-2 shadow-md shadow-primary/20">
+              <span class="material-symbols-outlined text-base">check_circle</span>อนุมัติตัวเลือก ก
+            </button>
+            <button class="w-full py-3 bg-transparent text-primary hover:bg-primary/5 rounded-2xl font-semibold text-sm transition-colors border border-primary/20 flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-base">download</span>ส่งออกสรุป
+            </button>
+          </div>
+        </div>
+
+        <!-- Option B — AI Recommended (highlighted) -->
+        <div class="bg-surface-container-lowest rounded-3xl p-6 flex flex-col shadow-2xl shadow-primary/15 border-2 border-primary group relative overflow-hidden hover:-translate-y-1 transition-all">
+          <!-- AI Recommended badge -->
+          <div class="absolute top-0 right-0 px-4 py-2 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-bl-2xl flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">auto_awesome</span>AI แนะนำ
+          </div>
+          <div class="flex justify-between items-start mb-5">
+            <span class="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-black rounded-full uppercase tracking-wider">ตัวเลือก ข</span>
+            <div class="p-2.5 bg-secondary-fixed rounded-xl text-secondary group-hover:scale-110 transition-transform">
+              <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">auto_awesome_motion</span>
+            </div>
+          </div>
+          <div class="mb-5">
+            <h3 class="text-xl font-black font-headline text-primary mb-1.5">รูปแบบสัมมนาผสมผสาน</h3>
+            <p class="text-sm text-on-surface-variant leading-relaxed">เวิร์กช็อปสองครั้งต่อสัปดาห์คู่กับโมดูลการเรียนรู้ดิจิทัลด้วยตนเองสำหรับนักเรียน</p>
+          </div>
+          <!-- Metrics -->
+          <div class="space-y-3.5 mb-6">
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">ความเป็นไปได้</span>
+                <span class="text-primary">5/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-primary rounded-full w-full transition-all shadow-sm shadow-primary/40"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">การปฏิบัติตาม</span>
+                <span class="text-secondary">4/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-secondary rounded-full w-[80%] transition-all"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">นวัตกรรม</span>
+                <span class="text-tertiary">4/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-tertiary rounded-full w-[80%] transition-all"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Risks -->
+          <div class="bg-primary/5 rounded-2xl p-4 flex-1 mb-5 border border-primary/10">
+            <h4 class="text-[10px] font-black text-primary uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">warning</span>ความเสี่ยงหลัก
+            </h4>
+            <ul class="space-y-2 text-sm text-on-surface-variant">
+              <li class="flex items-start gap-2">
+                <span class="w-1.5 h-1.5 bg-error rounded-full mt-1.5 shrink-0"></span>ความซับซ้อนในการติดตามการเข้าเรียน
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="w-1.5 h-1.5 bg-error rounded-full mt-1.5 shrink-0"></span>ค่าลิขสิทธิ์พอร์ทัลนักเรียน
+              </li>
+            </ul>
+          </div>
+          <div class="space-y-2.5">
+            <button class="w-full py-3.5 bg-primary text-on-primary rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:brightness-110 flex items-center justify-center gap-2 shadow-lg shadow-primary/30">
+              <span class="material-symbols-outlined text-base">check_circle</span>อนุมัติตัวเลือก ข
+            </button>
+            <button class="w-full py-3 bg-transparent text-primary hover:bg-primary/5 rounded-2xl font-semibold text-sm transition-colors border border-primary/20 flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-base">download</span>ส่งออกสรุป
+            </button>
+          </div>
+        </div>
+
+        <!-- Option C -->
+        <div class="bg-surface-container-lowest rounded-3xl p-6 flex flex-col shadow-sm border border-outline-variant/20 hover:shadow-lg hover:-translate-y-0.5 transition-all group">
+          <div class="flex justify-between items-start mb-5">
+            <span class="px-3 py-1 bg-tertiary/10 text-tertiary text-[10px] font-black rounded-full uppercase tracking-wider">ตัวเลือก ค</span>
+            <div class="p-2.5 bg-tertiary-fixed rounded-xl text-tertiary group-hover:scale-110 transition-transform">
+              <span class="material-symbols-outlined">bolt</span>
+            </div>
+          </div>
+          <div class="mb-5">
+            <h3 class="text-xl font-black font-headline text-primary mb-1.5">ห้องปฏิบัติการกระจายศูนย์</h3>
+            <p class="text-sm text-on-surface-variant leading-relaxed">แนวทางโครงสร้างพื้นฐานก่อน อัพเกรดห้องคอมพิวเตอร์เป็น "AI Hub" พร้อมการเข้าร่วมแบบวิชาเลือก 100%</p>
+          </div>
+          <!-- Metrics -->
+          <div class="space-y-3.5 mb-6">
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">ความเป็นไปได้</span>
+                <span class="text-primary">2/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-primary rounded-full w-[40%] transition-all"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">การปฏิบัติตาม</span>
+                <span class="text-secondary">4/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-secondary rounded-full w-[80%] transition-all"></div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1.5">
+                <span class="text-slate-500 uppercase tracking-tight">นวัตกรรม</span>
+                <span class="text-tertiary">5/5</span>
+              </div>
+              <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                <div class="h-full bg-tertiary rounded-full w-full transition-all"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Risks -->
+          <div class="bg-surface-container-low rounded-2xl p-4 flex-1 mb-5">
+            <h4 class="text-[10px] font-black text-primary uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">warning</span>ความเสี่ยงหลัก
+            </h4>
+            <ul class="space-y-2 text-sm text-on-surface-variant">
+              <li class="flex items-start gap-2">
+                <span class="w-1.5 h-1.5 bg-error rounded-full mt-1.5 shrink-0"></span>ค่าใช้จ่ายลงทุนเริ่มต้นสูง
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="w-1.5 h-1.5 bg-error rounded-full mt-1.5 shrink-0"></span>การเข้าถึงที่ไม่เท่าเทียมระหว่างหน่วยงาน
+              </li>
+            </ul>
+          </div>
+          <div class="space-y-2.5">
+            <button class="w-full py-3.5 bg-primary text-on-primary rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:brightness-110 flex items-center justify-center gap-2 shadow-md shadow-primary/20">
+              <span class="material-symbols-outlined text-base">check_circle</span>อนุมัติตัวเลือก ค
+            </button>
+            <button class="w-full py-3 bg-transparent text-primary hover:bg-primary/5 rounded-2xl font-semibold text-sm transition-colors border border-primary/20 flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-base">download</span>ส่งออกสรุป
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /Option Cards -->
+
+      <!-- ─── CHARTS SECTION ─── -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
+
+        <!-- Bar Chart: System Compliance Baseline -->
+        <div class="bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-outline-variant/10">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-headline font-bold text-primary">เกณฑ์การปฏิบัติตามระบบ</h4>
+            <span class="text-[10px] text-on-surface-variant font-medium bg-surface-container-low px-2 py-1 rounded-full">อัปเดต 5 น. ที่แล้ว</span>
+          </div>
+          <p class="text-xs text-on-surface-variant mb-6">การปฏิบัติตามกฎระเบียบของสถาบันในเสาหลักด้านกฎหมายและจริยธรรม</p>
+          <div class="flex items-end gap-3 h-36">
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <span class="text-[10px] font-black text-primary">60%</span>
+              <div class="w-full bg-primary/20 rounded-t-xl" style="height:60%"></div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">กฎหมาย</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <span class="text-[10px] font-black text-secondary">85%</span>
+              <div class="w-full bg-secondary rounded-t-xl" style="height:85%"></div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">จริยธรรม</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <span class="text-[10px] font-black text-tertiary">45%</span>
+              <div class="w-full bg-tertiary/50 rounded-t-xl" style="height:45%"></div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">ความปลอดภัย</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <span class="text-[10px] font-black text-slate-500">75%</span>
+              <div class="w-full bg-slate-300 rounded-t-xl" style="height:75%"></div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">ตรวจสอบ</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Donut Chart: Projected Success Rate -->
+        <div class="bg-surface-container-lowest rounded-3xl p-6 shadow-sm border border-outline-variant/10 flex items-center gap-6">
+          <!-- Donut -->
+          <div class="shrink-0 relative w-32 h-32">
+            <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+              <!-- Track -->
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#dce1ff" stroke-width="14"/>
+              <!-- Progress (70%) -->
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#00236f" stroke-width="14"
+                stroke-dasharray="176 251" stroke-linecap="round"/>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span class="text-2xl font-black text-primary font-headline">70%</span>
+            </div>
+          </div>
+          <!-- Text -->
+          <div class="flex-1">
+            <h4 class="font-headline font-bold text-primary mb-1.5">อัตราความสำเร็จที่คาดการณ์</h4>
+            <p class="text-sm text-on-surface-variant mb-4 leading-relaxed">อิงตามศักยภาพโรงเรียนและดัชนีความพร้อมครูสำหรับตัวเลือก ข</p>
+            <div class="flex flex-col gap-2">
+              <div class="flex items-center gap-2 text-xs">
+                <span class="w-2.5 h-2.5 rounded-full bg-primary shrink-0"></span>
+                <span class="text-on-surface-variant">ความสำเร็จที่คาดการณ์</span>
+                <span class="ml-auto font-bold text-primary">70%</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="w-2.5 h-2.5 rounded-full bg-primary-fixed shrink-0"></span>
+                <span class="text-on-surface-variant">ช่องว่างที่เหลือ</span>
+                <span class="ml-auto font-bold text-slate-400">30%</span>
+              </div>
+            </div>
+            <button class="mt-4 flex items-center gap-1.5 text-primary font-bold text-xs uppercase tracking-wider group">
+              ตรวจสอบศักยภาพเต็มรูปแบบ
+              <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">trending_flat</span>
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /Charts -->
+
+    </div><!-- /p-8 -->
+  </section><!-- /Left Content -->
+
+  <!-- ─── RIGHT: Contextual Panel ─── -->
+  <aside class="w-80 bg-surface-container-lowest border-l border-outline-variant/10 flex flex-col overflow-y-auto custom-scrollbar">
+
+    <!-- Panel Header -->
+    <div class="px-6 pt-6 pb-4 border-b border-outline-variant/10">
+      <h3 class="text-sm font-black font-headline text-primary uppercase tracking-wider flex items-center gap-2">
+        <span class="material-symbols-outlined text-secondary text-base" style="font-variation-settings:'FILL' 1;">analytics</span>
+        บริบทเคส
+      </h3>
+    </div>
+
+    <div class="p-6 space-y-8">
+
+      <!-- Case Metadata -->
+      <div class="space-y-4">
+        <h4 class="text-[10px] font-black text-outline uppercase tracking-widest">ข้อมูลเมตาเคส</h4>
+        <div class="bg-surface-container-low rounded-2xl p-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="text-[10px] font-bold text-outline uppercase">รหัสเคส</span>
+            <span class="text-xs font-bold text-primary">#AI-882</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-[10px] font-bold text-outline uppercase">สร้างเมื่อ</span>
+            <span class="text-xs font-medium">12 ต.ค. 2566</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-[10px] font-bold text-outline uppercase">มอบหมายให้</span>
+            <span class="text-xs font-medium">ดร. สมชาย พ.</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-[10px] font-bold text-outline uppercase">กำหนดส่ง</span>
+            <span class="text-xs font-bold text-error">15 พ.ย. 2566</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-[10px] font-bold text-outline uppercase">ความสำคัญ</span>
+            <span class="px-2 py-0.5 bg-error-container text-on-error-container text-[10px] font-bold rounded-full">สูง</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Confidence Meter -->
+      <div class="space-y-4">
+        <div class="flex justify-between items-end">
+          <h4 class="text-[10px] font-black text-outline uppercase tracking-widest">ความเชื่อมั่น AI</h4>
+          <span class="text-2xl font-black text-primary font-headline">94%</span>
+        </div>
+        <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+          <div class="h-full bg-primary w-[94%] rounded-full shadow-[0_0_8px_rgba(0,35,111,0.4)]"></div>
+        </div>
+        <p class="text-[10px] text-outline leading-relaxed">คำตอบอ้างอิงจากหนังสือสั่งการ 4 ฉบับและหนังสือเวียนทางกฎหมาย 2 ฉบับที่ได้รับการยืนยัน</p>
+      </div>
+
+      <!-- Related Policy Clauses -->
+      <div class="space-y-3">
+        <h4 class="text-[10px] font-black text-outline uppercase tracking-widest">ข้อกฎหมายที่เกี่ยวข้อง</h4>
+        <div class="space-y-3">
+          <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 hover:border-secondary/30 transition-colors cursor-pointer group">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full bg-secondary"></span>
+              <span class="text-[10px] font-bold text-on-surface">MOE-2024: SECTION 4.2</span>
+            </div>
+            <p class="text-xs text-on-surface-variant italic leading-relaxed">"พนักงานมีสิทธิ์รับทุนพัฒนาวิชาชีพสูงสุด ฿15,000 ต่อปีสำหรับการรับรองที่ได้รับการรับรอง..."</p>
+          </div>
+          <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 hover:border-tertiary/30 transition-colors cursor-pointer group">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full bg-tertiary"></span>
+              <span class="text-[10px] font-bold text-on-surface">HORIZON 2030: APPROVAL PATH</span>
+            </div>
+            <p class="text-xs text-on-surface-variant italic leading-relaxed">"การใช้จ่ายเกิน ฿50,000 ต้องมีลายเซ็นดิจิทัลของหัวหน้าฝ่ายผ่านระบบ Next Office"</p>
+          </div>
+          <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 hover:border-primary/30 transition-colors cursor-pointer group">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2 h-2 rounded-full bg-primary/60"></span>
+              <span class="text-[10px] font-bold text-on-surface">CED-2024: DIGITAL LITERACY</span>
+            </div>
+            <p class="text-xs text-on-surface-variant italic leading-relaxed">"สถาบัน K-12 ทุกแห่งต้องบรรลุความพร้อมด้านดิจิทัลของครู 80% ภายในสิ้นปีการศึกษา 2567-68"</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Case Activity Timeline -->
+      <div class="space-y-4">
+        <h4 class="text-[10px] font-black text-outline uppercase tracking-widest">ลำดับเหตุการณ์เคส</h4>
+        <div class="relative space-y-5">
+          <!-- Track line -->
+          <div class="absolute left-2.5 top-1 bottom-2 w-0.5 bg-surface-container-high"></div>
+          <!-- Event 1 -->
+          <div class="relative flex gap-3 pl-7">
+            <div class="absolute left-0 top-1 w-5 h-5 rounded-full bg-secondary ring-4 ring-surface-container-lowest z-10 flex items-center justify-center">
+              <span class="material-symbols-outlined text-white text-[10px]" style="font-variation-settings:'FILL' 1;">auto_awesome</span>
+            </div>
+            <div>
+              <p class="text-xs font-bold text-on-surface">การวิเคราะห์ AI เสร็จสมบูรณ์</p>
+              <p class="text-[10px] text-on-surface-variant mt-0.5 leading-relaxed">สร้าง 3 ตัวเลือกจาก Policy RAG + การวิเคราะห์ Claude</p>
+              <span class="text-[10px] font-medium text-outline mt-1 block">10 นาทีที่แล้ว</span>
+            </div>
+          </div>
+          <!-- Event 2 -->
+          <div class="relative flex gap-3 pl-7">
+            <div class="absolute left-0 top-1 w-5 h-5 rounded-full bg-tertiary ring-4 ring-surface-container-lowest z-10"></div>
+            <div>
+              <p class="text-xs font-bold text-on-surface">จำแนกเอกสารแล้ว</p>
+              <p class="text-[10px] text-on-surface-variant mt-0.5 leading-relaxed">ระบุเป็นหนังสือเวียนราชการ ศธ. — ความเชื่อมั่น 98%</p>
+              <span class="text-[10px] font-medium text-outline mt-1 block">1 ชั่วโมงที่แล้ว</span>
+            </div>
+          </div>
+          <!-- Event 3 -->
+          <div class="relative flex gap-3 pl-7">
+            <div class="absolute left-0 top-1 w-5 h-5 rounded-full bg-primary/30 ring-4 ring-surface-container-lowest z-10"></div>
+            <div>
+              <p class="text-xs font-bold text-on-surface">ดึงข้อความ OCR สำเร็จ</p>
+              <p class="text-[10px] text-on-surface-variant mt-0.5 leading-relaxed">ดึงข้อความทั้งหมดจากไฟล์ PDF 4 หน้า</p>
+              <span class="text-[10px] font-medium text-outline mt-1 block">2 ชั่วโมงที่แล้ว</span>
+            </div>
+          </div>
+          <!-- Event 4 -->
+          <div class="relative flex gap-3 pl-7">
+            <div class="absolute left-0 top-1 w-5 h-5 rounded-full bg-surface-container-high ring-4 ring-surface-container-lowest z-10"></div>
+            <div>
+              <p class="text-xs font-bold text-on-surface">ได้รับเอกสาร</p>
+              <p class="text-[10px] text-on-surface-variant mt-0.5 leading-relaxed">ผ่าน LINE OA จากสำนักงานภาค 4</p>
+              <span class="text-[10px] font-medium text-outline mt-1 block">12 ต.ค. 09:15 น.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ask AI Mini Input -->
+      <div class="bg-surface-container-low rounded-2xl p-4">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="material-symbols-outlined text-secondary text-base" style="font-variation-settings:'FILL' 1;">smart_toy</span>
+          <span class="text-xs font-black text-primary">ถาม AI เกี่ยวกับเคสนี้</span>
+          <span class="ml-auto w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+        </div>
+        <div class="relative">
+          <input class="w-full text-xs bg-surface-container-lowest border border-outline-variant/30 rounded-xl py-2.5 pl-3 pr-10 focus:ring-2 focus:ring-primary/20 outline-none" placeholder="พิมพ์คำถามของคุณ..." type="text"/>
+          <button class="absolute right-2.5 top-1/2 -translate-y-1/2 text-primary hover:text-secondary transition-colors">
+            <span class="material-symbols-outlined text-lg">send</span>
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /p-6 -->
+  </aside><!-- /Right Panel -->
+
+</main>
+
+</body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{ const o=JSON.parse(d); console.log((o.tool_input||{}).file_path||(o.tool_response||{}).filePath||''); })\" | { read -r f; echo \"$f\" | grep -qE '/apps/web/.*\\.(ts|tsx)$' && cd \"D:/laragon/www/nextoffice/apps/web\" && npx eslint --fix \"$f\" --no-warn-ignored 2>/dev/null || true; }",
+            "statusMessage": "ESLint auto-fix (web)..."
+          },
+          {
+            "type": "command",
+            "command": "node -e \"let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{ const o=JSON.parse(d); console.log((o.tool_input||{}).file_path||(o.tool_response||{}).filePath||''); })\" | { read -r f; echo \"$f\" | grep -qE '/apps/web/.*\\.tsx?$' && cd \"D:/laragon/www/nextoffice/apps/web\" && npx tsc --noEmit 2>&1 | tail -15 || true; }",
+            "async": true,
+            "statusMessage": "TypeScript check (web)..."
+          },
+          {
+            "type": "command",
+            "command": "node -e \"let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{ const o=JSON.parse(d); console.log((o.tool_input||{}).file_path||(o.tool_response||{}).filePath||''); })\" | { read -r f; echo \"$f\" | grep -qE '/apps/api/.*\\.tsx?$' && cd \"D:/laragon/www/nextoffice/apps/api\" && npx tsc --noEmit 2>&1 | tail -15 || true; }",
+            "async": true,
+            "statusMessage": "TypeScript check (api)..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"✅ Claude เสร็จงานแล้ว\"}'"
+          }
+        ]
+      }
+    ]
+  }
+}
