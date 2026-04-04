@@ -14,6 +14,7 @@ import {
   Plus,
   Shield,
   ScrollText,
+  BookOpen,
 } from "lucide-react";
 
 const links = [
@@ -22,6 +23,7 @@ const links = [
   { href: "/intakes", label: "เอกสารขาเข้า", icon: FileText },
   { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
   { href: "/cases", label: "เคส", icon: Briefcase },
+  { href: "/knowledge", label: "ฐานข้อมูลความรู้", icon: BookOpen },
   { href: "/organizations", label: "หน่วยงาน", icon: Building2 },
 ];
 

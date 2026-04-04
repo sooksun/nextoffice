@@ -26,6 +26,18 @@ export class OrganizationsController {
     return this.svc.getContext(id);
   }
 
+  @Get('tree')
+  @ApiOperation({ summary: 'โครงสร้างลำดับชั้นหน่วยงานทั้งหมด (สพฐ. → เขต → โรงเรียน)' })
+  getTree() {
+    return this.svc.getTree();
+  }
+
+  @Get(':id/children')
+  @ApiOperation({ summary: 'ดูหน่วยงานย่อย (เช่น โรงเรียนในเขต)' })
+  getChildren(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.getChildren(id);
+  }
+
   @Post()
   @ApiOperation({ summary: 'Create organization' })
   create(@Body() dto: CreateOrganizationDto) {

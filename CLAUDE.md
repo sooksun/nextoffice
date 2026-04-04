@@ -26,6 +26,9 @@ npx prisma studio                   # visual DB browser
 
 # Lint (web only)
 cd apps/web && npm run lint
+
+# Spin up local infrastructure
+docker compose up -d                # starts MariaDB, Redis, MinIO
 ```
 
 There is no test runner configured. No `npm test` exists.
@@ -37,7 +40,11 @@ The API depends on three local services (all default ports):
 - **Redis** on `6379` (Bull queues)
 - **MinIO** on `9000` (file storage, bucket `nextoffice`)
 
-Environment variables live in `apps/api/.env`. Copy from `.env` and fill in `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_ID`, and `ANTHROPIC_API_KEY`.
+Environment variables live in `apps/api/.env`. Copy from `.env.production.example` and fill in:
+- `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_ID`
+- `ANTHROPIC_API_KEY`
+- `CLAUDE_MODEL` (default `claude-sonnet-4-6`)
+- `JWT_SECRET` (random 64-char string), `JWT_EXPIRES_IN` (default `7d`)
 
 For LINE webhook testing locally, use ngrok: `ngrok http 3000` → set Webhook URL to `https://<id>.ngrok.io/line/webhook` in LINE Developers Console.
 
@@ -50,7 +57,7 @@ This is an AI-powered Thai government document management system (e-office) for 
 ```
 apps/api/     NestJS API (port 3000) — all business logic, AI, LINE
 apps/web/     Next.js 16 frontend (port 3001) — dashboard only
-packages/     shared-dto, shared-types (currently minimal)
+packages/     shared-dto, shared-types (currently empty placeholders)
 ```
 
 ### API Module Graph
@@ -64,10 +71,18 @@ AppModule
 ├── IntakeModule (file upload + storage — imports QueueModule)
 ├── AiModule     (OCR, classify, extract, workflows — imports RagModule + LineModule)
 ├── RagModule    (HorizonRag, PolicyRag, Retrieval, Reasoning)
+├── ChatModule
 ├── CasesModule
 ├── DocumentsModule
 └── OrganizationsModule
 ```
+
+**Controllers per module:**
+- `LineModule`: `line-webhook.controller`, `line-reply.controller`
+- `IntakeModule`: `intake.controller`
+- All other modules have one controller matching the module name.
+
+**Google Drive integration** lives in `IntakeModule` (`google-drive.service.ts`); async backups run via `drive-backup.processor.ts` on the `file-intake` queue.
 
 ### Document Processing Pipeline
 
@@ -124,9 +139,13 @@ Prisma uses `BigInt` for all `@id` fields. JSON serialization will throw if a Bi
 
 ### Prisma Setup
 
-Schema: `apps/api/prisma/schema.prisma`  
-Generated client output: `apps/api/generated/prisma` (not the default location)  
-The `prisma.config.ts` at the api root configures this custom output path.
+Schema: `apps/api/prisma/schema.prisma`
+Generated client output: `apps/api/generated/prisma` (custom path set in the `generator client` block of the schema — not the default location).
+
+### TypeScript Configuration
+
+- **API** (`apps/api`): `noImplicitAny: false`, `strictNullChecks: false` — strict mode is intentionally off. Path alias: `@shared/*` → `packages/shared-types/src/*`.
+- **Web** (`apps/web`): `strict: true`. Path alias: `@/*` → `src/*`.
 
 ### Next.js Version Note
 
@@ -137,3 +156,9 @@ The `prisma.config.ts` at the api root configures this custom output path.
 `apps/web/src/lib/api.ts` exports `apiFetch<T>()` — a thin wrapper around `fetch`. Base URL is `NEXT_PUBLIC_API_URL` (default `http://localhost:3000`). All frontend API calls go through this helper.
 
 Swagger docs for the API are available at `http://localhost:3000/api/docs` when running locally.
+
+### Automated Hooks (`.claude/settings.json`)
+
+PostToolUse hooks fire automatically after file edits:
+- **ESLint** runs on any edited `apps/web/**/*.ts(x)` file.
+- **TypeScript type check** runs asynchronously on edits to both `apps/web/**/*.ts(x)` and `apps/api/**/*.ts(x)` — output is tailed to the last 15 lines.

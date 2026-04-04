@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { DocumentsController } from './controllers/documents.controller';
 import { DocumentsService } from './services/documents.service';
 import { IntakeModule } from '../intake/intake.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [IntakeModule],
+  imports: [IntakeModule, AuthModule],
   controllers: [DocumentsController],
   providers: [DocumentsService],
   exports: [DocumentsService],

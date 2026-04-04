@@ -12,24 +12,32 @@ datasource db {
 // ─────────────────────────────────────────────
 
 model Organization {
-  id          BigInt   @id @default(autoincrement())
-  name        String   @db.VarChar(255)
-  shortName   String?  @map("short_name") @db.VarChar(100)
-  orgCode     String?  @map("org_code") @db.VarChar(50)
-  orgType     String   @map("org_type") @db.VarChar(50) @default("school")
-  address     String?  @db.Text
-  province    String?  @db.VarChar(100)
-  district    String?  @db.VarChar(100)
-  isActive    Boolean  @map("is_active") @default(true)
-  createdAt   DateTime @map("created_at") @default(now())
-  updatedAt   DateTime @map("updated_at") @updatedAt
+  id                    BigInt   @id @default(autoincrement())
+  name                  String   @db.VarChar(255)
+  shortName             String?  @map("short_name") @db.VarChar(100)
+  orgCode               String?  @map("org_code") @db.VarChar(50)
+  orgType               String   @map("org_type") @db.VarChar(50) @default("school")
+  address               String?  @db.Text
+  province              String?  @db.VarChar(100)
+  district              String?  @db.VarChar(100)
+  parentOrganizationId  BigInt?  @map("parent_organization_id")
+  isActive              Boolean  @map("is_active") @default(true)
+  createdAt             DateTime @map("created_at") @default(now())
+  updatedAt             DateTime @map("updated_at") @updatedAt
 
+  parentOrganization   Organization?  @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id])
+  childOrganizations   Organization[] @relation("OrgHierarchy")
   profiles             OrganizationProfile[]
   contextScores        OrganizationContextScore[]
   lineUsers            LineUser[]
+  users                User[]
   inboundCases         InboundCase[]
   documentIntakes      DocumentIntake[]
+  budgets              Budget[]
+  routingsFrom         DocumentRouting[] @relation("RoutingFrom")
+  routingsTo           DocumentRouting[] @relation("RoutingTo")
 
+  @@index([parentOrganizationId])
   @@map("organizations")
 }
 
@@ -331,6 +339,7 @@ model PolicyApplicabilityRule {
 model InboundCase {
   id               BigInt    @id @default(autoincrement())
   organizationId   BigInt    @map("organization_id")
+  academicYearId   BigInt?   @map("academic_year_id")
   title            String    @db.VarChar(255)
   description      String?   @db.LongText
   sourceDocumentId BigInt?   @map("source_document_id")
@@ -341,11 +350,13 @@ model InboundCase {
   updatedAt        DateTime  @map("updated_at") @updatedAt
 
   organization   Organization          @relation(fields: [organizationId], references: [id])
+  academicYear   AcademicYear?         @relation(fields: [academicYearId], references: [id])
   sourceDocument Document?             @relation(fields: [sourceDocumentId], references: [id])
   topics         CaseTopic[]
   retrievals     CaseRetrievalResult[]
   options        CaseOption[]
 
+  @@index([academicYearId])
   @@map("inbound_cases")
 }
 
@@ -487,6 +498,7 @@ model DocumentIntake {
   lineEventId         BigInt?   @map("line_event_id")
   lineUserIdRef       BigInt?   @map("line_user_id_ref")
   organizationId      BigInt?   @map("organization_id")
+  academicYearId      BigInt?   @map("academic_year_id")
   originalFileName    String?   @map("original_file_name") @db.VarChar(255)
   mimeType            String    @map("mime_type") @db.VarChar(100)
   fileExtension       String?   @map("file_extension") @db.VarChar(20)
@@ -504,9 +516,11 @@ model DocumentIntake {
 
   lineEvent            LineEvent?               @relation(fields: [lineEventId], references: [id])
   organization         Organization?            @relation(fields: [organizationId], references: [id])
+  academicYear         AcademicYear?            @relation(fields: [academicYearId], references: [id])
   aiResult             DocumentAiResult?
   conversationSessions LineConversationSession[]
 
+  @@index([academicYearId])
   @@map("document_intakes")
 }
 
@@ -562,4 +576,84 @@ model LineSessionAction {
   session LineConversationSession @relation(fields: [sessionId], references: [id])
 
   @@map("line_session_actions")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 2: Authentication
+// ─────────────────────────────────────────────
+
+model User {
+  id               BigInt    @id @default(autoincrement())
+  email            String    @unique @db.VarChar(255)
+  passwordHash     String    @map("password_hash") @db.VarChar(255)
+  fullName         String    @map("full_name") @db.VarChar(255)
+  roleCode         String    @map("role_code") @db.VarChar(30) // TEACHER | DIRECTOR | DISTRICT_STAFF | ADMIN
+  organizationId   BigInt?   @map("organization_id")
+  isActive         Boolean   @map("is_active") @default(true)
+  lastLoginAt      DateTime? @map("last_login_at")
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([email])
+  @@index([roleCode])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 3: Multi-Year, Multi-School
+// ─────────────────────────────────────────────
+
+model AcademicYear {
+  id        BigInt   @id @default(autoincrement())
+  year      Int      @unique // พ.ศ. เช่น 2567
+  name      String   @db.VarChar(100) // "ปีการศึกษา 2567"
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  isCurrent Boolean  @map("is_current") @default(false)
+  createdAt DateTime @map("created_at") @default(now())
+
+  cases   InboundCase[]
+  intakes DocumentIntake[]
+  budgets Budget[]
+
+  @@map("academic_years")
+}
+
+model Budget {
+  id               BigInt   @id @default(autoincrement())
+  organizationId   BigInt   @map("organization_id")
+  academicYearId   BigInt   @map("academic_year_id")
+  budgetType       String   @map("budget_type") @db.VarChar(100) // "งบดำเนินงาน" | "งบลงทุน" | "งบอุดหนุน"
+  allocatedAmount  Decimal  @map("allocated_amount") @db.Decimal(15, 2)
+  usedAmount       Decimal  @map("used_amount") @db.Decimal(15, 2) @default(0)
+  note             String?  @db.Text
+  createdAt        DateTime @map("created_at") @default(now())
+  updatedAt        DateTime @map("updated_at") @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  @@unique([organizationId, academicYearId, budgetType])
+  @@map("budgets")
+}
+
+model DocumentRouting {
+  id                  BigInt   @id @default(autoincrement())
+  documentId          BigInt?  @map("document_id")
+  documentIntakeId    BigInt?  @map("document_intake_id")
+  fromOrganizationId  BigInt   @map("from_organization_id")
+  toOrganizationId    BigInt   @map("to_organization_id")
+  routedByUserId      BigInt?  @map("routed_by_user_id")
+  action              String   @db.VarChar(30) // forward | assign | cc | return
+  note                String?  @db.Text
+  routedAt            DateTime @map("routed_at") @default(now())
+
+  fromOrganization Organization @relation("RoutingFrom", fields: [fromOrganizationId], references: [id])
+  toOrganization   Organization @relation("RoutingTo", fields: [toOrganizationId], references: [id])
+
+  @@index([fromOrganizationId])
+  @@index([toOrganizationId])
+  @@map("document_routings")
 }

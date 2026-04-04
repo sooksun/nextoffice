@@ -1,7 +1,8 @@
 "use client";
 
-import { Search, Bell, Grid3x3 } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { Search, Bell, Grid3x3, LogOut } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { getUser, logout } from "@/lib/auth";
 
 const NAV_TABS = [
   { label: "ภาพรวม", href: "/" },
@@ -11,6 +12,13 @@ const NAV_TABS = [
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const user = getUser();
+
+  function handleLogout() {
+    logout();
+    router.replace("/login");
+  }
 
   return (
     <header className="shrink-0 h-14 px-6 flex items-center justify-between bg-surface-lowest border-b border-outline-variant/20 shadow-sm z-40">
@@ -58,9 +66,26 @@ export default function Header() {
         <button className="p-2 text-on-surface-variant hover:bg-surface-high rounded-full transition-colors">
           <Grid3x3 size={18} />
         </button>
-        <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary-fixed flex items-center justify-center ml-1 cursor-pointer">
-          <span className="text-xs font-bold text-primary">N</span>
-        </div>
+        <div className="w-px h-5 bg-outline-variant/20 mx-1" />
+        {user && (
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-primary-fixed flex items-center justify-center cursor-pointer">
+              <span className="text-xs font-bold text-primary">
+                {user.fullName.charAt(0)}
+              </span>
+            </div>
+            <span className="text-xs font-medium text-on-surface-variant hidden lg:inline max-w-[120px] truncate">
+              {user.fullName}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="p-1.5 text-outline hover:text-error hover:bg-error-container rounded-lg transition-colors"
+              title="ออกจากระบบ"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

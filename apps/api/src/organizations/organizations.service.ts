@@ -40,4 +40,46 @@ export class OrganizationsService {
     });
     return { profile, scores };
   }
+
+  async getTree() {
+    // Get root orgs (no parent) → include 2-level children
+    const roots = await this.prisma.organization.findMany({
+      where: { parentOrganizationId: null, isActive: true },
+      include: {
+        childOrganizations: {
+          where: { isActive: true },
+          include: {
+            childOrganizations: {
+              where: { isActive: true },
+              orderBy: { name: 'asc' },
+            },
+          },
+          orderBy: { name: 'asc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return roots.map((r) => this.serializeOrg(r));
+  }
+
+  async getChildren(id: number) {
+    const children = await this.prisma.organization.findMany({
+      where: { parentOrganizationId: BigInt(id), isActive: true },
+      orderBy: { name: 'asc' },
+    });
+    return children.map((c) => this.serializeOrg(c));
+  }
+
+  private serializeOrg(org: any) {
+    return {
+      ...org,
+      id: Number(org.id),
+      parentOrganizationId: org.parentOrganizationId
+        ? Number(org.parentOrganizationId)
+        : null,
+      childOrganizations: org.childOrganizations?.map((c: any) =>
+        this.serializeOrg(c),
+      ),
+    };
+  }
 }

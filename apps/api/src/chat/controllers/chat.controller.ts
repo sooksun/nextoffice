@@ -1,7 +1,8 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { Controller, Post, Body, HttpCode, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 import { ChatService } from '../services/chat.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 class ChatMessageDto {
   @IsString()
@@ -11,6 +12,8 @@ class ChatMessageDto {
 }
 
 @ApiTags('chat')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('chat')
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}

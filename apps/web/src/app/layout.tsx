@@ -4,6 +4,8 @@ import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
+import AuthProvider from "@/components/AuthProvider";
+import AppShell from "@/components/AppShell";
 
 const beVietnamPro = Be_Vietnam_Pro({
   variable: "--font-be-vietnam-pro",
@@ -36,14 +38,9 @@ export default function RootLayout({
   return (
     <html lang="th" className={`${beVietnamPro.variable} ${inter.variable} ${sarabun.variable} h-full`}>
       <body className="h-full flex bg-surface text-on-surface antialiased">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <Header />
-          <div className="flex-1 flex overflow-hidden">
-            <main className="flex-1 overflow-y-auto p-6 custom-scrollbar">{children}</main>
-            <ChatPanel />
-          </div>
-        </div>
+        <AuthProvider>
+          <AppShell>{children}</AppShell>
+        </AuthProvider>
       </body>
     </html>
   );

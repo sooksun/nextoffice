@@ -11,6 +11,9 @@ import { DocumentsModule } from './documents/documents.module';
 import { QueueModule } from './queue/queue.module';
 import { ProcessorModule } from './queue/processor.module';
 import { ChatModule } from './chat/chat.module';
+import { AuthModule } from './auth/auth.module';
+import { AcademicYearsModule } from './academic-years/academic-years.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
 
 @Module({
   imports: [
@@ -18,6 +21,7 @@ import { ChatModule } from './chat/chat.module';
     PrismaModule,
     QueueModule,
     ProcessorModule,
+    AuthModule,
     OrganizationsModule,
     LineModule,
     IntakeModule,
@@ -26,6 +30,8 @@ import { ChatModule } from './chat/chat.module';
     CasesModule,
     DocumentsModule,
     ChatModule,
+    AcademicYearsModule,
+    KnowledgeModule,
   ],
 })
 export class AppModule {}

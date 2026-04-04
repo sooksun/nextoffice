@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -40,9 +41,6 @@ const SUGGESTIONS = [
   "หนังสือภายนอกกับภายในต่างกันอย่างไร?",
   "การเก็บรักษาหนังสือราชการ?",
 ];
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
@@ -150,13 +148,10 @@ export default function ChatPanel() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/chat/message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmed }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await apiFetch<{ answer: string; sources: Source[] }>(
+        "/chat/message",
+        { method: "POST", body: JSON.stringify({ query: trimmed }) },
+      );
       setMessages((prev) => [
         ...prev,
         {
