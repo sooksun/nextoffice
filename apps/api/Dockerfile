@@ -14,14 +14,9 @@ RUN npm ci
 # Copy API source + Prisma schema + config
 COPY apps/api/ ./apps/api/
 
-# Generate Prisma client + build NestJS in single layer
+# Generate Prisma client + build NestJS
 WORKDIR /app/apps/api
-RUN npx prisma generate \
-    && echo "=== Generated files ===" \
-    && find generated -type f 2>/dev/null | head -20 || true \
-    && find /app/node_modules/.prisma -type f 2>/dev/null | head -10 || true \
-    && echo "=== Building NestJS ===" \
-    && npx nest build
+RUN npx prisma generate && npx nest build
 
 # ─── Stage 2: Production ───
 FROM node:20-alpine AS runner
