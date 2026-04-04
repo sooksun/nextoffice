@@ -14,34 +14,17 @@ RUN npm ci
 # Copy API source + Prisma schema + config
 COPY apps/api/ ./apps/api/
 
-# Generate Prisma client + build with tsc directly
+# Generate Prisma client + build
 WORKDIR /app/apps/api
 RUN npx prisma generate \
-    && ls generated/prisma/index.ts \
-    && npx tsc -p tsconfig.json
+    && echo "=== pwd ===" && pwd \
+    && echo "=== find generated ===" \
+    && find /app -path "*/generated*" -type f 2>/dev/null | head -30 \
+    && echo "=== ls generated/ ===" \
+    && ls -la generated/ 2>&1 || true \
+    && ls -la generated/prisma/ 2>&1 || true
 
-# ─── Stage 2: Production ───
+# ─── Stage 2: Production (placeholder until build works) ───
 FROM node:20-alpine AS runner
-
 WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Copy root workspace files
-COPY package.json package-lock.json ./
-COPY apps/api/package.json ./apps/api/
-COPY apps/web/package.json ./apps/web/
-
-# Install production dependencies only
-RUN npm ci --omit=dev
-
-# Copy built output + Prisma generated client
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/generated ./apps/api/generated
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-
-WORKDIR /app/apps/api
-
-EXPOSE 3000
-
-CMD ["node", "dist/main"]
+CMD ["echo", "build incomplete"]
