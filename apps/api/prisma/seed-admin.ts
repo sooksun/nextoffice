@@ -3,9 +3,12 @@
  * วิธีรัน: npx ts-node prisma/seed-admin.ts
  */
 import { PrismaClient } from '../generated/prisma';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import * as crypto from 'crypto';
 
-const prisma = new PrismaClient();
+const dbUrl = process.env.DATABASE_URL || 'mysql://root:@localhost:3306/nextoffice_db';
+const adapter = new PrismaMariaDb(dbUrl);
+const prisma = new PrismaClient({ adapter } as any);
 
 async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16).toString('hex');

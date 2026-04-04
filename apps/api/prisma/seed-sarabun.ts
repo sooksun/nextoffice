@@ -3,8 +3,11 @@
  * วิธีรัน: npx ts-node prisma/seed-sarabun.ts
  */
 import { PrismaClient } from '../generated/prisma';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
-const prisma = new PrismaClient();
+const dbUrl = process.env.DATABASE_URL || 'mysql://root:@localhost:3306/nextoffice_db';
+const adapter = new PrismaMariaDb(dbUrl);
+const prisma = new PrismaClient({ adapter } as any);
 
 async function main() {
   console.log('📚 กำลัง seed ข้อมูลสารบรรณพื้นฐาน...\n');
