@@ -14,15 +14,9 @@ RUN npm ci
 # Copy API source + Prisma schema + config
 COPY apps/api/ ./apps/api/
 
-# Generate Prisma client + debug + build
+# Generate Prisma client + build
 WORKDIR /app/apps/api
 RUN npx prisma generate --schema=prisma/schema.prisma \
-    && echo "=== PWD: $(pwd) ===" \
-    && echo "=== Top-level generated/ ===" \
-    && ls -la generated/ 2>&1 \
-    && echo "=== generated/prisma/ ===" \
-    && ls -la generated/prisma/ 2>&1 \
-    && echo "=== Building ===" \
     && npx tsc -p tsconfig.json
 
 # ─── Stage 2: Production ───
