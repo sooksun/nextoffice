@@ -70,7 +70,7 @@ docker compose build --no-cache
 
 # ─── 6. Run Prisma migrations ───
 echo "[6/7] Running Prisma db push..."
-docker compose run --rm api sh -c "npx prisma db push --skip-generate" || {
+docker compose run --rm api sh -c "npx prisma db push" || {
     echo "  Prisma db push failed — will retry after services start"
 }
 
@@ -92,9 +92,9 @@ echo "════════════════════════�
 echo "  Deploy complete!"
 echo "══════════════════════════════════════════"
 echo ""
-echo "  Web:        http://$(hostname -I | awk '{print $1}'):80"
+echo "  Web:        http://$(hostname -I | awk '{print $1}'):8080"
 echo "  API:        http://$(hostname -I | awk '{print $1}'):3000"
-echo "  API Docs:   http://$(hostname -I | awk '{print $1}'):80/api/docs"
+echo "  API Docs:   http://$(hostname -I | awk '{print $1}'):8080/api/docs"
 echo "  MinIO:      http://$(hostname -I | awk '{print $1}'):9001"
 echo "  Database:   192.168.1.4:3306/nextoffice_db"
 echo ""
