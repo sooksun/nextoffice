@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 interface Organization {
   id: string;
   name: string;

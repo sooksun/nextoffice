@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/api";
 import { FileText, Briefcase, FolderOpen, Building2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 interface Paged { total: number; data: unknown[] }
 function countResult(val: unknown): number {
   if (Array.isArray(val)) return val.length;

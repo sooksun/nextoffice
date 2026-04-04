@@ -2,6 +2,8 @@ import { apiFetch } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 interface InboundCase {
   id: string;
   caseStatus: string;

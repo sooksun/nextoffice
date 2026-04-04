@@ -14,17 +14,36 @@ RUN npm ci
 # Copy API source + Prisma schema + config
 COPY apps/api/ ./apps/api/
 
-# Generate Prisma client + build
+# Generate Prisma client + debug + build
 WORKDIR /app/apps/api
-RUN npx prisma generate \
-    && echo "=== pwd ===" && pwd \
-    && echo "=== find generated ===" \
-    && find /app -path "*/generated*" -type f 2>/dev/null | head -30 \
-    && echo "=== ls generated/ ===" \
-    && ls -la generated/ 2>&1 || true \
-    && ls -la generated/prisma/ 2>&1 || true
+RUN npx prisma generate --schema=prisma/schema.prisma \
+    && echo "=== PWD: $(pwd) ===" \
+    && echo "=== Top-level generated/ ===" \
+    && ls -la generated/ 2>&1 \
+    && echo "=== generated/prisma/ ===" \
+    && ls -la generated/prisma/ 2>&1 \
+    && echo "=== Building ===" \
+    && npx tsc -p tsconfig.json
 
-# ─── Stage 2: Production (placeholder until build works) ───
+# ─── Stage 2: Production ───
 FROM node:20-alpine AS runner
+
 WORKDIR /app
-CMD ["echo", "build incomplete"]
+
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/generated ./apps/api/generated
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+
+WORKDIR /app/apps/api
+
+EXPOSE 3000
+
+CMD ["node", "dist/main"]
