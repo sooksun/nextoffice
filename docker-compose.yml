@@ -49,7 +49,7 @@ services:
       MINIO_PORT: 9000
       MINIO_USE_SSL: "false"
     ports:
-      - "3000:3000"
+      - "9911:3000"
     depends_on:
       redis:
         condition: service_healthy
@@ -64,30 +64,17 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=
+        - NEXT_PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:9911}
     restart: unless-stopped
     environment:
       NODE_ENV: production
     ports:
-      - "3001:3001"
+      - "9910:3001"
     depends_on:
       - api
     networks:
       - nextoffice
 
-  # ─── Nginx Reverse Proxy ───
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "8080:80"
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - api
-      - web
-    networks:
-      - nextoffice
 
 volumes:
   redis_data:

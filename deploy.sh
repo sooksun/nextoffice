@@ -64,7 +64,13 @@ docker run --rm --network host mariadb:11 \
     -e "CREATE DATABASE IF NOT EXISTS nextoffice_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
     2>/dev/null || echo "  (database may already exist or host unreachable — check manually)"
 
-# ─── 5. Build Docker images ───
+# ─── 5. Open firewall ports ───
+if command -v ufw &>/dev/null; then
+    sudo ufw allow 9910/tcp comment "NextOffice Web" 2>/dev/null || true
+    sudo ufw allow 9911/tcp comment "NextOffice API" 2>/dev/null || true
+fi
+
+# ─── 6. Build Docker images ───
 echo "[5/7] Building Docker images..."
 docker compose build --no-cache
 
@@ -92,9 +98,9 @@ echo "════════════════════════�
 echo "  Deploy complete!"
 echo "══════════════════════════════════════════"
 echo ""
-echo "  Web:        http://$(hostname -I | awk '{print $1}'):8080"
-echo "  API:        http://$(hostname -I | awk '{print $1}'):3000"
-echo "  API Docs:   http://$(hostname -I | awk '{print $1}'):8080/api/docs"
+echo "  Web:        http://$(hostname -I | awk '{print $1}'):9910"
+echo "  API:        http://$(hostname -I | awk '{print $1}'):9911"
+echo "  API Docs:   http://$(hostname -I | awk '{print $1}'):9911/api/docs"
 echo "  MinIO:      http://$(hostname -I | awk '{print $1}'):9001"
 echo "  Database:   192.168.1.4:3306/nextoffice_db"
 echo ""
