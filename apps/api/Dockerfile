@@ -14,9 +14,11 @@ RUN npm ci
 # Copy API source + Prisma schema + config
 COPY apps/api/ ./apps/api/
 
-# Generate Prisma client + build NestJS
+# Generate Prisma client + build with tsc directly
 WORKDIR /app/apps/api
-RUN npx prisma generate && npx nest build
+RUN npx prisma generate \
+    && ls generated/prisma/index.ts \
+    && npx tsc -p tsconfig.json
 
 # ─── Stage 2: Production ───
 FROM node:20-alpine AS runner
