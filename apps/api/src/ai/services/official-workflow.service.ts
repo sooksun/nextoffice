@@ -41,6 +41,9 @@ export class OfficialWorkflowService {
       },
     });
 
+    // Ensure organization exists
+    const orgId = await this.ensureOrganization(intake.organizationId);
+
     // Create Document record
     const document = await this.prisma.document.create({
       data: {
@@ -56,7 +59,6 @@ export class OfficialWorkflowService {
     });
 
     // Create InboundCase
-    const orgId = intake.organizationId || BigInt(1);
     const inboundCase = await this.prisma.inboundCase.create({
       data: {
         organizationId: orgId,
@@ -68,8 +70,12 @@ export class OfficialWorkflowService {
       },
     });
 
-    // Run RAG Analysis + generate options
-    await this.reasoning.generateCaseOptions(inboundCase.id, orgId, metadata.subjectText);
+    // Run RAG Analysis + generate options (non-blocking)
+    try {
+      await this.reasoning.generateCaseOptions(inboundCase.id, orgId, metadata.subjectText);
+    } catch (ragErr) {
+      this.logger.warn(`RAG analysis failed (non-blocking): ${ragErr.message}`);
+    }
 
     // Mark intake as completed
     await this.prisma.documentIntake.update({
@@ -94,5 +100,28 @@ export class OfficialWorkflowService {
     }
 
     this.logger.log(`Official workflow completed for intake ${documentIntakeId}, case ${inboundCase.id}`);
+  }
+
+  private async ensureOrganization(orgId: bigint | null): Promise<bigint> {
+    if (orgId) {
+      const exists = await this.prisma.organization.findUnique({ where: { id: orgId } });
+      if (exists) return orgId;
+    }
+
+    // Find or create default organization
+    let defaultOrg = await this.prisma.organization.findFirst({
+      where: { orgCode: 'DEFAULT' },
+    });
+    if (!defaultOrg) {
+      defaultOrg = await this.prisma.organization.create({
+        data: {
+          name: 'หน่วยงานเริ่มต้น',
+          orgCode: 'DEFAULT',
+          orgType: 'school',
+        },
+      });
+      this.logger.log(`Created default organization #${defaultOrg.id}`);
+    }
+    return defaultOrg.id;
   }
 }

@@ -21,6 +21,19 @@ export class OfficialProcessor {
     const intakeId = BigInt(job.data.documentIntakeId);
     this.logger.log(`Official process for intake ${intakeId}`);
 
+    // Open session first so user can interact even if workflow partially fails
+    const intake = await this.prisma.documentIntake.findUnique({
+      where: { id: intakeId },
+    });
+    if (intake?.lineUserIdRef) {
+      try {
+        await this.sessionSvc.openSession(intake.lineUserIdRef, intakeId, 'official_followup');
+        this.logger.log(`Opened session for user ${intake.lineUserIdRef} on intake ${intakeId}`);
+      } catch (sessionErr) {
+        this.logger.warn(`Failed to open session: ${sessionErr.message}`);
+      }
+    }
+
     await this.prisma.documentIntake.update({
       where: { id: intakeId },
       data: { aiStatus: 'analyzing' },
@@ -28,15 +41,6 @@ export class OfficialProcessor {
 
     try {
       await this.officialWorkflow.process(intakeId);
-
-      // Open a conversation session so the user can do follow-up actions
-      const intake = await this.prisma.documentIntake.findUnique({
-        where: { id: intakeId },
-      });
-      if (intake?.lineUserIdRef) {
-        await this.sessionSvc.openSession(intake.lineUserIdRef, intakeId, 'official_followup');
-        this.logger.log(`Opened session for user ${intake.lineUserIdRef} on intake ${intakeId}`);
-      }
     } catch (err) {
       this.logger.error(`Official workflow failed: ${err.message}`);
       await this.prisma.documentIntake.update({
