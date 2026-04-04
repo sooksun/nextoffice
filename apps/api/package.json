@@ -9,8 +9,8 @@
     "start": "node dist/main",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "seed:admin": "npx ts-node --project tsconfig.seed.json --transpile-only prisma/seed-admin.ts",
-    "seed:sarabun": "npx ts-node --project tsconfig.seed.json --transpile-only prisma/seed-sarabun.ts",
+    "seed:admin": "node -r dotenv/config dist/prisma/seed-admin.js",
+    "seed:sarabun": "node -r dotenv/config dist/prisma/seed-sarabun.js",
     "seed:all": "npm run seed:admin && npm run seed:sarabun"
   },
   "keywords": [],
