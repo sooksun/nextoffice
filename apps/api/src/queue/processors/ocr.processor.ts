@@ -13,23 +13,8 @@ export class OcrProcessor {
   @Process('ai.ocr.extract')
   async handleOcrExtract(job: Job<{ documentIntakeId: string }>) {
     const intakeId = BigInt(job.data.documentIntakeId);
-    this.logger.log(`OCR extract for intake ${intakeId}`);
-
-    const intake = await this.prisma.documentIntake.findUnique({
-      where: { id: intakeId },
-    });
-    if (!intake) return;
-
-    await this.prisma.documentIntake.update({
-      where: { id: intakeId },
-      data: { ocrStatus: 'processing' },
-    });
-
-    // OCR is handled by OcrService — mark as done after real extraction
-    // For now we mark done so the pipeline continues
-    await this.prisma.documentIntake.update({
-      where: { id: intakeId },
-      data: { ocrStatus: 'done' },
-    });
+    this.logger.log(`OCR extract job for intake ${intakeId} — OCR is handled inline by IntakeProcessor`);
+    // OCR is now performed directly in IntakeProcessor (which has the file buffer).
+    // This processor exists only as a queue handler placeholder.
   }
 }

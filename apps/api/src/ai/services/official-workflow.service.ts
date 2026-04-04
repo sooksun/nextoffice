@@ -77,11 +77,10 @@ export class OfficialWorkflowService {
       data: { aiStatus: 'completed' },
     });
 
-    // Reply to LINE user if applicable
+    // Push message to LINE user (reply token expires too fast for async pipeline)
     if (intake.lineEvent) {
-      const payload = JSON.parse(intake.lineEvent.rawPayloadJson);
-      const replyToken = payload.replyToken;
-      if (replyToken) {
+      const lineUserId = intake.lineEvent.lineUserId;
+      if (lineUserId) {
         const messages = this.messaging.buildOfficialDocumentReply({
           subject: metadata.subjectText,
           issuingAuthority: metadata.issuingAuthority,
@@ -90,7 +89,7 @@ export class OfficialWorkflowService {
           deadlineDate: metadata.deadlineDate,
           summary: metadata.summary,
         });
-        await this.messaging.reply(replyToken, messages);
+        await this.messaging.push(lineUserId, messages);
       }
     }
 

@@ -33,13 +33,12 @@ export class NonOfficialWorkflowService {
       data: { aiStatus: 'awaiting_user_intent' },
     });
 
-    // Reply to LINE user with quick choices
+    // Push message to LINE user (reply token expires too fast for async pipeline)
     if (intake.lineEvent) {
-      const payload = JSON.parse(intake.lineEvent.rawPayloadJson);
-      const replyToken = payload.replyToken;
-      if (replyToken) {
+      const lineUserId = intake.lineEvent.lineUserId;
+      if (lineUserId) {
         const messages = this.messaging.buildNonOfficialDocumentReply();
-        await this.messaging.reply(replyToken, messages);
+        await this.messaging.push(lineUserId, messages);
       }
     }
 
