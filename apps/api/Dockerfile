@@ -37,7 +37,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/generated ./apps/api/generated
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
+COPY apps/api/prisma.config.js ./apps/api/prisma.config.js
 
 WORKDIR /app/apps/api
 
