@@ -8,8 +8,8 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
-# Install all dependencies (workspace-aware)
-RUN npm ci --workspace=apps/api
+# Install all dependencies (hoisted to root node_modules)
+RUN npm ci
 
 # Copy API source + Prisma schema
 COPY apps/api/ ./apps/api/
@@ -34,7 +34,7 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
 # Install production dependencies only
-RUN npm ci --workspace=apps/api --omit=dev
+RUN npm ci --omit=dev
 
 # Copy built output + Prisma
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
