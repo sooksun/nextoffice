@@ -14,10 +14,11 @@ RUN npm ci
 # Copy API source + Prisma schema + config
 COPY apps/api/ ./apps/api/
 
-# Generate Prisma client + build
+# Generate Prisma client, ensure index.ts exists, then build
 WORKDIR /app/apps/api
 RUN npx prisma generate --schema=prisma/schema.prisma \
-    && npx tsc -p tsconfig.json
+    && test -f generated/prisma/index.ts || echo "export * from './client';" > generated/prisma/index.ts \
+    && npx nest build
 
 # ─── Stage 2: Production ───
 FROM node:20-alpine AS runner

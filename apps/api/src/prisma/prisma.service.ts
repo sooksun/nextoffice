@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient } from '../../generated/prisma/client';
+import { PrismaClient } from '../../generated/prisma';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
 // Prisma v7 uses a factory pattern; we cast to any to allow extension
