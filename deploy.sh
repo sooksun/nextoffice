@@ -76,9 +76,17 @@ docker compose build --no-cache
 
 # ─── 6. Run Prisma migrations ───
 echo "[6/7] Running Prisma db push..."
-docker compose run --rm api sh -c "npx prisma db push" || {
-    echo "  Prisma db push failed — will retry after services start"
-}
+# Extract DATABASE_URL from .env.production and pass it explicitly
+DB_URL=$(grep -E '^DATABASE_URL=' .env.production | cut -d'=' -f2-)
+if [ -n "$DB_URL" ]; then
+    docker compose run --rm -e "DATABASE_URL=$DB_URL" api sh -c "npx prisma db push" || {
+        echo "  Prisma db push failed — run manually:"
+        echo "  docker compose exec api sh -c \"DATABASE_URL='$DB_URL' npx prisma db push\""
+    }
+else
+    echo "  WARNING: DATABASE_URL not found in .env.production"
+    echo "  Run manually: docker compose exec api sh -c \"DATABASE_URL='...' npx prisma db push\""
+fi
 
 # ─── 7. Start services ───
 echo "[7/7] Starting all services..."
