@@ -1,4 +1,8 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Server-side (Docker): use internal network URL; Client-side: use public URL
+const API_BASE =
+  typeof window === "undefined"
+    ? (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "")
+    : (process.env.NEXT_PUBLIC_API_URL ?? "");
 
 function clearClientAuth() {
   if (typeof window === "undefined") return;
