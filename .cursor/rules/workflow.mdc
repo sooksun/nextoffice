@@ -1,0 +1,40 @@
+---
+description: Rules for working alongside Claude Code in the Cursor terminal
+alwaysApply: true
+---
+
+# Dual-Tool Workflow Rules
+
+## Role Division
+
+| Task | Use |
+|------|-----|
+| Inline edit, quick fix, rename | Cursor AI |
+| Screenshot / error image analysis | Cursor AI |
+| Shell commands, git, npm scripts | Claude Code (terminal) |
+| Multi-file refactor, new modules | Claude Code |
+| Prisma schema + db push | Claude Code (must run from `apps/api/`) |
+| Error from terminal/log paste | Either — paste as text to Claude Code |
+
+## Conflict Prevention
+
+1. **Check Claude Code is idle** before making Cursor inline edits on the same file
+2. **Never auto-format on save** in a file Claude Code is actively editing — wait for Claude to finish
+3. **Git commit frequently** — after each logical unit of work, commit so neither tool loses context
+
+## Shared Linting
+Both tools must respect:
+- ESLint config in `apps/web/` — runs automatically after Claude Code edits
+- TypeScript strict in `apps/web/`, loose in `apps/api/`
+- No `console.log` left in production code
+
+## Error Workflow
+1. Screenshot error → paste into Cursor AI for visual analysis
+2. Copy error text → paste into Claude Code terminal for fix
+3. Claude Code fixes → Cursor reviews the diff inline
+
+## Files Owned by Claude Code (do not edit manually)
+- `CLAUDE.md` — update via Claude Code when architecture changes
+- `apps/api/prisma/schema.prisma` — always run `npx prisma generate` after changes
+- `apps/api/prisma.config.js` — Prisma v7 config, fragile
+- `.claude/settings.json` — Claude Code hooks

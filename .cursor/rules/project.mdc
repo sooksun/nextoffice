@@ -1,0 +1,46 @@
+---
+description: Project context and architecture for nextoffice — read on every session
+alwaysApply: true
+---
+
+# nextoffice — Project Context
+
+> Full architecture details are in @CLAUDE.md — read it before making any change.
+
+## Stack
+- **API**: NestJS (port 3000) — `apps/api/`
+- **Web**: Next.js 16 (port 3001) — `apps/web/`
+- **DB**: MariaDB via Prisma v7 + `@prisma/adapter-mariadb`
+- **Queue**: Bull/Redis — four queues: `line-events`, `file-intake`, `ai-processing`, `outbound-messages`
+- **Storage**: MinIO (bucket `nextoffice`)
+
+## Critical Rules
+
+### BigInt IDs
+All Prisma `@id` fields are `BigInt`. Always call `serialize()` before returning from any service/controller. Never let a BigInt reach JSON serialization.
+
+### Prisma Client Location
+Generated at `apps/api/generated/prisma` — **not** the default path. Import from there.
+
+### LLM Calls
+Use `axios.post` to `https://api.anthropic.com/v1/messages` directly — not the Anthropic SDK. See `ClassifierService` or `ReasoningService` for the pattern.
+
+### TypeScript Strictness
+- `apps/api`: `noImplicitAny: false`, `strictNullChecks: false` — loose on purpose
+- `apps/web`: `strict: true` — enforce types
+
+### Next.js 16
+Before editing `apps/web/`, read `apps/web/AGENTS.md`. APIs differ from training data.
+
+## Prisma CLI (run from `apps/api/`)
+```bash
+npx prisma generate    # after schema changes
+npx prisma db push     # sync schema → DB
+```
+
+## Working with Claude Code
+- Claude Code runs in the Cursor terminal — they share the same filesystem
+- Claude Code handles: shell commands, git, long refactors, multi-file tasks
+- Cursor handles: inline edits, quick fixes, screenshot error analysis
+- **Do not edit the same file simultaneously** — always check Claude Code is idle before making inline edits
+- `CLAUDE.md` is the shared context — keep it up to date when architecture changes
