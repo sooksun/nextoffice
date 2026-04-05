@@ -94,7 +94,7 @@ AppModule
 **Path 1: Image/File from LINE**
 ```
 LINE → POST /line/webhook
-  → LineWebhookController: dispatchLineIntake(eventId)
+  → LineWebhookController: reply "กรุณารอสักครู่" → dispatchLineIntake(eventId)
   → IntakeProcessor [queue: line-events, job: line.intake.received]
     → creates DocumentIntake record
   → dispatchOcr → OcrProcessor → OcrService (extracts text)
@@ -142,6 +142,8 @@ All LLM calls use `axios.post` directly to `https://api.anthropic.com/v1/message
 
 Prisma uses `BigInt` for all `@id` fields. JSON serialization will throw if a BigInt leaks into a response. Every service has a `serialize()` helper that converts IDs with `Number()` before returning. Always follow this pattern when adding new endpoints.
 
+**Nested relations too:** When a query uses `include:` (e.g., `include: { organization: true, aiResult: true }`), the `serialize()` method must also convert BigInt fields inside every nested object. Forgetting this causes `"Do not know how to serialize a BigInt"` crashes on any API endpoint that returns joined data.
+
 ### Prisma Setup
 
 Schema: `apps/api/prisma/schema.prisma`
@@ -160,9 +162,41 @@ Prisma v7 with MariaDB driver adapter: `apps/api/prisma.config.js` configures `@
 
 ### Web → API Communication
 
-`apps/web/src/lib/api.ts` exports `apiFetch<T>()` — a thin wrapper around `fetch`. Base URL is `NEXT_PUBLIC_API_URL` (default `http://localhost:3000`). All frontend API calls go through this helper.
+`apps/web/src/lib/api.ts` exports `apiFetch<T>()` — a thin wrapper around `fetch`. Uses `INTERNAL_API_URL` for server-side rendering (Docker: `http://api:3000`) and `NEXT_PUBLIC_API_URL` for client-side (browser: public URL). All frontend API calls go through this helper.
 
 Swagger docs for the API are available at `http://localhost:3000/api/docs` when running locally.
+
+### Document Workflow
+
+Case status state machine (transitions enforced in `case-workflow.service.ts` → `VALID_TRANSITIONS`):
+```
+new → analyzing → proposed (RAG done) → registered (ลงรับ) → assigned → in_progress → completed → archived
+```
+
+`ReasoningService.generateCaseOptions()` sets status to `proposed` after generating options A/B/C. The `register()` method in `CaseWorkflowService` generates a registration number and transitions to `registered`.
+
+### LINE Bot: Pairing & Workflow
+
+**Auto-pairing flow** (`line-pairing.service.ts` → `handleAutoLink()`):
+1. Unlinked LINE user sends any message → system prompts for email
+2. User types email → matched against `User.email` → auto-linked if unique
+3. Session tracked via `LineConversationSession` with `sessionType: 'pairing'`
+4. Legacy 6-digit pairing code (`ผูกบัญชี 123456`) still works as fallback
+
+**Webhook command routing** (`line-webhook.controller.ts`): Messages are intercepted in this order:
+1. Auto-pairing check (unlinked users)
+2. Regex command matching (ผูกบัญชี/ลงรับ/มอบหมาย/รับทราบ/เสร็จแล้ว/งานของฉัน)
+3. Text fallback → RAG pipeline via `dispatchLineMenuAction`
+4. Image/File → immediate "กรุณารอสักครู่" reply → `dispatchLineIntake`
+
+### Production Deployment
+
+- **Domain**: `nextoffice.cnppai.com` — API on port 9911, Web on port 9910
+- **Server path**: `/DATA/AppData/www/nextoffice`
+- **MariaDB**: runs on host at `192.168.1.4:3306` (not in Docker)
+- `.env.production` is gitignored — must be edited directly on the server
+- **Deploy**: `git pull && docker compose up -d --build api web`
+- `PUBLIC_API_URL` must be set in `.env.production` for the web dashboard to work — it becomes `NEXT_PUBLIC_API_URL` at build time (browser URL). `INTERNAL_API_URL` is set in docker-compose.yml for server-side rendering.
 
 ### Cursor AI Integration
 

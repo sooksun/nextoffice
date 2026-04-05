@@ -13,11 +13,12 @@ alwaysApply: true
 - **DB**: MariaDB via Prisma v7 + `@prisma/adapter-mariadb`
 - **Queue**: Bull/Redis — four queues: `line-events`, `file-intake`, `ai-processing`, `outbound-messages`
 - **Storage**: MinIO (bucket `nextoffice`)
+- **OCR**: Gemini API (ไม่ใช่ Anthropic) — `gemini-api.service.ts`
 
 ## Critical Rules
 
 ### BigInt IDs
-All Prisma `@id` fields are `BigInt`. Always call `serialize()` before returning from any service/controller. Never let a BigInt reach JSON serialization.
+All Prisma `@id` fields are `BigInt`. Always call `serialize()` before returning from any service/controller. Never let a BigInt reach JSON serialization. **รวม nested relations ด้วย** — ถ้า `include:` relation ใดก็ตาม ต้อง serialize BigInt ในนั้นด้วย ไม่ใช่แค่ top-level fields
 
 ### Prisma Client Location
 Generated at `apps/api/generated/prisma` — **not** the default path. Import from there.
@@ -37,6 +38,66 @@ Before editing `apps/web/`, read `apps/web/AGENTS.md`. APIs differ from training
 npx prisma generate    # after schema changes
 npx prisma db push     # sync schema → DB
 ```
+
+## Document Workflow State Machine
+```
+new → analyzing → proposed (RAG done) → registered (ลงรับ) → assigned → in_progress → completed → archived
+```
+- Transitions ที่ allowed อยู่ใน `case-workflow.service.ts` → `VALID_TRANSITIONS`
+- `ReasoningService` เปลี่ยน status เป็น `proposed` หลังสร้าง options A/B/C
+
+## LINE Bot Architecture
+
+### Auto-Pairing Flow (ผูกบัญชี)
+1. Unlinked LINE user ส่งข้อความใดก็ได้ → ระบบถามอีเมล
+2. User พิมพ์อีเมล → match กับ `User.email` → auto-link + activate
+3. เมื่อ linked แล้ว copy `organizationId` + `roleCode` ไป `LineUser`
+- Code: `line-pairing.service.ts` → `handleAutoLink()`
+- Session: `LineConversationSession` with `sessionType: 'pairing'`
+
+### Webhook Command Routing (`line-webhook.controller.ts`)
+ลำดับการ intercept ข้อความ:
+1. **Auto-pairing check** — ถ้า unlinked → prompt email → `continue`
+2. **Regex commands** — ผูกบัญชี/ลงรับ/มอบหมาย/รับทราบ/เสร็จแล้ว/งานของฉัน
+3. **Text fallback** → `dispatchLineMenuAction` (RAG pipeline)
+4. **Image/File** → reply "กรุณารอสักครู่" → `dispatchLineIntake`
+
+### LINE Commands Reference
+| Command | Pattern | Handler |
+|---------|---------|---------|
+| ผูกบัญชี 123456 | `^ผูกบัญชี\s*(\d{6})$` | pairingSvc.handlePairingMessage |
+| ลงรับ #3 | `^ลงรับ\s*#(\d+)$` | workflowSvc.handleRegister |
+| มอบหมาย #3 | `^มอบหมาย\s*#(\d+)$` | workflowSvc.handleShowStaffList |
+| มอบหมายให้ #3 @5 | `^มอบหมายให้\s*#(\d+)\s*@(\d+)$` | workflowSvc.handleAssignTo |
+| รับทราบ #1 | `^รับทราบ\s*#(\d+)$` | workflowSvc.handleAcceptAssignment |
+| เสร็จแล้ว #1 | `^เสร็จแล้ว\s*#(\d+)$` | workflowSvc.handleCompleteAssignment |
+| งานของฉัน | `^(งานของฉัน\|สถานะงาน)$` | workflowSvc.handleMyTasks |
+
+## Production Deployment
+
+- **Domain**: `nextoffice.cnppai.com`
+- **Server path**: `/DATA/AppData/www/nextoffice`
+- **API**: port 9911 (docker 9911→3000)
+- **Web**: port 9910 (docker 9910→3001)
+- **MariaDB**: 192.168.1.4:3306 (host machine, ไม่อยู่ใน Docker)
+- `.env.production` อยู่ใน `.gitignore` → แก้บน server เท่านั้น
+
+### Docker SSR URL (สำคัญ)
+- `NEXT_PUBLIC_API_URL` = bake ตอน build → browser ใช้ public URL
+- `INTERNAL_API_URL` = runtime env → server-side rendering ใช้ `http://api:3000` (Docker network)
+- ถ้า `PUBLIC_API_URL` ไม่ตั้งค่า → dashboard แสดง 0 ทุกหน้า
+
+### Deploy Commands
+```bash
+cd /DATA/AppData/www/nextoffice
+git pull
+docker compose up -d --build api web
+```
+
+## Pending / Known Issues (2026-04-05)
+- [ ] ต้อง deploy code ล่าสุดบน server (auto-pairing, BigInt fix, SSR URL fix)
+- [ ] ต้องเพิ่ม `PUBLIC_API_URL=...` ใน `.env.production` บน server
+- [ ] SSH key จาก local ไม่ตรงกับ server — ต้อง fix หรือ deploy manual
 
 ## Working with Claude Code
 - Claude Code runs in the Cursor terminal — they share the same filesystem

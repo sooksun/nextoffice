@@ -36,6 +36,10 @@ model Organization {
   budgets              Budget[]
   routingsFrom         DocumentRouting[] @relation("RoutingFrom")
   routingsTo           DocumentRouting[] @relation("RoutingTo")
+  workGroups           WorkGroup[]
+  staffAssignments     StaffAssignment[]
+  outboundDocuments    OutboundDocument[]
+  documentRegistries   DocumentRegistry[]
 
   @@index([parentOrganizationId])
   @@map("organizations")
@@ -175,9 +179,12 @@ model DocumentChunk {
   tokenCount    Int?     @map("token_count")
   pageNo        Int?     @map("page_no")
   sectionTitle  String?  @map("section_title") @db.VarChar(255)
-  semanticLabel String?  @map("semantic_label") @db.VarChar(100)
-  embeddingId   String?  @map("embedding_id") @db.VarChar(100)
-  createdAt     DateTime @map("created_at") @default(now())
+  semanticLabel String?   @map("semantic_label") @db.VarChar(100)
+  embeddingId   String?   @map("embedding_id") @db.VarChar(100)
+  qdrantPointId String?   @map("qdrant_point_id") @db.VarChar(36)
+  embeddingModel String?  @map("embedding_model") @db.VarChar(50)
+  embeddedAt    DateTime? @map("embedded_at")
+  createdAt     DateTime  @map("created_at") @default(now())
 
   document Document @relation(fields: [documentId], references: [id])
 
@@ -352,21 +359,25 @@ model InboundCase {
   registeredByUserId    BigInt?   @map("registered_by_user_id")
   assignedToUserId      BigInt?   @map("assigned_to_user_id") // ผู้รับผิดชอบหลัก
   selectedOptionId      BigInt?   @map("selected_option_id") // option A/B/C ที่เลือก
+  urgencyLevel          String    @map("urgency_level") @db.VarChar(20) @default("normal") // normal | urgent | very_urgent | most_urgent
+  securityLevel         String    @map("security_level") @db.VarChar(20) @default("normal") // normal | confidential | secret
   directorNote          String?   @map("director_note") @db.Text // คำสั่ง ผอ.
   googleCalendarEventId String?   @map("google_calendar_event_id") @db.VarChar(255)
   createdAt             DateTime  @map("created_at") @default(now())
   updatedAt             DateTime  @map("updated_at") @updatedAt
 
-  organization     Organization          @relation(fields: [organizationId], references: [id])
-  academicYear     AcademicYear?         @relation(fields: [academicYearId], references: [id])
-  sourceDocument   Document?             @relation(fields: [sourceDocumentId], references: [id])
-  registeredBy     User?                 @relation("CaseRegisteredBy", fields: [registeredByUserId], references: [id])
-  assignedTo       User?                 @relation("CaseAssignedTo", fields: [assignedToUserId], references: [id])
-  topics           CaseTopic[]
-  retrievals       CaseRetrievalResult[]
-  options          CaseOption[]
-  assignments      CaseAssignment[]
-  activities       CaseActivity[]
+  organization       Organization          @relation(fields: [organizationId], references: [id])
+  academicYear       AcademicYear?         @relation(fields: [academicYearId], references: [id])
+  sourceDocument     Document?             @relation(fields: [sourceDocumentId], references: [id])
+  registeredBy       User?                 @relation("CaseRegisteredBy", fields: [registeredByUserId], references: [id])
+  assignedTo         User?                 @relation("CaseAssignedTo", fields: [assignedToUserId], references: [id])
+  topics             CaseTopic[]
+  retrievals         CaseRetrievalResult[]
+  options            CaseOption[]
+  assignments        CaseAssignment[]
+  activities         CaseActivity[]
+  outboundDocuments  OutboundDocument[]
+  documentRegistries DocumentRegistry[]
 
   @@index([academicYearId])
   @@index([status])
@@ -605,6 +616,7 @@ model User {
   fullName         String    @map("full_name") @db.VarChar(255)
   roleCode         String    @map("role_code") @db.VarChar(30) // DIRECTOR | VICE_DIRECTOR | HEAD_TEACHER | TEACHER | CLERK | ADMIN
   organizationId   BigInt?   @map("organization_id")
+  workGroupId      BigInt?   @map("work_group_id") // primary work group assignment
   positionTitle    String?   @map("position_title") @db.VarChar(255) // "ครูชำนาญการพิเศษ", "ผู้อำนวยการโรงเรียน"
   department       String?   @db.VarChar(100) // academic | budget | personnel | general
   responsibilities String?   @db.Text // free text: "งานสารบรรณ, งานพัสดุ"
@@ -616,18 +628,23 @@ model User {
   createdAt        DateTime  @map("created_at") @default(now())
   updatedAt        DateTime  @map("updated_at") @updatedAt
 
-  organization          Organization?    @relation(fields: [organizationId], references: [id])
-  lineUser              LineUser?        @relation(fields: [lineUserRef], references: [id])
+  organization          Organization?      @relation(fields: [organizationId], references: [id])
+  workGroup             WorkGroup?         @relation(fields: [workGroupId], references: [id])
+  lineUser              LineUser?          @relation(fields: [lineUserRef], references: [id])
   pairingCodes          UserPairingCode[]
-  registeredCases       InboundCase[]    @relation("CaseRegisteredBy")
-  assignedCases         InboundCase[]    @relation("CaseAssignedTo")
-  assignmentsGiven      CaseAssignment[] @relation("AssignmentGivenBy")
-  assignmentsReceived   CaseAssignment[] @relation("AssignmentReceivedBy")
+  registeredCases       InboundCase[]      @relation("CaseRegisteredBy")
+  assignedCases         InboundCase[]      @relation("CaseAssignedTo")
+  assignmentsGiven      CaseAssignment[]   @relation("AssignmentGivenBy")
+  assignmentsReceived   CaseAssignment[]   @relation("AssignmentReceivedBy")
   caseActivities        CaseActivity[]
+  staffAssignments      StaffAssignment[]
+  outboundApprovals     OutboundDocument[] @relation("OutboundApprovedBy")
+  outboundCreated       OutboundDocument[] @relation("OutboundCreatedBy")
 
   @@index([email])
   @@index([roleCode])
   @@index([organizationId])
+  @@index([workGroupId])
   @@map("users")
 }
 
@@ -659,9 +676,11 @@ model AcademicYear {
   isCurrent Boolean  @map("is_current") @default(false)
   createdAt DateTime @map("created_at") @default(now())
 
-  cases   InboundCase[]
-  intakes DocumentIntake[]
-  budgets Budget[]
+  cases              InboundCase[]
+  intakes            DocumentIntake[]
+  budgets            Budget[]
+  staffAssignments   StaffAssignment[]
+  documentRegistries DocumentRegistry[]
 
   @@map("academic_years")
 }
@@ -745,4 +764,153 @@ model DocumentRouting {
   @@index([fromOrganizationId])
   @@index([toOrganizationId])
   @@map("document_routings")
+}
+
+// ─────────────────────────────────────────────
+// PHASE C: โครงสร้างองค์กร + กลุ่มงาน
+// ─────────────────────────────────────────────
+
+model WorkGroup {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt?  @map("organization_id") // null = shared template ทุกโรงเรียน
+  code           String   @db.VarChar(30)         // academic | budget | personnel | general
+  name           String   @db.VarChar(255)
+  description    String?  @db.Text
+  sortOrder      Int      @map("sort_order") @default(0)
+  isActive       Boolean  @map("is_active") @default(true)
+  createdAt      DateTime @map("created_at") @default(now())
+
+  organization  Organization?    @relation(fields: [organizationId], references: [id])
+  functions     WorkFunction[]
+  staffMembers  User[]           // users whose primary group = this WorkGroup
+
+  @@unique([organizationId, code])
+  @@map("work_groups")
+}
+
+model WorkFunction {
+  id           BigInt   @id @default(autoincrement())
+  workGroupId  BigInt   @map("work_group_id")
+  code         String   @db.VarChar(50)
+  name         String   @db.VarChar(500)
+  description  String?  @db.Text
+  sortOrder    Int      @map("sort_order") @default(0)
+  isActive     Boolean  @map("is_active") @default(true)
+  createdAt    DateTime @map("created_at") @default(now())
+
+  workGroup   WorkGroup        @relation(fields: [workGroupId], references: [id])
+  assignments StaffAssignment[]
+
+  @@unique([workGroupId, code])
+  @@map("work_functions")
+}
+
+model StaffAssignment {
+  id               BigInt   @id @default(autoincrement())
+  organizationId   BigInt   @map("organization_id")
+  userId           BigInt   @map("user_id")
+  workFunctionId   BigInt   @map("work_function_id")
+  role             String   @db.VarChar(20) @default("responsible") // head | responsible | assistant
+  academicYearId   BigInt   @map("academic_year_id")
+  semester         Int      @default(0)                              // 0=ทั้งปี 1=ภาค1 2=ภาค2
+  appointmentOrderNo String? @map("appointment_order_no") @db.VarChar(50)
+  effectiveDate    DateTime? @map("effective_date")
+  note             String?  @db.Text
+  isActive         Boolean  @map("is_active") @default(true)
+  createdAt        DateTime @map("created_at") @default(now())
+  updatedAt        DateTime @map("updated_at") @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+  workFunction   WorkFunction @relation(fields: [workFunctionId], references: [id])
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  @@index([organizationId, academicYearId])
+  @@index([userId])
+  @@map("staff_assignments")
+}
+
+// ─────────────────────────────────────────────
+// PHASE D: หนังสือส่ง + ทะเบียนครบวงจร
+// ─────────────────────────────────────────────
+
+model OutboundDocument {
+  id                  BigInt    @id @default(autoincrement())
+  organizationId      BigInt    @map("organization_id")
+  documentNo          String?   @map("document_no") @db.VarChar(100)   // เลขที่หนังสือส่ง
+  documentDate        DateTime? @map("document_date")
+  recipientName       String?   @map("recipient_name") @db.VarChar(255)
+  recipientOrg        String?   @map("recipient_org") @db.VarChar(255)
+  recipientEmail      String?   @map("recipient_email") @db.VarChar(255)
+  subject             String    @db.VarChar(500)
+  bodyText            String?   @map("body_text") @db.LongText
+  urgencyLevel        String    @map("urgency_level") @db.VarChar(20) @default("normal") // normal | urgent | very_urgent | most_urgent
+  securityLevel       String    @map("security_level") @db.VarChar(20) @default("normal") // normal | confidential | secret
+  status              String    @db.VarChar(30) @default("draft")     // draft | pending_approval | approved | sent
+  relatedInboundCaseId BigInt?  @map("related_inbound_case_id")
+  approvedByUserId    BigInt?   @map("approved_by_user_id")
+  approvedAt          DateTime? @map("approved_at")
+  sentAt              DateTime? @map("sent_at")
+  sentMethod          String?   @map("sent_method") @db.VarChar(30)   // email | line | paper
+  storagePath         String?   @map("storage_path") @db.VarChar(500)
+  createdByUserId     BigInt?   @map("created_by_user_id")
+  createdAt           DateTime  @map("created_at") @default(now())
+  updatedAt           DateTime  @map("updated_at") @updatedAt
+
+  organization       Organization       @relation(fields: [organizationId], references: [id])
+  relatedInboundCase InboundCase?       @relation(fields: [relatedInboundCaseId], references: [id])
+  approvedBy         User?              @relation("OutboundApprovedBy", fields: [approvedByUserId], references: [id])
+  createdBy          User?              @relation("OutboundCreatedBy", fields: [createdByUserId], references: [id])
+  documentRegistries DocumentRegistry[]
+
+  @@index([organizationId, status])
+  @@index([documentNo])
+  @@map("outbound_documents")
+}
+
+model DocumentRegistry {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  registryType   String   @map("registry_type") @db.VarChar(20)   // inbound | outbound | archive | destroy
+  registryNo     String?  @map("registry_no") @db.VarChar(20)     // ลำดับทะเบียน
+  documentNo     String?  @map("document_no") @db.VarChar(100)    // เลขที่หนังสือ
+  documentDate   DateTime? @map("document_date")
+  fromOrg        String?  @map("from_org") @db.VarChar(255)
+  toOrg          String?  @map("to_org") @db.VarChar(255)
+  subject        String?  @db.VarChar(500)
+  urgencyLevel   String?  @map("urgency_level") @db.VarChar(20)
+  actionTaken    String?  @map("action_taken") @db.Text
+  remarks        String?  @db.Text
+  inboundCaseId  BigInt?  @map("inbound_case_id")
+  outboundDocId  BigInt?  @map("outbound_doc_id")
+  academicYearId BigInt?  @map("academic_year_id")
+  createdAt      DateTime @map("created_at") @default(now())
+
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  inboundCase    InboundCase?      @relation(fields: [inboundCaseId], references: [id])
+  outboundDoc    OutboundDocument? @relation(fields: [outboundDocId], references: [id])
+  academicYear   AcademicYear?     @relation(fields: [academicYearId], references: [id])
+
+  @@index([organizationId, registryType])
+  @@index([academicYearId])
+  @@map("document_registries")
+}
+
+// ─────────────────────────────────────────────
+// PHASE E: Vector Embeddings
+// ─────────────────────────────────────────────
+
+model KnowledgeEmbedding {
+  id             BigInt   @id @default(autoincrement())
+  sourceType     String   @map("source_type") @db.VarChar(30)   // policy_clause | horizon_practice | document_chunk
+  sourceId       BigInt   @map("source_id")
+  qdrantPointId  String   @map("qdrant_point_id") @db.VarChar(36) // UUID in Qdrant
+  collection     String   @db.VarChar(50)                         // knowledge | documents
+  embeddingModel String   @map("embedding_model") @db.VarChar(50) // text-embedding-004
+  tokenCount     Int?     @map("token_count")
+  embeddedAt     DateTime @map("embedded_at") @default(now())
+
+  @@index([sourceType, sourceId])
+  @@index([qdrantPointId])
+  @@map("knowledge_embeddings")
 }

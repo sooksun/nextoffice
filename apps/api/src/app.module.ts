@@ -16,6 +16,8 @@ import { AuthModule } from './auth/auth.module';
 import { AcademicYearsModule } from './academic-years/academic-years.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { WorkGroupsModule } from './work-groups/work-groups.module';
+import { OutboundModule } from './outbound/outbound.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { CalendarModule } from './calendar/calendar.module';
     AcademicYearsModule,
     KnowledgeModule,
     CalendarModule,
+    WorkGroupsModule,
+    OutboundModule,
   ],
 })
 export class AppModule {}
