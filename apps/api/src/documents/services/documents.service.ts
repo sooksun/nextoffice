@@ -33,6 +33,23 @@ export class DocumentsService {
   }
 
   private serialize(d: any) {
-    return { ...d, id: Number(d.id) };
+    const result: any = { ...d, id: Number(d.id) };
+    if (d.documentTopics) {
+      result.documentTopics = d.documentTopics.map((dt: any) => ({
+        ...dt,
+        id: Number(dt.id),
+        documentId: Number(dt.documentId),
+        topicId: Number(dt.topicId),
+        topic: dt.topic ? { ...dt.topic, id: Number(dt.topic.id) } : null,
+      }));
+    }
+    if (d.documentChunks) {
+      result.documentChunks = d.documentChunks.map((ch: any) => ({
+        ...ch,
+        id: Number(ch.id),
+        documentId: Number(ch.documentId),
+      }));
+    }
+    return result;
   }
 }

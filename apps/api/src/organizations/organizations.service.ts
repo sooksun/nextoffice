@@ -7,10 +7,11 @@ export class OrganizationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    return this.prisma.organization.findMany({
+    const orgs = await this.prisma.organization.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
     });
+    return orgs.map((o) => this.serializeOrg(o));
   }
 
   async findOne(id: number) {
@@ -22,11 +23,12 @@ export class OrganizationsService {
       },
     });
     if (!org) throw new NotFoundException(`Organization #${id} not found`);
-    return org;
+    return this.serializeOrg(org);
   }
 
   async create(dto: CreateOrganizationDto) {
-    return this.prisma.organization.create({ data: dto });
+    const org = await this.prisma.organization.create({ data: dto });
+    return this.serializeOrg(org);
   }
 
   async getContext(id: number) {
@@ -38,7 +40,10 @@ export class OrganizationsService {
       where: { organizationId: BigInt(id) },
       include: { dimension: true },
     });
-    return { profile, scores };
+    return {
+      profile: profile ? this.serializeRecord(profile) : null,
+      scores: scores.map((s) => this.serializeRecord(s)),
+    };
   }
 
   async getTree() {
@@ -71,15 +76,37 @@ export class OrganizationsService {
   }
 
   private serializeOrg(org: any) {
-    return {
+    const result: any = {
       ...org,
       id: Number(org.id),
       parentOrganizationId: org.parentOrganizationId
         ? Number(org.parentOrganizationId)
         : null,
-      childOrganizations: org.childOrganizations?.map((c: any) =>
-        this.serializeOrg(c),
-      ),
     };
+    if (org.childOrganizations) {
+      result.childOrganizations = org.childOrganizations.map((c: any) =>
+        this.serializeOrg(c),
+      );
+    }
+    if (org.profiles) {
+      result.profiles = org.profiles.map((p: any) => this.serializeRecord(p));
+    }
+    if (org.contextScores) {
+      result.contextScores = org.contextScores.map((s: any) => this.serializeRecord(s));
+    }
+    return result;
+  }
+
+  private serializeRecord(record: any) {
+    if (!record) return record;
+    const result: any = { ...record };
+    for (const key of Object.keys(result)) {
+      if (typeof result[key] === 'bigint') {
+        result[key] = Number(result[key]);
+      } else if (result[key] && typeof result[key] === 'object' && !Array.isArray(result[key]) && !(result[key] instanceof Date)) {
+        result[key] = this.serializeRecord(result[key]);
+      }
+    }
+    return result;
   }
 }

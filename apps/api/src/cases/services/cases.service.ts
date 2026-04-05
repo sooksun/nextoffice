@@ -82,11 +82,37 @@ export class CasesService {
   }
 
   private serialize(c: any) {
-    return {
+    const result: any = {
       ...c,
       id: Number(c.id),
       organizationId: Number(c.organizationId),
       sourceDocumentId: c.sourceDocumentId ? Number(c.sourceDocumentId) : null,
+      registeredByUserId: c.registeredByUserId ? Number(c.registeredByUserId) : null,
+      assignedToUserId: c.assignedToUserId ? Number(c.assignedToUserId) : null,
+      selectedOptionId: c.selectedOptionId ? Number(c.selectedOptionId) : null,
     };
+    if (c.organization) {
+      result.organization = {
+        ...c.organization,
+        id: Number(c.organization.id),
+        parentOrganizationId: c.organization.parentOrganizationId ? Number(c.organization.parentOrganizationId) : null,
+      };
+    }
+    if (c.sourceDocument) {
+      result.sourceDocument = {
+        ...c.sourceDocument,
+        id: Number(c.sourceDocument.id),
+      };
+    }
+    if (c.topics) {
+      result.topics = c.topics.map((t: any) => ({
+        ...t,
+        id: Number(t.id),
+        inboundCaseId: Number(t.inboundCaseId),
+        topicId: Number(t.topicId),
+        topic: t.topic ? { ...t.topic, id: Number(t.topic.id) } : null,
+      }));
+    }
+    return result;
   }
 }
