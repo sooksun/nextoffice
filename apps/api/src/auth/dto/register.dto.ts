@@ -15,12 +15,37 @@ export class RegisterDto {
   @IsString()
   fullName: string;
 
-  @ApiProperty({ example: 'TEACHER', enum: ['TEACHER', 'DIRECTOR', 'DISTRICT_STAFF', 'ADMIN'] })
+  @ApiProperty({ example: 'TEACHER', enum: ['DIRECTOR', 'VICE_DIRECTOR', 'HEAD_TEACHER', 'TEACHER', 'CLERK', 'ADMIN'] })
   @IsString()
-  @IsIn(['TEACHER', 'DIRECTOR', 'DISTRICT_STAFF', 'ADMIN'])
+  @IsIn(['DIRECTOR', 'VICE_DIRECTOR', 'HEAD_TEACHER', 'TEACHER', 'CLERK', 'ADMIN'])
   roleCode: string;
 
   @ApiPropertyOptional({ example: 1, description: 'Organization ID ที่สังกัด' })
   @IsOptional()
   organizationId?: number;
+
+  @ApiPropertyOptional({ example: 'ครูชำนาญการพิเศษ' })
+  @IsOptional()
+  @IsString()
+  positionTitle?: string;
+
+  @ApiPropertyOptional({ example: 'academic', enum: ['academic', 'budget', 'personnel', 'general'] })
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiPropertyOptional({ example: 'งานสารบรรณ, งานพัสดุ' })
+  @IsOptional()
+  @IsString()
+  responsibilities?: string;
+
+  @ApiPropertyOptional({ example: '081-234-5678' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'somchai@gmail.com', description: 'Google email สำหรับ Calendar invite' })
+  @IsOptional()
+  @IsEmail()
+  googleEmail?: string;
 }

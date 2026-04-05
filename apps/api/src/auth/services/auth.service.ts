@@ -69,6 +69,11 @@ export class AuthService {
         organizationId: dto.organizationId
           ? BigInt(dto.organizationId)
           : undefined,
+        positionTitle: dto.positionTitle,
+        department: dto.department,
+        responsibilities: dto.responsibilities,
+        phone: dto.phone,
+        googleEmail: dto.googleEmail,
       },
       include: { organization: true },
     });
@@ -154,6 +159,12 @@ export class AuthService {
         ? Number(user.organizationId)
         : null,
       organizationName: user.organization?.name ?? null,
+      positionTitle: user.positionTitle,
+      department: user.department,
+      responsibilities: user.responsibilities,
+      phone: user.phone,
+      googleEmail: user.googleEmail,
+      lineUserRef: user.lineUserRef ? Number(user.lineUserRef) : null,
       isActive: user.isActive,
       lastLoginAt: user.lastLoginAt,
     };

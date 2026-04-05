@@ -96,6 +96,7 @@ export class OfficialWorkflowService {
           documentDate: metadata.documentDate,
           deadlineDate: metadata.deadlineDate,
           summary: metadata.summary,
+          caseId: Number(inboundCase.id),
         });
         await this.messaging.push(lineUserId, messages);
       }

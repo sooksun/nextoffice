@@ -15,6 +15,7 @@ import { ChatModule } from './chat/chat.module';
 import { AuthModule } from './auth/auth.module';
 import { AcademicYearsModule } from './academic-years/academic-years.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
+import { CalendarModule } from './calendar/calendar.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
     ChatModule,
     AcademicYearsModule,
     KnowledgeModule,
+    CalendarModule,
   ],
 })
 export class AppModule {}

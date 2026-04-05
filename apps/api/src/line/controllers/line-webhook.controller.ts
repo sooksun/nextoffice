@@ -13,6 +13,8 @@ import { Request } from 'express';
 import { LineSignatureService } from '../services/line-signature.service';
 import { LineEventsService } from '../services/line-events.service';
 import { LineUsersService } from '../services/line-users.service';
+import { LinePairingService } from '../services/line-pairing.service';
+import { LineWorkflowService } from '../services/line-workflow.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 
 @ApiTags('line')
@@ -24,6 +26,8 @@ export class LineWebhookController {
     private readonly signatureSvc: LineSignatureService,
     private readonly eventsSvc: LineEventsService,
     private readonly usersSvc: LineUsersService,
+    private readonly pairingSvc: LinePairingService,
+    private readonly workflowSvc: LineWorkflowService,
     private readonly dispatcher: QueueDispatcherService,
   ) {}
 
@@ -69,8 +73,38 @@ export class LineWebhookController {
         // Dispatch job to queue based on event type
         if (event.type === 'message' && event.message) {
           if (event.message.type === 'text') {
-            // Text messages are QuickReply actions or freeform queries → RAG pipeline
-            await this.dispatcher.dispatchLineMenuAction(eventId);
+            const text = (event.message.text || '').trim();
+            // Intercept pairing command: "ผูกบัญชี 123456"
+            const uid = event.source?.userId;
+            const rt = event.replyToken;
+
+            // Intercept system commands before dispatching to queue
+            const pairingMatch = text.match(/^ผูกบัญชี\s*(\d{6})$/);
+            const registerMatch = text.match(/^ลงรับ\s*#(\d+)$/);
+            const assignShowMatch = text.match(/^มอบหมาย\s*#(\d+)$/);
+            const assignToMatch = text.match(/^มอบหมายให้\s*#(\d+)\s*@(\d+)$/);
+            const acceptMatch = text.match(/^รับทราบ\s*#(\d+)$/);
+            const completeMatch = text.match(/^เสร็จแล้ว\s*#(\d+)$/);
+            const myTasksMatch = /^(งานของฉัน|สถานะงาน)$/.test(text);
+
+            if (pairingMatch && uid) {
+              await this.pairingSvc.handlePairingMessage(uid, pairingMatch[1], rt);
+            } else if (registerMatch && uid) {
+              await this.workflowSvc.handleRegister(uid, Number(registerMatch[1]), rt);
+            } else if (assignToMatch && uid) {
+              await this.workflowSvc.handleAssignTo(uid, Number(assignToMatch[1]), Number(assignToMatch[2]), rt);
+            } else if (assignShowMatch && uid) {
+              await this.workflowSvc.handleShowStaffList(uid, Number(assignShowMatch[1]), rt);
+            } else if (acceptMatch && uid) {
+              await this.workflowSvc.handleAcceptAssignment(uid, Number(acceptMatch[1]), rt);
+            } else if (completeMatch && uid) {
+              await this.workflowSvc.handleCompleteAssignment(uid, Number(completeMatch[1]), rt);
+            } else if (myTasksMatch && uid) {
+              await this.workflowSvc.handleMyTasks(uid, rt);
+            } else {
+              // Text messages are QuickReply actions or freeform queries → RAG pipeline
+              await this.dispatcher.dispatchLineMenuAction(eventId);
+            }
           } else {
             // Image / file messages → document intake pipeline
             await this.dispatcher.dispatchLineIntake(eventId);

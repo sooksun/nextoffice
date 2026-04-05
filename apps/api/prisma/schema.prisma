@@ -337,26 +337,41 @@ model PolicyApplicabilityRule {
 // ─────────────────────────────────────────────
 
 model InboundCase {
-  id               BigInt    @id @default(autoincrement())
-  organizationId   BigInt    @map("organization_id")
-  academicYearId   BigInt?   @map("academic_year_id")
-  title            String    @db.VarChar(255)
-  description      String?   @db.LongText
-  sourceDocumentId BigInt?   @map("source_document_id")
-  receivedAt       DateTime  @map("received_at") @default(now())
-  dueDate          DateTime? @map("due_date")
-  status           String    @db.VarChar(50) @default("new")
-  createdAt        DateTime  @map("created_at") @default(now())
-  updatedAt        DateTime  @map("updated_at") @updatedAt
+  id                    BigInt    @id @default(autoincrement())
+  organizationId        BigInt    @map("organization_id")
+  academicYearId        BigInt?   @map("academic_year_id")
+  title                 String    @db.VarChar(255)
+  description           String?   @db.LongText
+  sourceDocumentId      BigInt?   @map("source_document_id")
+  receivedAt            DateTime  @map("received_at") @default(now())
+  dueDate               DateTime? @map("due_date")
+  status                String    @db.VarChar(50) @default("new") // new → registered → assigned → in_progress → completed → archived
+  // ─── Workflow fields ───
+  registrationNo        String?   @map("registration_no") @db.VarChar(50) // เลขรับ เช่น "001/2568"
+  registeredAt          DateTime? @map("registered_at")
+  registeredByUserId    BigInt?   @map("registered_by_user_id")
+  assignedToUserId      BigInt?   @map("assigned_to_user_id") // ผู้รับผิดชอบหลัก
+  selectedOptionId      BigInt?   @map("selected_option_id") // option A/B/C ที่เลือก
+  directorNote          String?   @map("director_note") @db.Text // คำสั่ง ผอ.
+  googleCalendarEventId String?   @map("google_calendar_event_id") @db.VarChar(255)
+  createdAt             DateTime  @map("created_at") @default(now())
+  updatedAt             DateTime  @map("updated_at") @updatedAt
 
-  organization   Organization          @relation(fields: [organizationId], references: [id])
-  academicYear   AcademicYear?         @relation(fields: [academicYearId], references: [id])
-  sourceDocument Document?             @relation(fields: [sourceDocumentId], references: [id])
-  topics         CaseTopic[]
-  retrievals     CaseRetrievalResult[]
-  options        CaseOption[]
+  organization     Organization          @relation(fields: [organizationId], references: [id])
+  academicYear     AcademicYear?         @relation(fields: [academicYearId], references: [id])
+  sourceDocument   Document?             @relation(fields: [sourceDocumentId], references: [id])
+  registeredBy     User?                 @relation("CaseRegisteredBy", fields: [registeredByUserId], references: [id])
+  assignedTo       User?                 @relation("CaseAssignedTo", fields: [assignedToUserId], references: [id])
+  topics           CaseTopic[]
+  retrievals       CaseRetrievalResult[]
+  options          CaseOption[]
+  assignments      CaseAssignment[]
+  activities       CaseActivity[]
 
   @@index([academicYearId])
+  @@index([status])
+  @@index([registeredByUserId])
+  @@index([assignedToUserId])
   @@map("inbound_cases")
 }
 
@@ -465,6 +480,7 @@ model LineUser {
 
   lineChannel          LineChannel               @relation(fields: [lineChannelId], references: [id])
   organization         Organization?             @relation(fields: [organizationId], references: [id])
+  user                 User?
   conversationSessions LineConversationSession[]
 
   @@map("line_users")
@@ -587,18 +603,47 @@ model User {
   email            String    @unique @db.VarChar(255)
   passwordHash     String    @map("password_hash") @db.VarChar(255)
   fullName         String    @map("full_name") @db.VarChar(255)
-  roleCode         String    @map("role_code") @db.VarChar(30) // TEACHER | DIRECTOR | DISTRICT_STAFF | ADMIN
+  roleCode         String    @map("role_code") @db.VarChar(30) // DIRECTOR | VICE_DIRECTOR | HEAD_TEACHER | TEACHER | CLERK | ADMIN
   organizationId   BigInt?   @map("organization_id")
+  positionTitle    String?   @map("position_title") @db.VarChar(255) // "ครูชำนาญการพิเศษ", "ผู้อำนวยการโรงเรียน"
+  department       String?   @db.VarChar(100) // academic | budget | personnel | general
+  responsibilities String?   @db.Text // free text: "งานสารบรรณ, งานพัสดุ"
+  phone            String?   @db.VarChar(20)
+  googleEmail      String?   @map("google_email") @db.VarChar(255) // for Calendar invite
+  lineUserRef      BigInt?   @map("line_user_ref") @unique // 1:1 link to LineUser
   isActive         Boolean   @map("is_active") @default(true)
   lastLoginAt      DateTime? @map("last_login_at")
   createdAt        DateTime  @map("created_at") @default(now())
   updatedAt        DateTime  @map("updated_at") @updatedAt
 
-  organization Organization? @relation(fields: [organizationId], references: [id])
+  organization          Organization?    @relation(fields: [organizationId], references: [id])
+  lineUser              LineUser?        @relation(fields: [lineUserRef], references: [id])
+  pairingCodes          UserPairingCode[]
+  registeredCases       InboundCase[]    @relation("CaseRegisteredBy")
+  assignedCases         InboundCase[]    @relation("CaseAssignedTo")
+  assignmentsGiven      CaseAssignment[] @relation("AssignmentGivenBy")
+  assignmentsReceived   CaseAssignment[] @relation("AssignmentReceivedBy")
+  caseActivities        CaseActivity[]
 
   @@index([email])
   @@index([roleCode])
+  @@index([organizationId])
   @@map("users")
+}
+
+model UserPairingCode {
+  id        BigInt    @id @default(autoincrement())
+  userId    BigInt    @map("user_id")
+  code      String    @db.VarChar(10) @unique
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  usedByLineUserId BigInt? @map("used_by_line_user_id")
+  createdAt DateTime  @map("created_at") @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([code])
+  @@map("user_pairing_codes")
 }
 
 // ─────────────────────────────────────────────
@@ -637,6 +682,50 @@ model Budget {
 
   @@unique([organizationId, academicYearId, budgetType])
   @@map("budgets")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 4: Workflow — Assignment & Activity
+// ─────────────────────────────────────────────
+
+model CaseAssignment {
+  id                    BigInt    @id @default(autoincrement())
+  inboundCaseId         BigInt    @map("inbound_case_id")
+  assignedToUserId      BigInt    @map("assigned_to_user_id")
+  assignedByUserId      BigInt    @map("assigned_by_user_id")
+  role                  String    @db.VarChar(30) @default("responsible") // responsible | informed | cc
+  dueDate               DateTime? @map("due_date")
+  status                String    @db.VarChar(30) @default("pending") // pending → accepted → in_progress → completed
+  note                  String?   @db.Text
+  completedAt           DateTime? @map("completed_at")
+  googleCalendarEventId String?   @map("google_calendar_event_id") @db.VarChar(255)
+  createdAt             DateTime  @map("created_at") @default(now())
+  updatedAt             DateTime  @map("updated_at") @updatedAt
+
+  inboundCase  InboundCase @relation(fields: [inboundCaseId], references: [id])
+  assignedTo   User        @relation("AssignmentReceivedBy", fields: [assignedToUserId], references: [id])
+  assignedBy   User        @relation("AssignmentGivenBy", fields: [assignedByUserId], references: [id])
+
+  @@index([inboundCaseId])
+  @@index([assignedToUserId])
+  @@index([status])
+  @@map("case_assignments")
+}
+
+model CaseActivity {
+  id            BigInt   @id @default(autoincrement())
+  inboundCaseId BigInt   @map("inbound_case_id")
+  userId        BigInt?  @map("user_id")
+  action        String   @db.VarChar(50) // register | assign | comment | update_status | select_option | complete | close
+  detail        String?  @db.LongText // JSON payload
+  createdAt     DateTime @map("created_at") @default(now())
+
+  inboundCase InboundCase @relation(fields: [inboundCaseId], references: [id])
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([inboundCaseId])
+  @@index([userId])
+  @@map("case_activities")
 }
 
 model DocumentRouting {
