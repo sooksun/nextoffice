@@ -58,9 +58,12 @@ fi
 echo "[3/7] .env.production found"
 
 # ─── Export build-time vars into shell (docker-compose reads build args from shell, not env_file) ───
-set -a
-source "$APP_DIR/.env.production"
-set +a
+# Cannot `source` the file directly — values may contain bash-hostile chars (e.g. > in tokens).
+# Extract only the vars that docker-compose.yml needs at build time.
+_pub_url=$(grep -E '^[[:space:]]*PUBLIC_API_URL=' "$APP_DIR/.env.production" | head -1 | cut -d'=' -f2- | sed "s/^['\"]//;s/['\"]$//" | tr -d '\r')
+if [ -n "$_pub_url" ]; then
+    export PUBLIC_API_URL="$_pub_url"
+fi
 echo "  PUBLIC_API_URL=${PUBLIC_API_URL:-<not set — web will call localhost>}"
 
 # ─── 4. สร้าง database ถ้ายังไม่มี (export MYSQL_ROOT_PASSWORD ก่อนรัน หรือสร้าง DB เอง) ───
