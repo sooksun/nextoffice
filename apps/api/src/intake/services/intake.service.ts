@@ -126,13 +126,22 @@ export class IntakeService {
   }
 
   private serialize(intake: any) {
-    return {
+    const result: any = {
       ...intake,
       id: Number(intake.id),
       lineEventId: intake.lineEventId ? Number(intake.lineEventId) : null,
       lineUserIdRef: intake.lineUserIdRef ? Number(intake.lineUserIdRef) : null,
       organizationId: intake.organizationId ? Number(intake.organizationId) : null,
+      academicYearId: intake.academicYearId ? Number(intake.academicYearId) : null,
       fileSize: intake.fileSize ? Number(intake.fileSize) : null,
     };
+    if (intake.aiResult) {
+      result.aiResult = {
+        ...intake.aiResult,
+        id: Number(intake.aiResult.id),
+        documentIntakeId: Number(intake.aiResult.documentIntakeId),
+      };
+    }
+    return result;
   }
 }
