@@ -57,6 +57,12 @@ fi
 
 echo "[3/7] .env.production found"
 
+# ─── Export build-time vars into shell (docker-compose reads build args from shell, not env_file) ───
+set -a
+source "$APP_DIR/.env.production"
+set +a
+echo "  PUBLIC_API_URL=${PUBLIC_API_URL:-<not set — web will call localhost>}"
+
 # ─── 4. สร้าง database ถ้ายังไม่มี (export MYSQL_ROOT_PASSWORD ก่อนรัน หรือสร้าง DB เอง) ───
 echo "[4/7] Ensuring database exists on 192.168.1.4..."
 if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then

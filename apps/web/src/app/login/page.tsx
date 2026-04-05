@@ -119,6 +119,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   className="w-full px-4 py-3 bg-surface-low border border-outline-variant/20 rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/30 outline-none transition-all pr-12"
                 />
