@@ -15,6 +15,7 @@ import { LineEventsService } from '../services/line-events.service';
 import { LineUsersService } from '../services/line-users.service';
 import { LinePairingService } from '../services/line-pairing.service';
 import { LineWorkflowService } from '../services/line-workflow.service';
+import { LineMessagingService } from '../services/line-messaging.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 
 @ApiTags('line')
@@ -28,6 +29,7 @@ export class LineWebhookController {
     private readonly usersSvc: LineUsersService,
     private readonly pairingSvc: LinePairingService,
     private readonly workflowSvc: LineWorkflowService,
+    private readonly messagingSvc: LineMessagingService,
     private readonly dispatcher: QueueDispatcherService,
   ) {}
 
@@ -123,6 +125,12 @@ export class LineWebhookController {
                 await this.pairingSvc.handleAutoLink(uid, '', rt);
                 continue;
               }
+            }
+            // Immediately acknowledge receipt so user knows we're processing
+            if (rt) {
+              await this.messagingSvc.reply(rt, [
+                { type: 'text', text: 'ได้รับไฟล์แล้วครับ กรุณารอสักครู่ ระบบกำลังประมวลผล...' },
+              ]);
             }
             await this.dispatcher.dispatchLineIntake(eventId);
           }
