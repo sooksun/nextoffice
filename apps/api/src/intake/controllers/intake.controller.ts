@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   ParseIntPipe,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
@@ -65,6 +66,9 @@ export class IntakeController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: any,
   ) {
+    if (!file) {
+      throw new BadRequestException('กรุณาเลือกไฟล์');
+    }
     return this.svc.webUploadAndAnalyze(
       file,
       user.organizationId ? Number(user.organizationId) : undefined,

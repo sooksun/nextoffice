@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileStorageService } from './file-storage.service';
 import { GoogleDriveService } from './google-drive.service';
@@ -14,9 +14,9 @@ export class IntakeService {
     private readonly storage: FileStorageService,
     private readonly drive: GoogleDriveService,
     private readonly dispatcher: QueueDispatcherService,
-    private readonly ocrService: OcrService,
-    private readonly classifier: ClassifierService,
-    private readonly extraction: ExtractionService,
+    @Optional() private readonly ocrService: OcrService,
+    @Optional() private readonly classifier: ClassifierService,
+    @Optional() private readonly extraction: ExtractionService,
   ) {}
 
   async createFromUpload(
@@ -81,6 +81,9 @@ export class IntakeService {
     ];
     if (!ALLOWED_MIMES.includes(file.mimetype)) {
       throw new BadRequestException('รองรับเฉพาะไฟล์ PDF, DOCX, JPG, JPEG, PNG เท่านั้น');
+    }
+    if (!this.ocrService || !this.classifier || !this.extraction) {
+      throw new BadRequestException('AI services are not available');
     }
 
     const sha256 = this.storage.computeSha256(file.buffer);

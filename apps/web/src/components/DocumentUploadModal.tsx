@@ -129,8 +129,14 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
         body: formData,
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text);
+        let errMsg = "เกิดข้อผิดพลาด";
+        try {
+          const errData = await res.json();
+          errMsg = errData.message || errMsg;
+        } catch {
+          errMsg = await res.text();
+        }
+        throw new Error(errMsg);
       }
       const data: UploadResult = await res.json();
       setResult(data);

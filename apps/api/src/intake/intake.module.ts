@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { IntakeController } from './controllers/intake.controller';
 import { IntakeService } from './services/intake.service';
 import { FileStorageService } from './services/file-storage.service';
@@ -9,7 +9,7 @@ import { AiModule } from '../ai/ai.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [QueueModule, AiModule, AuthModule],
+  imports: [QueueModule, forwardRef(() => AiModule), AuthModule],
   controllers: [IntakeController],
   providers: [IntakeService, FileStorageService, ContentFetchService, GoogleDriveService],
   exports: [IntakeService, FileStorageService, ContentFetchService],
