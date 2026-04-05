@@ -19,7 +19,7 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: (process.env.WEB_URL || 'http://localhost:3001')
+    origin: (process.env.WEB_URL || 'http://localhost:3001,https://nextoffice.cnppai.com')
       .split(',')
       .map((s) => s.trim()),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
