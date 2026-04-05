@@ -71,12 +71,18 @@ export class LineWebhookController {
         }
 
         // Dispatch job to queue based on event type
+        const uid = event.source?.userId;
+        const rt = event.replyToken;
+
         if (event.type === 'message' && event.message) {
           if (event.message.type === 'text') {
             const text = (event.message.text || '').trim();
-            // Intercept pairing command: "ผูกบัญชี 123456"
-            const uid = event.source?.userId;
-            const rt = event.replyToken;
+
+            // Auto-pairing: unlinked LINE users get prompted for email
+            if (uid && rt) {
+              const handled = await this.pairingSvc.handleAutoLink(uid, text, rt);
+              if (handled) continue;
+            }
 
             // Intercept system commands before dispatching to queue
             const pairingMatch = text.match(/^ผูกบัญชี\s*(\d{6})$/);
@@ -110,6 +116,14 @@ export class LineWebhookController {
             }
           } else {
             // Image / file messages → document intake pipeline
+            // Block intake for unlinked users
+            if (uid) {
+              const linkedUser = await this.pairingSvc.getLinkedUser(uid);
+              if (!linkedUser) {
+                await this.pairingSvc.handleAutoLink(uid, '', rt);
+                continue;
+              }
+            }
             await this.dispatcher.dispatchLineIntake(eventId);
           }
         }
