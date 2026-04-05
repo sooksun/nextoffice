@@ -8,12 +8,12 @@ All commands run from the repo root unless noted.
 
 ```bash
 # Development (run both concurrently in separate terminals)
-npm run dev:api        # NestJS API on http://localhost:3000
-npm run dev:web        # Next.js web on http://localhost:3001
+npm run dev:api        # NestJS API on http://localhost:9911
+npm run dev:web        # Next.js web on http://localhost:9910
 
 # Or run from the workspace directory
-cd apps/api && npm run dev          # nest start --watch
-cd apps/web && npm run dev          # next dev --port 3001
+cd apps/api && npm run dev          # nest start --watch (PORT=9911 via .env)
+cd apps/web && npm run dev          # next dev --port 9910
 
 # Build
 npm run build                       # builds all workspaces
