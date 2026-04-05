@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ExtractionService } from './extraction.service';
 import { ReasoningService } from '../../rag/services/reasoning.service';
 import { LineMessagingService } from '../../line/services/line-messaging.service';
+import { LineSessionService } from '../../line/services/line-session.service';
 
 @Injectable()
 export class OfficialWorkflowService {
@@ -13,6 +14,7 @@ export class OfficialWorkflowService {
     private readonly extraction: ExtractionService,
     private readonly reasoning: ReasoningService,
     private readonly messaging: LineMessagingService,
+    private readonly sessions: LineSessionService,
   ) {}
 
   async process(documentIntakeId: bigint): Promise<void> {
@@ -97,6 +99,19 @@ export class OfficialWorkflowService {
         });
         await this.messaging.push(lineUserId, messages);
       }
+    }
+
+    // เปิดเซสชันให้ข้อความถัดไป (สรุป/แปล/RAG) โหลด extractedText จาก intake ได้ — เดิมมีแค่ non-official ที่เปิด session
+    let lineUserRef = intake.lineUserIdRef;
+    if (!lineUserRef && intake.lineEvent?.lineUserId) {
+      const lu = await this.prisma.lineUser.findFirst({
+        where: { lineUserId: intake.lineEvent.lineUserId },
+      });
+      lineUserRef = lu?.id ?? null;
+    }
+    if (lineUserRef) {
+      await this.sessions.openSession(lineUserRef, documentIntakeId, 'official');
+      this.logger.log(`Opened LINE conversation session for intake ${documentIntakeId}`);
     }
 
     this.logger.log(`Official workflow completed for intake ${documentIntakeId}, case ${inboundCase.id}`);

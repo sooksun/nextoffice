@@ -30,6 +30,17 @@ const TEXT_TO_ACTION: Record<string, MenuActionCode> = {
   'เก็บเป็นเอกสารอ้างอิง': 'save_reference',
 };
 
+/** จับข้อความอิสระที่ผู้ใช้พิมพ์ (ไม่ตรงปุ่ม Quick Reply) */
+function resolveMenuAction(trimmedText: string): MenuActionCode {
+  const exact = TEXT_TO_ACTION[trimmedText];
+  if (exact) return exact;
+  const t = trimmedText;
+  if (t.startsWith('สรุป')) return 'summarize';
+  if (t.startsWith('แปล')) return 'translate';
+  if (/ดึงสาระ|สาระสำคัญ/.test(t) && /ดึง|ขอ|เอา/.test(t)) return 'extract_key';
+  return 'freeform';
+}
+
 @Processor(QUEUE_LINE_EVENTS)
 export class LineMenuActionProcessor {
   private readonly logger = new Logger(LineMenuActionProcessor.name);
@@ -57,7 +68,7 @@ export class LineMenuActionProcessor {
 
     if (!replyToken || !text) return;
 
-    const actionCode: MenuActionCode = TEXT_TO_ACTION[text] ?? 'freeform';
+    const actionCode: MenuActionCode = resolveMenuAction(text);
 
     // Resolve LINE user from DB
     const lineUser = await this.prisma.lineUser.findUnique({
@@ -111,14 +122,23 @@ export class LineMenuActionProcessor {
       .filter(Boolean)
       .join('\n');
 
-    // Build action-specific prompt and call Claude
-    const prompt = this.buildPrompt(actionCode, text, docExtractedText, docSubject, ragContext);
+    const needsDocBody =
+      actionCode === 'summarize' ||
+      actionCode === 'translate' ||
+      actionCode === 'extract_key';
+
     let aiReply = '';
-    try {
-      aiReply = await this.callGemini(prompt);
-    } catch (err) {
-      this.logger.error(`Claude call failed: ${err.message}`);
-      aiReply = 'ขออภัย ระบบ AI ไม่สามารถประมวลผลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
+    if (needsDocBody && !docExtractedText.trim()) {
+      aiReply =
+        'ยังไม่มีเนื้อหาเอกสารในเซสชันนี้ กรุณาส่งไฟล์แล้วรอให้บอทวิเคราะห์จนมีข้อความสรุปหนังสือราชการก่อน จากนั้นค่อยกดปุ่มสรุป/แปล/ดึงสาระสำคัญ หรือพิมพ์ "สรุป..." อีกครั้ง';
+    } else {
+      const prompt = this.buildPrompt(actionCode, text, docExtractedText, docSubject, ragContext);
+      try {
+        aiReply = await this.callGemini(prompt);
+      } catch (err) {
+        this.logger.error(`Gemini call failed: ${err.message}`);
+        aiReply = 'ขออภัย ระบบ AI ไม่สามารถประมวลผลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
+      }
     }
 
     // Persist what the user did in this session
