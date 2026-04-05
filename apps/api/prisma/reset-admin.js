@@ -1,7 +1,10 @@
 const crypto = require('crypto');
 const { PrismaClient } = require('/app/apps/api/dist/generated/prisma');
+const { PrismaMariaDb } = require('/app/node_modules/@prisma/adapter-mariadb');
 
-const prisma = new PrismaClient();
+const dbUrl = process.env.DATABASE_URL || 'mysql://root:@192.168.1.4:3306/nextoffice_db';
+const adapter = new PrismaMariaDb(dbUrl);
+const prisma = new PrismaClient({ adapter });
 
 async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
