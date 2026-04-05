@@ -80,6 +80,7 @@ export class LineWebhookController {
 
             // Intercept system commands before dispatching to queue
             const pairingMatch = text.match(/^ผูกบัญชี\s*(\d{6})$/);
+            const pairingHelpMatch = /^ผูกบัญชี/.test(text) && !pairingMatch;
             const registerMatch = text.match(/^ลงรับ\s*#(\d+)$/);
             const assignShowMatch = text.match(/^มอบหมาย\s*#(\d+)$/);
             const assignToMatch = text.match(/^มอบหมายให้\s*#(\d+)\s*@(\d+)$/);
@@ -89,6 +90,8 @@ export class LineWebhookController {
 
             if (pairingMatch && uid) {
               await this.pairingSvc.handlePairingMessage(uid, pairingMatch[1], rt);
+            } else if (pairingHelpMatch && uid) {
+              await this.pairingSvc.handlePairingHelp(rt);
             } else if (registerMatch && uid) {
               await this.workflowSvc.handleRegister(uid, Number(registerMatch[1]), rt);
             } else if (assignToMatch && uid) {

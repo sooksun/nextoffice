@@ -54,4 +54,17 @@ export class LinePairingService {
       ]);
     }
   }
+
+  async handlePairingHelp(replyToken: string): Promise<void> {
+    await this.messaging.reply(replyToken, [
+      {
+        type: 'text',
+        text:
+          'วิธีผูกบัญชี LINE กับระบบ NextOffice:\n\n' +
+          '1. ขอรหัสผูกบัญชี 6 หลักจาก Admin\n' +
+          '2. พิมพ์ "ผูกบัญชี 123456" (เปลี่ยนเป็นรหัสของคุณ)\n\n' +
+          'ตัวอย่าง: ผูกบัญชี 482916',
+      },
+    ]);
+  }
 }
