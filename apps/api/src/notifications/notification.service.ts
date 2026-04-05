@@ -132,6 +132,43 @@ export class NotificationService {
     this.logger.log(`sendDailyCheckReminder: reminded ${pendingAssignments.length} users`);
   }
 
+  /** G1-E: แจ้งผู้รับผิดชอบเมื่อ SmartRouting assign เคสใหม่ */
+  async notifyNewCaseAssigned(caseId: number, assignedUserId: number) {
+    const [c, user] = await Promise.all([
+      this.prisma.inboundCase.findUnique({ where: { id: BigInt(caseId) } }),
+      this.prisma.user.findUnique({
+        where: { id: BigInt(assignedUserId) },
+        include: { lineUser: { select: { lineUserId: true } } },
+      }),
+    ]);
+    if (!c || !user?.lineUser?.lineUserId) return;
+
+    const urgencyText = c.urgencyLevel === 'most_urgent' ? '🚨 ด่วนที่สุด' :
+                        c.urgencyLevel === 'very_urgent' ? '⚡ ด่วนมาก' :
+                        c.urgencyLevel === 'urgent' ? '⏰ ด่วน' : '📋 ปกติ';
+
+    const msg = `${urgencyText}\nมีหนังสือใหม่มอบหมายให้คุณ\n\n"${c.title.substring(0, 80)}"\n\n${c.dueDate ? `กำหนด: ${c.dueDate.toLocaleDateString('th-TH')}\n` : ''}พิมพ์ "งานของฉัน" เพื่อดูรายการทั้งหมด`;
+
+    await this.sendLineNotification(user.lineUser.lineUserId, msg);
+    this.logger.log(`notifyNewCaseAssigned: case #${caseId} → user #${assignedUserId}`);
+  }
+
+  /** G1-F: แจ้งผู้รับผิดชอบเมื่อเคสถูกลงรับอย่างเป็นทางการ */
+  async notifyCaseRegistered(caseId: number) {
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        assignedTo: { include: { lineUser: { select: { lineUserId: true } } } },
+      },
+    });
+    if (!c || !c.assignedTo?.lineUser?.lineUserId) return;
+
+    const msg = `✅ หนังสือลงรับแล้ว\nเลขรับ: ${c.registrationNo}\n"${c.title.substring(0, 80)}"\n\nกรุณาดำเนินการตามที่ได้รับมอบหมาย\nพิมพ์ "รับทราบ #${c.registrationNo?.split('/')[0]}" เพื่อยืนยัน`;
+
+    await this.sendLineNotification(c.assignedTo.lineUser.lineUserId, msg);
+    this.logger.log(`notifyCaseRegistered: case #${caseId} notified assigned user`);
+  }
+
   private async sendLineNotification(lineUserId: string, text: string) {
     try {
       await this.messaging.push(lineUserId, [{ type: 'text', text }]);

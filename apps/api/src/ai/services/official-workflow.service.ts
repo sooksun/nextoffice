@@ -4,6 +4,17 @@ import { ExtractionService } from './extraction.service';
 import { ReasoningService } from '../../rag/services/reasoning.service';
 import { LineMessagingService } from '../../line/services/line-messaging.service';
 import { LineSessionService } from '../../line/services/line-session.service';
+import { SmartRoutingService } from '../../notifications/smart-routing.service';
+
+// Map AI urgency text → schema urgencyLevel
+function mapUrgency(aiUrgency: string): string {
+  if (!aiUrgency) return 'normal';
+  const u = aiUrgency.toLowerCase();
+  if (u.includes('ที่สุด') || u.includes('very') || u === 'สูงมาก') return 'most_urgent';
+  if (u.includes('มาก') || u === 'สูง') return 'very_urgent';
+  if (u.includes('ด่วน') || u === 'urgent' || u === 'กลาง') return 'urgent';
+  return 'normal';
+}
 
 @Injectable()
 export class OfficialWorkflowService {
@@ -15,6 +26,7 @@ export class OfficialWorkflowService {
     private readonly reasoning: ReasoningService,
     private readonly messaging: LineMessagingService,
     private readonly sessions: LineSessionService,
+    private readonly smartRouting: SmartRoutingService,
   ) {}
 
   async process(documentIntakeId: bigint): Promise<void> {
@@ -68,9 +80,20 @@ export class OfficialWorkflowService {
         description: metadata.summary,
         sourceDocumentId: document.id,
         dueDate: metadata.deadlineDate ? new Date(metadata.deadlineDate) : null,
+        urgencyLevel: mapUrgency(metadata.urgency),
         status: 'analyzing',
       },
     });
+
+    // Smart routing: auto-suggest & set responsible user
+    try {
+      const routing = await this.smartRouting.applyRoutingToCase(Number(inboundCase.id));
+      if (routing) {
+        this.logger.log(`Smart routing applied to case #${inboundCase.id}: ${routing.workGroupCode} (${routing.confidence.toFixed(2)})`);
+      }
+    } catch (routingErr) {
+      this.logger.warn(`Smart routing failed (non-blocking): ${routingErr.message}`);
+    }
 
     // Run RAG Analysis + generate options (non-blocking)
     try {

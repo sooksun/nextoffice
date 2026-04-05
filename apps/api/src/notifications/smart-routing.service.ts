@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from './notification.service';
 
 // Map document subject keywords → work group code
 const KEYWORD_GROUP_MAP: { keywords: string[]; groupCode: string }[] = [
@@ -25,7 +26,10 @@ export interface RoutingSuggestion {
 export class SmartRoutingService {
   private readonly logger = new Logger(SmartRoutingService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications: NotificationService,
+  ) {}
 
   /** วิเคราะห์หัวเรื่อง + เนื้อหา แล้วแนะนำกลุ่มงาน + ผู้รับผิดชอบ */
   async suggest(organizationId: number, title: string, bodyText?: string): Promise<RoutingSuggestion | null> {
@@ -106,6 +110,29 @@ export class SmartRoutingService {
         data: { assignedToUserId: BigInt(topUser.userId) },
       });
       this.logger.log(`Smart routing: case #${caseId} → ${topUser.fullName} (${suggestion.workGroupCode}, confidence=${suggestion.confidence.toFixed(2)})`);
+
+      // Audit: log routing_applied activity
+      await this.prisma.caseActivity.create({
+        data: {
+          inboundCaseId: BigInt(caseId),
+          action: 'routing_applied',
+          detail: JSON.stringify({
+            workGroupCode: suggestion.workGroupCode,
+            workGroupName: suggestion.workGroupName,
+            confidence: suggestion.confidence,
+            assignedUserId: topUser.userId,
+            assignedUserName: topUser.fullName,
+            workFunctionName: topUser.workFunctionName,
+          }),
+        },
+      });
+
+      // Notify the assigned user via LINE (non-blocking)
+      if (this.notifications) {
+        this.notifications.notifyNewCaseAssigned(caseId, topUser.userId).catch((e) =>
+          this.logger.warn(`notify failed: ${e.message}`),
+        );
+      }
     }
 
     return suggestion;

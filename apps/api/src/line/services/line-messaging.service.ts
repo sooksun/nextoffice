@@ -318,23 +318,20 @@ export class LineMessagingService {
     ];
   }
 
-  buildStaffListForAssign(caseId: number, staffList: { userId: number; fullName: string; positionTitle: string; department: string }[]) {
+  buildStaffListForAssign(
+    caseId: number,
+    staffList: { userId: number; fullName: string; positionTitle: string; department: string }[],
+    headerNote?: string,
+  ) {
     if (staffList.length === 0) {
       return [this.buildTextMessage('ไม่พบบุคลากรในระบบ กรุณาเพิ่มผู้ใช้ก่อน')];
     }
 
-    const items = staffList.slice(0, 13).map((s) => ({
-      type: 'action' as const,
-      action: {
-        type: 'message' as const,
-        label: s.fullName.substring(0, 20),
-        text: `มอบหมายให้ #${caseId} @${s.userId}`,
-      },
-    }));
+    const prompt = `เลือกผู้รับมอบหมาย:${headerNote || ''}`;
 
     return [
       this.buildQuickReply(
-        'เลือกผู้รับมอบหมาย:',
+        prompt,
         staffList.slice(0, 13).map((s) => ({
           label: s.fullName.substring(0, 20),
           text: `มอบหมายให้ #${caseId} @${s.userId}`,

@@ -52,25 +52,54 @@ export class LineWorkflowService {
       return;
     }
 
-    // Get staff from same organization
-    const staff = await this.prisma.user.findMany({
-      where: {
-        organizationId: user.organizationId,
-        isActive: true,
-        id: { not: user.id },
-      },
-      select: { id: true, fullName: true, positionTitle: true, department: true, roleCode: true },
-      orderBy: { fullName: 'asc' },
+    // Get case for smart routing
+    const inboundCase = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      select: { title: true, description: true },
     });
+
+    // Smart routing: suggest work group from case title
+    const suggestedGroupCode = inboundCase
+      ? this.suggestWorkGroupCode(inboundCase.title + ' ' + (inboundCase.description ?? ''))
+      : null;
+
+    // Find staff — prefer filtered by suggested work group, fallback to all staff
+    let staff = [];
+    if (suggestedGroupCode && user.organizationId) {
+      // Get users assigned to this work group via StaffAssignment
+      const assignments = await this.prisma.staffAssignment.findMany({
+        where: {
+          organizationId: user.organizationId,
+          workFunction: { workGroup: { code: suggestedGroupCode } },
+          isActive: true,
+        },
+        include: { user: { select: { id: true, fullName: true, positionTitle: true, roleCode: true } } },
+        distinct: ['userId'],
+      });
+      staff = assignments.map((a) => a.user).filter((u) => u.id !== user.id);
+    }
+
+    // Fallback: all active users in org (if no smart routing result)
+    if (staff.length === 0) {
+      staff = await this.prisma.user.findMany({
+        where: { organizationId: user.organizationId, isActive: true, id: { not: user.id } },
+        select: { id: true, fullName: true, positionTitle: true, roleCode: true },
+        orderBy: { fullName: 'asc' },
+      });
+    }
+
+    const groupLabel = suggestedGroupCode
+      ? `\n(AI แนะนำ: ${this.groupCodeToThai(suggestedGroupCode)})`
+      : '';
 
     const staffList = staff.map((s) => ({
       userId: Number(s.id),
       fullName: s.fullName,
       positionTitle: s.positionTitle || s.roleCode,
-      department: s.department || '-',
+      department: suggestedGroupCode ? this.groupCodeToThai(suggestedGroupCode) : '-',
     }));
 
-    const messages = this.messaging.buildStaffListForAssign(caseId, staffList);
+    const messages = this.messaging.buildStaffListForAssign(caseId, staffList, groupLabel);
     await this.messaging.reply(replyToken, messages);
   }
 
@@ -246,5 +275,32 @@ export class LineWorkflowService {
         'บัญชี LINE ยังไม่ผูกกับระบบ\nกรุณาพิมพ์ "ผูกบัญชี XXXXXX" (รหัส 6 หลักจาก Admin)',
       ),
     ]);
+  }
+
+  private suggestWorkGroupCode(text: string): string | null {
+    const lower = text.toLowerCase();
+    const KEYWORD_GROUP_MAP = [
+      { keywords: ['หลักสูตร', 'การเรียน', 'สอน', 'นักเรียน', 'วัดผล', 'ประเมินผล', 'วิชาการ', 'ห้องสมุด', 'สื่อการสอน', 'นิเทศ', 'แนะแนว', 'ผลสัมฤทธิ์', 'ทักษะ'], groupCode: 'academic' },
+      { keywords: ['งบประมาณ', 'การเงิน', 'พัสดุ', 'จัดซื้อ', 'จัดจ้าง', 'ใบสำคัญ', 'เบิกจ่าย', 'เงินอุดหนุน', 'บัญชี', 'ตรวจสอบ', 'ทรัพย์สิน'], groupCode: 'budget' },
+      { keywords: ['บุคลากร', 'ข้าราชการ', 'ครู', 'แต่งตั้ง', 'โยกย้าย', 'ลา', 'เลื่อน', 'วินัย', 'บำเหน็จ', 'บำนาญ', 'พัฒนาครู', 'ฝึกอบรม', 'อัตรากำลัง'], groupCode: 'personnel' },
+      { keywords: ['สารบรรณ', 'ธุรการ', 'อาคาร', 'สถานที่', 'ประชาสัมพันธ์', 'ประชุม', 'ปฏิทิน', 'กีฬา', 'อนามัย', 'โภชนาการ', 'ยาเสพติด', 'ชุมชน', 'กิจกรรม'], groupCode: 'general' },
+    ];
+
+    const scores = KEYWORD_GROUP_MAP.map(({ keywords, groupCode }) => ({
+      groupCode,
+      score: keywords.filter((kw) => lower.includes(kw)).length,
+    }));
+    const best = scores.sort((a, b) => b.score - a.score)[0];
+    return best && best.score > 0 ? best.groupCode : null;
+  }
+
+  private groupCodeToThai(code: string): string {
+    const map: Record<string, string> = {
+      academic: 'กลุ่มงานวิชาการ',
+      budget: 'กลุ่มงานงบประมาณ',
+      personnel: 'กลุ่มงานบุคคล',
+      general: 'กลุ่มงานทั่วไป',
+    };
+    return map[code] || code;
   }
 }

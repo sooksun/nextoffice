@@ -1,6 +1,7 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleCalendarService } from '../../calendar/services/google-calendar.service';
+import { NotificationService } from '../../notifications/notification.service';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ['registered'],
@@ -19,6 +20,7 @@ export class CaseWorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calendar: GoogleCalendarService,
+    @Optional() private readonly notifications: NotificationService,
   ) {}
 
   async register(caseId: number, userId: number): Promise<any> {
@@ -42,6 +44,14 @@ export class CaseWorkflowService {
     });
 
     this.logger.log(`Case #${caseId} registered as ${regNo} by user #${userId}`);
+
+    // Notify assigned user that case is officially registered
+    if (this.notifications) {
+      this.notifications.notifyCaseRegistered(caseId).catch((e) =>
+        this.logger.warn(`notify register failed: ${e.message}`),
+      );
+    }
+
     return this.serialize(updated);
   }
 

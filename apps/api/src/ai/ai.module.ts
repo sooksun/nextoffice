@@ -7,9 +7,10 @@ import { NonOfficialWorkflowService } from './services/non-official-workflow.ser
 import { RagModule } from '../rag/rag.module';
 import { LineModule } from '../line/line.module';
 import { GeminiModule } from '../gemini/gemini.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [GeminiModule, RagModule, LineModule],
+  imports: [GeminiModule, RagModule, LineModule, NotificationsModule],
   providers: [
     OcrService,
     ClassifierService,
