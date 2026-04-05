@@ -26,7 +26,18 @@ export class VectorStoreService implements OnModuleInit {
     const host = this.config.get<string>('QDRANT_HOST', 'localhost');
     const port = this.config.get<number>('QDRANT_PORT', 6333);
     this.client = new QdrantClient({ host, port });
-    await this.ensureCollections();
+    // Retry for up to 60s to allow Qdrant to start
+    for (let attempt = 1; attempt <= 6; attempt++) {
+      try {
+        await this.ensureCollections();
+        this.logger.log('Qdrant connected and collections ready');
+        return;
+      } catch (err) {
+        this.logger.warn(`Qdrant not ready (attempt ${attempt}/6): ${err.message}`);
+        await new Promise((r) => setTimeout(r, 10000));
+      }
+    }
+    this.logger.error('Qdrant unavailable after 60s — vector search disabled');
   }
 
   private async ensureCollections() {
@@ -44,9 +55,14 @@ export class VectorStoreService implements OnModuleInit {
   }
 
   async upsert(collection: string, pointId: string, vector: number[], payload: Record<string, any>) {
-    await this.client.upsert(collection, {
-      points: [{ id: pointId, vector, payload }],
-    });
+    if (!this.client) return;
+    try {
+      await this.client.upsert(collection, {
+        points: [{ id: pointId, vector, payload }],
+      });
+    } catch (err) {
+      this.logger.warn(`Qdrant upsert failed: ${err.message}`);
+    }
   }
 
   async search(
@@ -55,17 +71,23 @@ export class VectorStoreService implements OnModuleInit {
     limit = 10,
     filter?: Record<string, any>,
   ): Promise<VectorSearchResult[]> {
-    const results = await this.client.search(collection, {
-      vector: queryVector,
-      limit,
-      with_payload: true,
-      filter,
-    });
-    return results.map((r) => ({
-      id: String(r.id),
-      score: r.score,
-      payload: (r.payload as Record<string, any>) ?? {},
-    }));
+    if (!this.client) return [];
+    try {
+      const results = await this.client.search(collection, {
+        vector: queryVector,
+        limit,
+        with_payload: true,
+        filter,
+      });
+      return results.map((r) => ({
+        id: String(r.id),
+        score: r.score,
+        payload: (r.payload as Record<string, any>) ?? {},
+      }));
+    } catch (err) {
+      this.logger.warn(`Qdrant search failed: ${err.message}`);
+      return [];
+    }
   }
 
   async searchByText(
