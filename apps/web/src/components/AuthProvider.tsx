@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { isLoggedIn } from "@/lib/auth";
 
@@ -20,7 +20,7 @@ export default function AuthProvider({
     if (!isPublic && !isLoggedIn()) {
       router.replace("/login");
     } else {
-      setChecked(true);
+      startTransition(() => setChecked(true));
     }
   }, [pathname, router]);
 

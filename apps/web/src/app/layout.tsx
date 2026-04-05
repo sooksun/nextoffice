@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Be_Vietnam_Pro, Inter, Sarabun } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import Header from "@/components/Header";
-import ChatPanel from "@/components/ChatPanel";
 import AuthProvider from "@/components/AuthProvider";
 import AppShell from "@/components/AppShell";
 
