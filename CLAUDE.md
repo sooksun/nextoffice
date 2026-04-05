@@ -36,9 +36,11 @@ There is no test runner configured. No `npm test` exists.
 ## Infrastructure Requirements
 
 The API depends on three local services (all default ports):
-- **MariaDB** on `3306`, database `nextoffice_db`
+- **MariaDB** on `3306`, database `nextoffice_db` — provided by Laragon locally (not in docker-compose)
 - **Redis** on `6379` (Bull queues)
 - **MinIO** on `9000` (file storage, bucket `nextoffice`)
+
+`docker compose up -d` starts Redis and MinIO only. MariaDB is expected from Laragon. For production, docker-compose also builds and runs the API (port 9911) and Web (port 9910) containers.
 
 Environment variables live in `apps/api/.env`. Copy from `.env.production.example` and fill in:
 - `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_ID`
@@ -67,6 +69,7 @@ AppModule
 ├── PrismaModule (global — PrismaService injected everywhere)
 ├── QueueModule  (Bull/Redis — exports queues + QueueDispatcherService)
 ├── ProcessorModule (all Bull processors — imports QueueModule + LineModule + RagModule)
+├── AuthModule   (JWT auth + roles — JwtAuthGuard, RolesGuard)
 ├── LineModule   (LINE webhook + messaging — imports QueueModule)
 ├── IntakeModule (file upload + storage — imports QueueModule)
 ├── AiModule     (OCR, classify, extract, workflows — imports RagModule + LineModule)
@@ -74,7 +77,9 @@ AppModule
 ├── ChatModule
 ├── CasesModule
 ├── DocumentsModule
-└── OrganizationsModule
+├── OrganizationsModule
+├── AcademicYearsModule
+└── KnowledgeModule
 ```
 
 **Controllers per module:**
@@ -142,6 +147,8 @@ Prisma uses `BigInt` for all `@id` fields. JSON serialization will throw if a Bi
 Schema: `apps/api/prisma/schema.prisma`
 Generated client output: `apps/api/generated/prisma` (custom path set in the `generator client` block of the schema — not the default location).
 
+Prisma v7 with MariaDB driver adapter: `apps/api/prisma.config.js` configures `@prisma/adapter-mariadb` for migrations. Prisma CLI commands (generate, db push, migrate) must be run from `apps/api/`.
+
 ### TypeScript Configuration
 
 - **API** (`apps/api`): `noImplicitAny: false`, `strictNullChecks: false` — strict mode is intentionally off. Path alias: `@shared/*` → `packages/shared-types/src/*`.
@@ -156,6 +163,21 @@ Generated client output: `apps/api/generated/prisma` (custom path set in the `ge
 `apps/web/src/lib/api.ts` exports `apiFetch<T>()` — a thin wrapper around `fetch`. Base URL is `NEXT_PUBLIC_API_URL` (default `http://localhost:3000`). All frontend API calls go through this helper.
 
 Swagger docs for the API are available at `http://localhost:3000/api/docs` when running locally.
+
+### Cursor AI Integration
+
+This project uses **both Claude Code (terminal) and Cursor AI** side-by-side:
+- Cursor reads project context from `.cursor/rules/project.mdc` (which references this file)
+- Claude Code reads this `CLAUDE.md` directly
+- Both share the same filesystem, git repo, ESLint, and TypeScript config
+
+**Role split:**
+- Cursor AI → inline edits, screenshot/image error analysis, quick fixes
+- Claude Code → shell commands, git, multi-file refactors, Prisma CLI
+
+**Conflict rule:** Only one tool edits a file at a time. When Claude Code is running, wait for it to finish before using Cursor inline edit on the same file.
+
+If architecture changes, update `CLAUDE.md` **and** `.cursor/rules/project.mdc` together.
 
 ### Automated Hooks (`.claude/settings.json`)
 

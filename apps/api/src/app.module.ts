@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { resolveApiRootEnvPath } from './load-env';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { LineModule } from './line/line.module';
@@ -17,7 +18,10 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: resolveApiRootEnvPath(),
+    }),
     PrismaModule,
     QueueModule,
     ProcessorModule,

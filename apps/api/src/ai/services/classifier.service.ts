@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import { OcrService } from './ocr.service';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 
 export interface ClassificationResult {
   isOfficialDocument: boolean | null;
@@ -16,8 +15,8 @@ export class ClassifierService {
   private readonly logger = new Logger(ClassifierService.name);
 
   constructor(
-    private readonly config: ConfigService,
     private readonly ocrService: OcrService,
+    private readonly gemini: GeminiApiService,
   ) {}
 
   async classifyDocument(
@@ -58,8 +57,7 @@ export class ClassifierService {
     extractedText: string,
     fileMeta: { mimeType: string },
   ): Promise<ClassificationResult> {
-    const apiKey = this.config.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
+    if (!this.gemini.getApiKey()) {
       return { isOfficialDocument: null, classificationLabel: 'unknown', classificationConfidence: 0 };
     }
 
@@ -78,23 +76,12 @@ Respond ONLY with valid JSON in this exact format:
 }`;
 
     try {
-      const res = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.config.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 512,
-          messages: [{ role: 'user', content: prompt }],
-        },
-        {
-          headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      const rawText = res.data?.content?.[0]?.text || '{}';
+      const rawText =
+        (await this.gemini.generateText({
+          user: prompt,
+          maxOutputTokens: 512,
+          temperature: 0.2,
+        })) || '{}';
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch?.[0] || '{}');
 

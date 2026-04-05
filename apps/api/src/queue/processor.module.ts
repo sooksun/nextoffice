@@ -3,6 +3,7 @@ import { QueueModule } from './queue.module';
 import { LineModule } from '../line/line.module';
 import { RagModule } from '../rag/rag.module';
 import { AiModule } from '../ai/ai.module';
+import { GeminiModule } from '../gemini/gemini.module';
 import { IntakeModule } from '../intake/intake.module';
 import { IntakeProcessor } from './processors/intake.processor';
 import { OcrProcessor } from './processors/ocr.processor';
@@ -13,7 +14,7 @@ import { DriveBackupProcessor } from './processors/drive-backup.processor';
 import { LineMenuActionProcessor } from './processors/line-menu-action.processor';
 
 @Module({
-  imports: [QueueModule, LineModule, RagModule, AiModule, IntakeModule],
+  imports: [QueueModule, LineModule, RagModule, AiModule, GeminiModule, IntakeModule],
   providers: [
     IntakeProcessor,
     OcrProcessor,

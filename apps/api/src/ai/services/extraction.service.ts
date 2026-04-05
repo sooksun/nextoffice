@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 
 export interface OfficialMetadata {
   issuingAuthority: string;
@@ -18,11 +17,10 @@ export interface OfficialMetadata {
 export class ExtractionService {
   private readonly logger = new Logger(ExtractionService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly gemini: GeminiApiService) {}
 
   async extractOfficialMetadata(extractedText: string): Promise<OfficialMetadata> {
-    const apiKey = this.config.get('ANTHROPIC_API_KEY');
-    if (!apiKey) {
+    if (!this.gemini.getApiKey()) {
       return this.fallbackExtraction(extractedText);
     }
 
@@ -45,23 +43,12 @@ ${extractedText.substring(0, 4000)}
 }`;
 
     try {
-      const res = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.config.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 1024,
-          messages: [{ role: 'user', content: prompt }],
-        },
-        {
-          headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      const rawText = res.data?.content?.[0]?.text || '{}';
+      const rawText =
+        (await this.gemini.generateText({
+          user: prompt,
+          maxOutputTokens: 1024,
+          temperature: 0.2,
+        })) || '{}';
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch?.[0] || '{}');
 

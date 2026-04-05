@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { Search, Bell, Grid3x3, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { getUser, logout } from "@/lib/auth";
+import { getUser, getToken, logout } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 const NAV_TABS = [
   { label: "ภาพรวม", href: "/" },
@@ -14,6 +16,11 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const user = getUser();
+
+  useEffect(() => {
+    if (!getToken()) return;
+    void apiFetch("/auth/me").catch(() => {});
+  }, []);
 
   function handleLogout() {
     logout();

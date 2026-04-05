@@ -17,3 +17,7 @@ yarn-debug.log*
 .vercel
 apps/api/generated/prisma
 .claude/settings.local.json
+
+# Cursor AI — track rules, ignore session/cache
+.cursor/chat/
+.cursor/logs/

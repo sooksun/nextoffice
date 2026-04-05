@@ -57,12 +57,16 @@ fi
 
 echo "[3/7] .env.production found"
 
-# ─── 4. สร้าง database ถ้ายังไม่มี ───
+# ─── 4. สร้าง database ถ้ายังไม่มี (export MYSQL_ROOT_PASSWORD ก่อนรัน หรือสร้าง DB เอง) ───
 echo "[4/7] Ensuring database exists on 192.168.1.4..."
-docker run --rm --network host mariadb:11 \
-    mariadb -h 192.168.1.4 -u root -p'l6-lyo9N' \
-    -e "CREATE DATABASE IF NOT EXISTS nextoffice_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
-    2>/dev/null || echo "  (database may already exist or host unreachable — check manually)"
+if [ -n "${MYSQL_ROOT_PASSWORD:-}" ]; then
+    docker run --rm --network host mariadb:11 \
+        mariadb -h 192.168.1.4 -u root -p"$MYSQL_ROOT_PASSWORD" \
+        -e "CREATE DATABASE IF NOT EXISTS nextoffice_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" \
+        2>/dev/null || echo "  (database may already exist or host unreachable — check manually)"
+else
+    echo "  Skipped: set MYSQL_ROOT_PASSWORD or create nextoffice_db manually on the DB host."
+fi
 
 # ─── 5. Open firewall ports ───
 if command -v ufw &>/dev/null; then

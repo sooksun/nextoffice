@@ -1,7 +1,7 @@
-const { PrismaMariaDb } = require('@prisma/adapter-mariadb');
+const { defineConfig } = require('@prisma/config');
 
-module.exports = {
-  migrate: {
-    adapter: () => new PrismaMariaDb(process.env.DATABASE_URL || ''),
+module.exports = defineConfig({
+  datasource: {
+    url: process.env.DATABASE_URL || 'mysql://root:@localhost:3306/nextoffice_db',
   },
-};
+});

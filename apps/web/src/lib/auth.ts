@@ -23,7 +23,7 @@ export async function login(
     body: JSON.stringify({ email, password }),
   });
   if (typeof window !== "undefined") {
-    localStorage.setItem("token", data.token);
+    localStorage.setItem("token", data.token.trim());
     localStorage.setItem("user", JSON.stringify(data.user));
   }
   return data;

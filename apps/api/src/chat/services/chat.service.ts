@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { PolicyRagService } from '../../rag/services/policy-rag.service';
 import { HorizonRagService } from '../../rag/services/horizon-rag.service';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 
 export interface ChatSource {
   type: 'policy' | 'horizon';
@@ -22,7 +22,7 @@ export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
   constructor(
-    private readonly config: ConfigService,
+    private readonly gemini: GeminiApiService,
     private readonly policyRag: PolicyRagService,
     private readonly horizonRag: HorizonRagService,
   ) {}
@@ -57,14 +57,13 @@ export class ChatService {
       .filter(Boolean)
       .join('\n\n');
 
-    const answer = await this.callClaude(query, ragContext);
+    const answer = await this.callGemini(query, ragContext);
     return { answer, sources, queryId };
   }
 
-  private async callClaude(query: string, ragContext: string): Promise<string> {
-    const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
-    if (!apiKey) {
-      return 'ขออภัย ระบบ AI ยังไม่ได้รับการกำหนดค่า ANTHROPIC_API_KEY';
+  private async callGemini(query: string, ragContext: string): Promise<string> {
+    if (!this.gemini.getApiKey()) {
+      return 'ขออภัย ระบบ AI ยังไม่ได้รับการกำหนดค่า GEMINI_API_KEY';
     }
 
     const systemPrompt =
@@ -77,29 +76,39 @@ export class ChatService {
       (ragContext ? `\n\nข้อมูลอ้างอิงจากฐานข้อมูล:\n${ragContext}` : '');
 
     try {
-      const res = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.config.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 1500,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: query }],
-        },
-        {
-          headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
-          proxy: this.config.get('HTTPS_PROXY')
-            ? undefined
-            : false,
-        },
-      );
-      return res.data?.content?.[0]?.text || 'ขออภัย ไม่สามารถประมวลผลคำตอบได้';
-    } catch (err) {
-      this.logger.error(`Claude call failed: ${err.message}`);
+      const text = await this.gemini.generateText({
+        system: systemPrompt,
+        user: query,
+        maxOutputTokens: 1500,
+        temperature: 0.4,
+      });
+      return text || 'ขออภัย ไม่สามารถประมวลผลคำตอบได้';
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+        const body = err.response?.data as { error?: { message?: string; status?: string } } | undefined;
+        const apiMsg = body?.error?.message ?? '';
+        this.gemini.logAxiosError('Gemini (chat)', err);
+        if (status === 400 && /API key not valid|API_KEY_INVALID/i.test(apiMsg)) {
+          return 'ขออภัย GEMINI_API_KEY ไม่ถูกต้อง กรุณาตรวจสอบใน apps/api/.env';
+        }
+        if (status === 403 || /PERMISSION_DENIED/i.test(apiMsg)) {
+          return 'ขออภัย บัญชี Google AI ปฏิเสธการเรียกใช้ กรุณาตรวจสอบสิทธิ์ API ใน Google AI Studio';
+        }
+        if (status === 429 || /RESOURCE_EXHAUSTED|quota|Quota exceeded/i.test(apiMsg)) {
+          return 'ขออภัย เกินโควต้า Gemini API กรุณารอแล้วลองใหม่หรือตรวจสอบแพ็กเกจใน Google AI Studio';
+        }
+        if (status === 400 && /model|not found|is not found/i.test(apiMsg)) {
+          return 'ขออภัย ชื่อโมเดลไม่ถูกต้อง กรุณาตรวจสอบ GEMINI_MODEL ใน apps/api/.env';
+        }
+        if (!err.response && (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED')) {
+          return 'ขออภัย เครือข่ายไม่สามารถเชื่อมต่อ Google Generative Language API ได้';
+        }
+      } else if (err instanceof Error) {
+        this.logger.error(`Gemini call failed: ${err.message}`);
+      } else {
+        this.logger.error('Gemini call failed: unknown error');
+      }
       return 'ขออภัย เกิดข้อผิดพลาดในการเชื่อมต่อ AI กรุณาลองใหม่อีกครั้ง';
     }
   }

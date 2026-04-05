@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/auth";
 import { LogIn, Eye, EyeOff, AlertCircle } from "lucide-react";
@@ -11,7 +11,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("session") === "expired") {
+      setSessionExpired(true);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +76,13 @@ export default function LoginPage() {
             เข้าสู่ระบบ
           </h2>
 
+          {sessionExpired && (
+            <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-secondary-container/40 text-on-secondary-container rounded-2xl text-sm font-medium border border-secondary/20">
+              <AlertCircle size={16} />
+              เซสชันหมดอายุหรือโทเค็นไม่ตรงกับเซิร์ฟเวอร์ (เช่น แก้ JWT_SECRET หรือ JWT_EXPIRES_IN
+              หลังล็อกอิน) กรุณาเข้าสู่ระบบอีกครั้ง
+            </div>
+          )}
           {error && (
             <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-error-container text-on-error-container rounded-2xl text-sm font-medium">
               <AlertCircle size={16} />

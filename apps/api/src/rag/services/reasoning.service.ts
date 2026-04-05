@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ConfigService } from '@nestjs/config';
 import { RetrievalService } from './retrieval.service';
-import axios from 'axios';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 
 @Injectable()
 export class ReasoningService {
@@ -10,8 +9,8 @@ export class ReasoningService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
     private readonly retrieval: RetrievalService,
+    private readonly gemini: GeminiApiService,
   ) {}
 
   async generateCaseOptions(caseId: bigint, orgId: bigint, query: string): Promise<void> {
@@ -20,10 +19,9 @@ export class ReasoningService {
     const horizonItems = results.filter((r) => r.sourceType === 'horizon').slice(0, 3);
     const policyItems = results.filter((r) => r.sourceType === 'policy').slice(0, 3);
 
-    const apiKey = this.config.get('ANTHROPIC_API_KEY');
     let options: any[];
 
-    if (apiKey) {
+    if (this.gemini.getApiKey()) {
       options = await this.generateOptionsWithLLM(query, horizonItems, policyItems);
     } else {
       options = this.generateFallbackOptions(query);
@@ -110,23 +108,12 @@ ${policyContext || 'ไม่มีข้อมูล'}
 ]`;
 
     try {
-      const res = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.config.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 2048,
-          messages: [{ role: 'user', content: prompt }],
-        },
-        {
-          headers: {
-            'x-api-key': this.config.get('ANTHROPIC_API_KEY'),
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-
-      const rawText = res.data?.content?.[0]?.text || '[]';
+      const rawText =
+        (await this.gemini.generateText({
+          user: prompt,
+          maxOutputTokens: 2048,
+          temperature: 0.35,
+        })) || '[]';
       const jsonMatch = rawText.match(/\[[\s\S]*\]/);
       return JSON.parse(jsonMatch?.[0] || '[]');
     } catch (err) {

@@ -29,6 +29,35 @@ export class LineMessagingService {
     }
   }
 
+  /**
+   * สำหรับงานที่ประมวลผลแบบ async (คิว Bull) — replyToken มักหมดอายุก่อน job รันเสร็จ
+   * ลอง reply ก่อน ถ้าไม่สำเร็จจะส่ง push ไปที่ lineUserId แทน
+   */
+  async replyOrPush(
+    replyToken: string | null | undefined,
+    lineUserId: string,
+    messages: any[],
+  ): Promise<void> {
+    if (replyToken) {
+      try {
+        await axios.post(
+          `${LINE_API}/message/reply`,
+          { replyToken, messages },
+          { headers: this.headers },
+        );
+        return;
+      } catch (err: any) {
+        const detail = err?.response?.data?.message || err?.message || 'unknown';
+        this.logger.warn(`LINE reply failed (${detail}), falling back to push`);
+      }
+    }
+    if (!lineUserId || lineUserId === 'unknown') {
+      this.logger.error('LINE replyOrPush: no valid lineUserId for push fallback');
+      return;
+    }
+    await this.push(lineUserId, messages);
+  }
+
   async push(to: string, messages: any[]): Promise<void> {
     try {
       await axios.post(

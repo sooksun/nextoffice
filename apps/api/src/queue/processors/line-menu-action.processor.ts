@@ -1,9 +1,8 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 import { LineMessagingService } from '../../line/services/line-messaging.service';
 import { LineSessionService } from '../../line/services/line-session.service';
 import { PolicyRagService } from '../../rag/services/policy-rag.service';
@@ -41,7 +40,7 @@ export class LineMenuActionProcessor {
     private readonly sessions: LineSessionService,
     private readonly policyRag: PolicyRagService,
     private readonly horizonRag: HorizonRagService,
-    private readonly config: ConfigService,
+    private readonly gemini: GeminiApiService,
   ) {}
 
   @Process('line.menu.action')
@@ -95,7 +94,7 @@ export class LineMenuActionProcessor {
 
     // save_reference: no LLM needed — just tag the intake and confirm
     if (actionCode === 'save_reference') {
-      await this.handleSaveReference(sessionId, replyToken, eventId);
+      await this.handleSaveReference(sessionId, replyToken, eventId, event.lineUserId);
       return;
     }
 
@@ -116,7 +115,7 @@ export class LineMenuActionProcessor {
     const prompt = this.buildPrompt(actionCode, text, docExtractedText, docSubject, ragContext);
     let aiReply = '';
     try {
-      aiReply = await this.callClaude(prompt);
+      aiReply = await this.callGemini(prompt);
     } catch (err) {
       this.logger.error(`Claude call failed: ${err.message}`);
       aiReply = 'ขออภัย ระบบ AI ไม่สามารถประมวลผลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
@@ -133,8 +132,9 @@ export class LineMenuActionProcessor {
     });
 
     const totalRagHits = policyResults.length + horizonResults.length;
-    await this.messaging.reply(
+    await this.messaging.replyOrPush(
       replyToken,
+      event.lineUserId,
       this.messaging.buildRagActionReply(actionCode, aiReply, totalRagHits),
     );
   }
@@ -145,6 +145,7 @@ export class LineMenuActionProcessor {
     sessionId: bigint | null,
     replyToken: string,
     eventId: bigint,
+    lineUserId: string,
   ) {
     if (sessionId) {
       await this.sessions.recordAction(sessionId, 'save_reference', 'เก็บเป็นเอกสารอ้างอิง');
@@ -165,7 +166,7 @@ export class LineMenuActionProcessor {
       data: { receiveStatus: 'processed', processedAt: new Date() },
     });
 
-    await this.messaging.reply(replyToken, [
+    await this.messaging.replyOrPush(replyToken, lineUserId, [
       this.messaging.buildTextMessage('✅ บันทึกเอกสารเป็นเอกสารอ้างอิงเรียบร้อยแล้ว'),
     ]);
   }
@@ -221,26 +222,14 @@ export class LineMenuActionProcessor {
     return prompts[action];
   }
 
-  private async callClaude(prompt: string): Promise<string> {
-    const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
-
-    const res = await axios.post(
-      'https://api.anthropic.com/v1/messages',
-      {
-        model: this.config.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
-      },
-      {
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'Content-Type': 'application/json',
-        },
-      },
+  private async callGemini(prompt: string): Promise<string> {
+    if (!this.gemini.getApiKey()) throw new Error('GEMINI_API_KEY not configured');
+    return (
+      (await this.gemini.generateText({
+        user: prompt,
+        maxOutputTokens: 1024,
+        temperature: 0.4,
+      })) || ''
     );
-
-    return res.data?.content?.[0]?.text || '';
   }
 }
