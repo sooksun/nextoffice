@@ -18,6 +18,8 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { WorkGroupsModule } from './work-groups/work-groups.module';
 import { OutboundModule } from './outbound/outbound.module';
+import { ReportsModule } from './reports/reports.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { OutboundModule } from './outbound/outbound.module';
     CalendarModule,
     WorkGroupsModule,
     OutboundModule,
+    ReportsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

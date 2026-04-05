@@ -67,18 +67,62 @@ export class CasesService {
     };
   }
 
-  async listCases(organizationId?: number, status?: string) {
+  async listCases(opts: {
+    organizationId?: number;
+    status?: string;
+    urgencyLevel?: string;
+    assignedToUserId?: number;
+    academicYearId?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    take?: number;
+    skip?: number;
+  } = {}) {
     const where: any = {};
+    if (opts.organizationId) where.organizationId = BigInt(opts.organizationId);
+    if (opts.status) where.status = opts.status;
+    if (opts.urgencyLevel) where.urgencyLevel = opts.urgencyLevel;
+    if (opts.assignedToUserId) where.assignedToUserId = BigInt(opts.assignedToUserId);
+    if (opts.academicYearId) where.academicYearId = BigInt(opts.academicYearId);
+    if (opts.dateFrom || opts.dateTo) {
+      where.receivedAt = {};
+      if (opts.dateFrom) where.receivedAt.gte = new Date(opts.dateFrom);
+      if (opts.dateTo) where.receivedAt.lte = new Date(opts.dateTo);
+    }
+
+    const [cases, total] = await Promise.all([
+      this.prisma.inboundCase.findMany({
+        where,
+        include: {
+          organization: true,
+          assignedTo: { select: { id: true, fullName: true } },
+          registeredBy: { select: { id: true, fullName: true } },
+        },
+        orderBy: { receivedAt: 'desc' },
+        take: opts.take ?? 100,
+        skip: opts.skip ?? 0,
+      }),
+      this.prisma.inboundCase.count({ where }),
+    ]);
+    return { total, data: cases.map((c) => this.serialize(c)) };
+  }
+
+  async getOverdue(organizationId?: number) {
+    const where: any = {
+      status: { notIn: ['completed', 'archived'] },
+      dueDate: { lt: new Date() },
+    };
     if (organizationId) where.organizationId = BigInt(organizationId);
-    if (status) where.status = status;
 
     const cases = await this.prisma.inboundCase.findMany({
       where,
-      include: { organization: true },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+      include: {
+        assignedTo: { select: { id: true, fullName: true } },
+        organization: { select: { id: true, name: true } },
+      },
+      orderBy: { dueDate: 'asc' },
     });
-    return cases.map(this.serialize);
+    return cases.map((c) => this.serialize(c));
   }
 
   private serialize(c: any) {

@@ -76,3 +76,17 @@ h1, h2, h3, h4, .font-headline {
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #c5c5d3; border-radius: 10px; }
+
+/* Shared form / button utilities */
+.input-select {
+  @apply rounded-xl border border-outline-variant/30 bg-surface-lowest px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30;
+}
+.input-date {
+  @apply rounded-xl border border-outline-variant/30 bg-surface-lowest px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30;
+}
+.btn-primary {
+  @apply rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:opacity-90 transition-opacity;
+}
+.btn-ghost {
+  @apply rounded-xl border border-outline-variant/30 px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-bright transition-colors;
+}

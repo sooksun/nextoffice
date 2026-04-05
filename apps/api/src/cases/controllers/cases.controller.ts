@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Param, Query, Body, ParseIntPipe, UseGuar
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { CasesService } from '../services/cases.service';
 import { CaseWorkflowService } from '../services/case-workflow.service';
+import { SmartRoutingService } from '../../notifications/smart-routing.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -15,14 +16,49 @@ export class CasesController {
   constructor(
     private readonly svc: CasesService,
     private readonly workflow: CaseWorkflowService,
+    private readonly smartRouting: SmartRoutingService,
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all cases' })
+  @ApiOperation({ summary: 'List cases with filters' })
   @ApiQuery({ name: 'organizationId', required: false, type: Number })
   @ApiQuery({ name: 'status', required: false })
-  listCases(@Query('organizationId') orgId?: string, @Query('status') status?: string) {
-    return this.svc.listCases(orgId ? Number(orgId) : undefined, status);
+  @ApiQuery({ name: 'urgencyLevel', required: false })
+  @ApiQuery({ name: 'assignedToUserId', required: false, type: Number })
+  @ApiQuery({ name: 'academicYearId', required: false, type: Number })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'take', required: false, type: Number })
+  @ApiQuery({ name: 'skip', required: false, type: Number })
+  listCases(
+    @Query('organizationId') orgId?: string,
+    @Query('status') status?: string,
+    @Query('urgencyLevel') urgencyLevel?: string,
+    @Query('assignedToUserId') assignedToUserId?: string,
+    @Query('academicYearId') academicYearId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
+  ) {
+    return this.svc.listCases({
+      organizationId: orgId ? Number(orgId) : undefined,
+      status,
+      urgencyLevel,
+      assignedToUserId: assignedToUserId ? Number(assignedToUserId) : undefined,
+      academicYearId: academicYearId ? Number(academicYearId) : undefined,
+      dateFrom,
+      dateTo,
+      take: take ? Number(take) : undefined,
+      skip: skip ? Number(skip) : undefined,
+    });
+  }
+
+  @Get('overdue')
+  @ApiOperation({ summary: 'งานค้าง (เกิน deadline)' })
+  @ApiQuery({ name: 'organizationId', required: false, type: Number })
+  getOverdue(@Query('organizationId') orgId?: string) {
+    return this.svc.getOverdue(orgId ? Number(orgId) : undefined);
   }
 
   @Post('from-intake/:documentIntakeId')
@@ -105,5 +141,17 @@ export class CasesController {
   @ApiOperation({ summary: 'ดู activity log ของ case' })
   getActivities(@Param('id', ParseIntPipe) id: number) {
     return this.workflow.getActivities(id);
+  }
+
+  @Get(':id/routing-suggestion')
+  @ApiOperation({ summary: 'AI แนะนำกลุ่มงาน + ผู้รับผิดชอบจากหัวเรื่องหนังสือ' })
+  getRoutingSuggestion(@Param('id', ParseIntPipe) id: number) {
+    return this.smartRouting.applyRoutingToCase(id);
+  }
+
+  @Post(':id/apply-routing')
+  @ApiOperation({ summary: 'ใช้ smart routing มอบหมายผู้รับผิดชอบอัตโนมัติ' })
+  applyRouting(@Param('id', ParseIntPipe) id: number) {
+    return this.smartRouting.applyRoutingToCase(id);
   }
 }

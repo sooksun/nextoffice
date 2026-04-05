@@ -15,6 +15,10 @@ import {
   Shield,
   ScrollText,
   BookOpen,
+  Send,
+  BarChart3,
+  Users,
+  Inbox,
 } from "lucide-react";
 
 const links = [
@@ -23,6 +27,16 @@ const links = [
   { href: "/intakes", label: "เอกสารขาเข้า", icon: FileText },
   { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
   { href: "/cases", label: "เคส", icon: Briefcase },
+];
+
+const sarabanLinks = [
+  { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: Inbox },
+  { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: Send },
+  { href: "/saraban/reports", label: "รายงาน", icon: BarChart3 },
+];
+
+const adminLinks = [
+  { href: "/work-groups", label: "โครงสร้างองค์กร", icon: Users },
   { href: "/knowledge", label: "ฐานข้อมูลความรู้", icon: BookOpen },
   { href: "/organizations", label: "หน่วยงาน", icon: Building2 },
 ];
@@ -56,20 +70,37 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 space-y-1">
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {links.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
-            <Link
-              key={href}
-              href={href}
-              className={clsx(
-                "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary/10 text-primary font-bold"
-                  : "text-on-surface-variant hover:text-primary hover:bg-surface-bright",
-              )}
-            >
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">สารบรรณ</p>
+        </div>
+        {sarabanLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname.startsWith(href);
+          return (
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">จัดการ</p>
+        </div>
+        {adminLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+          return (
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
               <Icon size={18} />
               {label}
             </Link>
