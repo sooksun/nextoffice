@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { PrismaClient } = require('../generated/prisma');
+const { PrismaClient } = require('/app/apps/api/dist/generated/prisma');
 
 const prisma = new PrismaClient();
 
