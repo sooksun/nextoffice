@@ -1,8 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileStorageService } from './file-storage.service';
 import { GoogleDriveService } from './google-drive.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
+import { OcrService } from '../../ai/services/ocr.service';
+import { ClassifierService } from '../../ai/services/classifier.service';
+import { ExtractionService } from '../../ai/services/extraction.service';
 
 @Injectable()
 export class IntakeService {
@@ -11,6 +14,9 @@ export class IntakeService {
     private readonly storage: FileStorageService,
     private readonly drive: GoogleDriveService,
     private readonly dispatcher: QueueDispatcherService,
+    private readonly ocrService: OcrService,
+    private readonly classifier: ClassifierService,
+    private readonly extraction: ExtractionService,
   ) {}
 
   async createFromUpload(
@@ -55,6 +61,149 @@ export class IntakeService {
     await this.dispatcher.dispatchDriveBackup(intake.id);
 
     return { documentIntakeId: Number(intake.id), status: 'received' };
+  }
+
+  /**
+   * Synchronous web upload: OCR → Classify → Extract in one request.
+   * Returns full AI analysis result immediately.
+   */
+  async webUploadAndAnalyze(
+    file: Express.Multer.File,
+    organizationId?: number,
+    userId?: number,
+  ) {
+    const ALLOWED_MIMES = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+    ];
+    if (!ALLOWED_MIMES.includes(file.mimetype)) {
+      throw new BadRequestException('รองรับเฉพาะไฟล์ PDF, DOCX, JPG, JPEG, PNG เท่านั้น');
+    }
+
+    const sha256 = this.storage.computeSha256(file.buffer);
+
+    // 1. Create intake record
+    const intake = await this.prisma.documentIntake.create({
+      data: {
+        sourceChannel: 'web_upload',
+        organizationId: organizationId ? BigInt(organizationId) : null,
+        originalFileName: file.originalname,
+        mimeType: file.mimetype,
+        fileExtension: file.originalname?.split('.').pop() || null,
+        fileSize: BigInt(file.size),
+        sha256,
+        uploadStatus: 'received',
+        ocrStatus: 'pending',
+        classifierStatus: 'pending',
+        aiStatus: 'pending',
+      },
+    });
+
+    // 2. Store file in MinIO
+    const storagePath = this.storage.buildStoragePath('web_upload', file.mimetype, intake.id.toString());
+    await this.storage.saveBuffer(storagePath, file.buffer, file.mimetype);
+    await this.prisma.documentIntake.update({
+      where: { id: intake.id },
+      data: { storagePath, uploadStatus: 'stored' },
+    });
+
+    // 3. OCR - extract text
+    await this.prisma.documentIntake.update({
+      where: { id: intake.id },
+      data: { ocrStatus: 'processing' },
+    });
+
+    let extractedText = '';
+    try {
+      extractedText = await this.ocrService.extractText(file.buffer, file.mimetype);
+      await this.prisma.documentIntake.update({
+        where: { id: intake.id },
+        data: { ocrStatus: 'done' },
+      });
+    } catch (ocrErr) {
+      await this.prisma.documentIntake.update({
+        where: { id: intake.id },
+        data: { ocrStatus: 'failed' },
+      });
+      throw new BadRequestException('ไม่สามารถอ่านข้อมูลจากไฟล์ได้ กรุณาลองใหม่');
+    }
+
+    // 4. Classify document
+    await this.prisma.documentIntake.update({
+      where: { id: intake.id },
+      data: { classifierStatus: 'processing' },
+    });
+
+    const classResult = await this.classifier.classifyDocument(extractedText, {
+      mimeType: file.mimetype,
+      originalFileName: file.originalname || undefined,
+    });
+
+    // 5. Extract metadata if official
+    let metadata = null;
+    if (classResult.isOfficialDocument) {
+      metadata = await this.extraction.extractOfficialMetadata(extractedText);
+    }
+
+    // 6. Save AI result
+    const aiResult = await this.prisma.documentAiResult.create({
+      data: {
+        documentIntakeId: intake.id,
+        extractedText,
+        isOfficialDocument: classResult.isOfficialDocument,
+        classificationLabel: classResult.classificationLabel,
+        classificationConfidence: classResult.classificationConfidence,
+        documentNo: metadata?.documentNo || null,
+        documentDate: metadata?.documentDate ? new Date(metadata.documentDate) : null,
+        subjectText: metadata?.subjectText || null,
+        summaryText: metadata?.summary || null,
+        deadlineDate: metadata?.deadlineDate ? new Date(metadata.deadlineDate) : null,
+        isMeeting: metadata?.isMeeting || false,
+        meetingDate: metadata?.meetingDate ? new Date(metadata.meetingDate) : null,
+        meetingTime: metadata?.meetingTime || null,
+        meetingLocation: metadata?.meetingLocation || null,
+        nextActionJson: metadata?.actions ? JSON.stringify(metadata.actions) : null,
+      },
+    });
+
+    await this.prisma.documentIntake.update({
+      where: { id: intake.id },
+      data: {
+        classifierStatus: 'done',
+        aiStatus: 'done',
+      },
+    });
+
+    // 7. Backup to Drive (non-blocking)
+    this.dispatcher.dispatchDriveBackup(intake.id).catch(() => {});
+
+    return {
+      documentIntakeId: Number(intake.id),
+      isOfficialDocument: classResult.isOfficialDocument,
+      classificationLabel: classResult.classificationLabel,
+      confidence: classResult.classificationConfidence,
+      documentSubtype: classResult.documentSubtype || null,
+      reasoningSummary: classResult.reasoningSummary || null,
+      metadata: metadata ? {
+        issuingAuthority: metadata.issuingAuthority,
+        documentNo: metadata.documentNo,
+        documentDate: metadata.documentDate,
+        subjectText: metadata.subjectText,
+        deadlineDate: metadata.deadlineDate,
+        summary: metadata.summary,
+        intent: metadata.intent,
+        urgency: metadata.urgency,
+        actions: metadata.actions,
+        isMeeting: metadata.isMeeting,
+        meetingDate: metadata.meetingDate,
+        meetingTime: metadata.meetingTime,
+        meetingLocation: metadata.meetingLocation,
+      } : null,
+      extractedTextPreview: extractedText.substring(0, 500),
+    };
   }
 
   async findById(id: number) {

@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationService } from '../../notifications/notification.service';
 
 @Injectable()
 export class CasesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications: NotificationService,
+  ) {}
 
   async createFromIntake(documentIntakeId: number) {
     const intake = await this.prisma.documentIntake.findUnique({
@@ -30,6 +34,35 @@ export class CasesService {
       },
     });
 
+    // Notify director/clerk of new document arrival
+    if (this.notifications) {
+      this.notifications.notifyNewDocumentArrived(Number(inboundCase.id)).catch(() => {});
+    }
+
+    return { caseId: Number(inboundCase.id), status: 'created' };
+  }
+
+  async createManual(dto: {
+    organizationId: number;
+    createdByUserId: number;
+    title: string;
+    description?: string;
+    documentNo?: string;
+    documentDate?: string;
+    senderOrg?: string;
+    urgencyLevel?: string;
+    dueDate?: string;
+  }) {
+    const inboundCase = await this.prisma.inboundCase.create({
+      data: {
+        organizationId: BigInt(dto.organizationId),
+        title: dto.title,
+        description: dto.description || `เลขที่หนังสือ: ${dto.documentNo || '-'}\nหน่วยงานที่ส่ง: ${dto.senderOrg || '-'}`,
+        urgencyLevel: dto.urgencyLevel || 'normal',
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        status: 'new',
+      },
+    });
     return { caseId: Number(inboundCase.id), status: 'created' };
   }
 
@@ -75,6 +108,7 @@ export class CasesService {
     academicYearId?: number;
     dateFrom?: string;
     dateTo?: string;
+    search?: string;
     take?: number;
     skip?: number;
   } = {}) {
@@ -89,6 +123,13 @@ export class CasesService {
       if (opts.dateFrom) where.receivedAt.gte = new Date(opts.dateFrom);
       if (opts.dateTo) where.receivedAt.lte = new Date(opts.dateTo);
     }
+    if (opts.search) {
+      where.OR = [
+        { title: { contains: opts.search } },
+        { registrationNo: { contains: opts.search } },
+        { description: { contains: opts.search } },
+      ];
+    }
 
     const [cases, total] = await Promise.all([
       this.prisma.inboundCase.findMany({
@@ -97,6 +138,7 @@ export class CasesService {
           organization: true,
           assignedTo: { select: { id: true, fullName: true } },
           registeredBy: { select: { id: true, fullName: true } },
+          sourceDocument: { select: { id: true, issuingAuthority: true, documentCode: true } },
         },
         orderBy: { receivedAt: 'desc' },
         take: opts.take ?? 100,

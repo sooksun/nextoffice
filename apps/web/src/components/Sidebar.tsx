@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
+import DocumentUploadModal from "./DocumentUploadModal";
 import {
   LayoutDashboard,
   FileText,
@@ -11,7 +13,7 @@ import {
   Building2,
   MessageSquareText,
   HelpCircle,
-  Plus,
+  FilePlus,
   Shield,
   ScrollText,
   BookOpen,
@@ -20,20 +22,24 @@ import {
   Users,
   Inbox,
   BellRing,
+  ClipboardList,
+  SendHorizontal,
 } from "lucide-react";
 
-const links = [
+const documentFlowLinks = [
+  { href: "/inbox", label: "เอกสารเข้า", icon: Inbox },
+  { href: "/outbound/new", label: "ส่งเอกสาร", icon: SendHorizontal },
+  { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: ClipboardList },
+  { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: Send },
+];
+
+const toolLinks = [
   { href: "/", label: "ภาพรวม", icon: LayoutDashboard },
   { href: "/notifications", label: "การแจ้งเตือนงาน", icon: BellRing },
   { href: "/chat", label: "AI สารบรรณ", icon: MessageSquareText },
-  { href: "/intakes", label: "เอกสารขาเข้า", icon: FileText },
+  { href: "/intakes", label: "AI ประมวลผลเอกสาร", icon: FileText },
   { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
   { href: "/cases", label: "เคส", icon: Briefcase },
-];
-
-const sarabanLinks = [
-  { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: Inbox },
-  { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: Send },
   { href: "/saraban/reports", label: "รายงาน", icon: BarChart3 },
 ];
 
@@ -45,6 +51,7 @@ const adminLinks = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [uploadOpen, setUploadOpen] = useState(false);
   return (
     <aside className="w-64 shrink-0 bg-surface-low flex flex-col border-r border-outline-variant/20 font-[family-name:var(--font-be-vietnam-pro)] text-sm font-medium">
       {/* Brand */}
@@ -63,17 +70,24 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* New Document */}
+      {/* New Document Upload */}
       <div className="px-4 mb-4">
-        <button className="w-full py-3 px-4 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95">
-          <Plus size={14} />
-          <span>เอกสารใหม่</span>
+        <button
+          onClick={() => setUploadOpen(true)}
+          className="w-full py-3 px-4 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
+        >
+          <FilePlus size={14} />
+          <span>+ เอกสารใหม่</span>
         </button>
       </div>
+      <DocumentUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
 
       {/* Nav */}
       <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-        {links.map(({ href, label, icon: Icon }) => {
+        <div className="px-4 pt-1 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">รับ-ส่งเอกสาร</p>
+        </div>
+        {documentFlowLinks.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
             <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
@@ -84,10 +98,10 @@ export default function Sidebar() {
         })}
 
         <div className="px-4 pt-3 pb-1">
-          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">สารบรรณ</p>
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">เครื่องมือ AI</p>
         </div>
-        {sarabanLinks.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname.startsWith(href);
+        {toolLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
             <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
               <Icon size={18} />

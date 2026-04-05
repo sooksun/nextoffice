@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
-import { Send } from "lucide-react";
+import Link from "next/link";
+import { Send, Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -54,14 +55,23 @@ export default async function OutboundRegistryPage({
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
-          <Send size={20} className="text-secondary" />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
+            <Send size={20} className="text-secondary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-primary tracking-tight">ทะเบียนส่ง</h1>
+            <p className="text-xs text-on-surface-variant">พบ {docs.length} รายการ</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-black text-primary tracking-tight">ทะเบียนส่ง</h1>
-          <p className="text-xs text-on-surface-variant">พบ {docs.length} รายการ</p>
-        </div>
+        <Link
+          href="/outbound/new"
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
+        >
+          <Plus size={16} />
+          ส่งเอกสารใหม่
+        </Link>
       </div>
 
       {/* Filter */}
@@ -72,6 +82,8 @@ export default async function OutboundRegistryPage({
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
+        <input type="date" name="dateFrom" defaultValue={sp.dateFrom ?? ""} className="input-date" />
+        <input type="date" name="dateTo" defaultValue={sp.dateTo ?? ""} className="input-date" />
         <button type="submit" className="btn-primary">กรอง</button>
         <a href="/saraban/outbound" className="btn-ghost">ล้าง</a>
       </form>
@@ -101,7 +113,7 @@ export default async function OutboundRegistryPage({
                 <td className="px-4 py-3 text-on-surface-variant">{i + 1}</td>
                 <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{d.documentNo ?? "—"}</td>
                 <td className="px-4 py-3 max-w-xs">
-                  <span className="line-clamp-2">{d.subject}</span>
+                  <a href={`/outbound/${d.id}`} className="hover:text-primary hover:underline line-clamp-2">{d.subject}</a>
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant">{d.recipientOrg ?? "—"}</td>
                 <td className={`px-4 py-3 text-xs ${URGENCY_COLOR[d.urgencyLevel] ?? ""}`}>

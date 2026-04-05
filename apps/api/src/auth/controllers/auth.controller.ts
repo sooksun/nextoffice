@@ -4,12 +4,13 @@ import {
   Get,
   Body,
   Param,
+  Query,
   ParseIntPipe,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
 import { PairingService } from '../services/pairing.service';
 import { LoginDto } from '../dto/login.dto';
@@ -49,6 +50,18 @@ export class AuthController {
   @ApiOperation({ summary: 'ดูข้อมูลผู้ใช้ปัจจุบัน' })
   async me(@CurrentUser() user: any) {
     return this.authService.getMe(user.id);
+  }
+
+  @Get('users')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'รายชื่อผู้ใช้ในหน่วยงานเดียวกัน' })
+  @ApiQuery({ name: 'organizationId', required: false, type: Number })
+  async listUsers(
+    @CurrentUser() user: any,
+    @Query('organizationId') orgId?: string,
+  ) {
+    return this.authService.listUsers(orgId ? Number(orgId) : Number(user.organizationId));
   }
 
   @Post('users/:userId/pairing-code')

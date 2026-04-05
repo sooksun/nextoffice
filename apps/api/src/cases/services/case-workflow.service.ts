@@ -197,6 +197,14 @@ export class CaseWorkflowService {
     });
 
     this.logger.log(`Case #${caseId} status: ${c.status} → ${newStatus}`);
+
+    // Notify status change
+    if (this.notifications) {
+      this.notifications.notifyStatusChanged(caseId, c.status, newStatus, userId).catch((e) =>
+        this.logger.warn(`notify status change failed: ${e.message}`),
+      );
+    }
+
     return this.serialize(updated);
   }
 
@@ -337,6 +345,12 @@ export class CaseWorkflowService {
           reason: 'all responsible assignments completed',
         });
         this.logger.log(`Case #${caseId} auto-completed (all assignments done)`);
+
+        if (this.notifications) {
+          this.notifications.notifyStatusChanged(caseId, c.status, 'completed').catch((e) =>
+            this.logger.warn(`notify auto-complete failed: ${e.message}`),
+          );
+        }
       }
     }
   }

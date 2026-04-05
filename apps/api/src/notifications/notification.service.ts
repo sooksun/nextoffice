@@ -169,11 +169,123 @@ export class NotificationService {
     this.logger.log(`notifyCaseRegistered: case #${caseId} notified assigned user`);
   }
 
+  /** G2-A: แจ้งเอกสารเข้าใหม่ ไปยัง ผอ./ธุรการ */
+  async notifyNewDocumentArrived(caseId: number) {
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        organization: {
+          include: {
+            users: {
+              where: { roleCode: { in: ['DIRECTOR', 'CLERK', 'ADMIN'] }, isActive: true },
+              include: { lineUser: { select: { lineUserId: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!c) return;
+
+    const urgencyText = c.urgencyLevel === 'most_urgent' ? '🚨 ด่วนที่สุด' :
+                        c.urgencyLevel === 'very_urgent' ? '⚡ ด่วนมาก' :
+                        c.urgencyLevel === 'urgent' ? '⏰ ด่วน' : '📨 ทั่วไป';
+
+    const flexMessage = {
+      type: 'flex',
+      altText: `เอกสารเข้าใหม่: ${c.title.substring(0, 40)}`,
+      contents: {
+        type: 'bubble',
+        size: 'kilo',
+        header: {
+          type: 'box', layout: 'vertical',
+          contents: [{ type: 'text', text: '📨 เอกสารเข้าใหม่', weight: 'bold', size: 'md', color: '#1a73e8' }],
+          paddingBottom: 'sm',
+        },
+        body: {
+          type: 'box', layout: 'vertical', spacing: 'sm',
+          contents: [
+            { type: 'text', text: urgencyText, size: 'sm', color: c.urgencyLevel === 'most_urgent' ? '#dc2626' : '#666666' },
+            { type: 'text', text: c.title.substring(0, 80), weight: 'bold', size: 'sm', wrap: true },
+            ...(c.dueDate ? [{ type: 'text', text: `กำหนด: ${c.dueDate.toLocaleDateString('th-TH')}`, size: 'xs', color: '#999999' }] : []),
+          ],
+        },
+        footer: {
+          type: 'box', layout: 'horizontal', spacing: 'sm',
+          contents: [
+            { type: 'button', style: 'primary', height: 'sm', action: { type: 'message', label: 'ลงรับ', text: `ลงรับ #${c.id}` } },
+            { type: 'button', style: 'secondary', height: 'sm', action: { type: 'message', label: 'ดูรายละเอียด', text: `ดู #${c.id}` } },
+          ],
+        },
+      },
+    };
+
+    for (const user of c.organization.users) {
+      if (user.lineUser?.lineUserId) {
+        await this.sendLineMessage(user.lineUser.lineUserId, flexMessage);
+      }
+    }
+    this.logger.log(`notifyNewDocumentArrived: case #${caseId} notified ${c.organization.users.length} users`);
+  }
+
+  /** G2-B: แจ้งเมื่อสถานะเปลี่ยน */
+  async notifyStatusChanged(caseId: number, fromStatus: string, toStatus: string, changedByUserId?: number) {
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        assignedTo: { include: { lineUser: { select: { lineUserId: true } } } },
+        organization: {
+          include: {
+            users: {
+              where: { roleCode: { in: ['DIRECTOR'] }, isActive: true },
+              include: { lineUser: { select: { lineUserId: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!c) return;
+
+    const statusLabel: Record<string, string> = {
+      new: 'ใหม่', registered: 'ลงรับแล้ว', assigned: 'มอบหมายแล้ว',
+      in_progress: 'กำลังดำเนินการ', completed: 'เสร็จสิ้น', archived: 'เก็บถาวร',
+    };
+
+    const emoji = toStatus === 'completed' ? '✅' :
+                  toStatus === 'assigned' ? '📋' :
+                  toStatus === 'registered' ? '📝' : '🔄';
+
+    const msg = `${emoji} สถานะเปลี่ยน\n#${c.registrationNo || c.id} "${c.title.substring(0, 60)}"\n${statusLabel[fromStatus] || fromStatus} → ${statusLabel[toStatus] || toStatus}`;
+
+    // Notify assigned user
+    if (c.assignedTo?.lineUser?.lineUserId) {
+      await this.sendLineNotification(c.assignedTo.lineUser.lineUserId, msg);
+    }
+
+    // Notify director on completion
+    if (toStatus === 'completed') {
+      for (const director of c.organization.users) {
+        if (director.lineUser?.lineUserId && director.id !== c.assignedToUserId) {
+          await this.sendLineNotification(director.lineUser.lineUserId, msg);
+        }
+      }
+    }
+
+    this.logger.log(`notifyStatusChanged: case #${caseId} ${fromStatus} → ${toStatus}`);
+  }
+
   private async sendLineNotification(lineUserId: string, text: string) {
     try {
       await this.messaging.push(lineUserId, [{ type: 'text', text }]);
     } catch (err) {
       this.logger.warn(`Failed to push LINE to ${lineUserId}: ${err.message}`);
+    }
+  }
+
+  private async sendLineMessage(lineUserId: string, message: any) {
+    try {
+      await this.messaging.push(lineUserId, [message]);
+    } catch (err) {
+      this.logger.warn(`Failed to push LINE message to ${lineUserId}: ${err.message}`);
     }
   }
 }

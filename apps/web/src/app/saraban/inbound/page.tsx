@@ -36,6 +36,7 @@ interface Case {
   dueDate: string | null;
   assignedTo: { id: number; fullName: string } | null;
   organization: { id: number; name: string } | null;
+  sourceDocument: { id: number; issuingAuthority: string | null; documentCode: string | null } | null;
 }
 
 async function getCases(searchParams: Record<string, string>) {
@@ -45,6 +46,7 @@ async function getCases(searchParams: Record<string, string>) {
   if (searchParams.urgencyLevel) params.set("urgencyLevel", searchParams.urgencyLevel);
   if (searchParams.dateFrom) params.set("dateFrom", searchParams.dateFrom);
   if (searchParams.dateTo) params.set("dateTo", searchParams.dateTo);
+  if (searchParams.search) params.set("search", searchParams.search);
   params.set("take", "200");
 
   try {
@@ -78,6 +80,7 @@ export default async function InboundRegistryPage({
 
       {/* Filter bar */}
       <form method="GET" className="flex flex-wrap gap-3 mb-5">
+        <input type="text" name="search" defaultValue={sp.search ?? ""} placeholder="ค้นหา..." className="input-text flex-1 min-w-[200px]" />
         <select name="status" defaultValue={sp.status ?? ""} className="input-select">
           <option value="">ทุกสถานะ</option>
           {Object.entries(STATUS_LABEL).map(([v, l]) => (
@@ -101,20 +104,21 @@ export default async function InboundRegistryPage({
         <table className="w-full text-sm">
           <thead className="bg-surface-bright text-on-surface-variant text-xs uppercase tracking-wide">
             <tr>
-              <th className="px-4 py-3 text-left">ลำดับ</th>
+              <th className="px-4 py-3 text-left">#</th>
+              <th className="px-4 py-3 text-left">เอกสาร</th>
               <th className="px-4 py-3 text-left">เลขรับ</th>
               <th className="px-4 py-3 text-left">เรื่อง</th>
-              <th className="px-4 py-3 text-left">ชั้นความเร็ว</th>
+              <th className="px-4 py-3 text-left">ที่</th>
+              <th className="px-4 py-3 text-left">ผู้ส่ง</th>
               <th className="px-4 py-3 text-left">สถานะ</th>
               <th className="px-4 py-3 text-left">วันที่รับ</th>
-              <th className="px-4 py-3 text-left">กำหนด</th>
               <th className="px-4 py-3 text-left">ผู้รับผิดชอบ</th>
             </tr>
           </thead>
           <tbody>
             {data.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={9} className="px-4 py-10 text-center text-on-surface-variant">
                   ไม่พบข้อมูล
                 </td>
               </tr>
@@ -124,26 +128,28 @@ export default async function InboundRegistryPage({
               return (
                 <tr key={c.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
                   <td className="px-4 py-3 text-on-surface-variant">{i + 1}</td>
-                  <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{c.registrationNo ?? "—"}</td>
-                  <td className="px-4 py-3 max-w-xs">
-                    <a href={`/cases/${c.id}`} className="hover:text-primary hover:underline line-clamp-2 leading-relaxed">
-                      {c.title}
-                    </a>
-                  </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold ${URGENCY_COLOR[c.urgencyLevel] ?? URGENCY_COLOR.normal}`}>
                       {URGENCY_LABEL[c.urgencyLevel] ?? c.urgencyLevel}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{c.registrationNo ?? "—"}</td>
+                  <td className="px-4 py-3 max-w-xs">
+                    <a href={`/inbox/${c.id}`} className="hover:text-primary hover:underline line-clamp-2 leading-relaxed">
+                      {c.title}
+                    </a>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
+                    {c.sourceDocument?.documentCode || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-on-surface-variant">
+                    {c.sourceDocument?.issuingAuthority || "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs text-on-surface-variant">{STATUS_LABEL[c.status] ?? c.status}</span>
                   </td>
                   <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
                     {new Date(c.receivedAt).toLocaleDateString("th-TH")}
-                  </td>
-                  <td className={`px-4 py-3 text-xs whitespace-nowrap font-semibold ${isOverdue ? "text-red-600" : "text-on-surface-variant"}`}>
-                    {c.dueDate ? new Date(c.dueDate).toLocaleDateString("th-TH") : "—"}
-                    {isOverdue && <span className="ml-1 text-red-500">⚠</span>}
                   </td>
                   <td className="px-4 py-3 text-xs text-on-surface-variant">{c.assignedTo?.fullName ?? "—"}</td>
                 </tr>

@@ -8,10 +8,13 @@ import {
   UploadedFile,
   UseInterceptors,
   ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { IntakeService } from '../services/intake.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @ApiTags('intake')
 @Controller('intake')
@@ -41,6 +44,31 @@ export class IntakeController {
       file,
       organizationId ? Number(organizationId) : undefined,
       sourceChannel || 'liff_upload',
+    );
+  }
+
+  @Post('web-upload')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload + OCR + Classify + Extract ทันที (synchronous)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async webUpload(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: any,
+  ) {
+    return this.svc.webUploadAndAnalyze(
+      file,
+      user.organizationId ? Number(user.organizationId) : undefined,
+      Number(user.id),
     );
   }
 

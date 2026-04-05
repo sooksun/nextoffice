@@ -97,6 +97,23 @@ export class AuthService {
     return this.serializeUser(user);
   }
 
+  // ─── List users by organization ──────────────────────────────────────────────
+
+  async listUsers(organizationId: number) {
+    const users = await this.prisma.user.findMany({
+      where: { organizationId: BigInt(organizationId), isActive: true },
+      select: { id: true, fullName: true, roleCode: true, department: true, positionTitle: true },
+      orderBy: { fullName: 'asc' },
+    });
+    return users.map((u) => ({
+      id: Number(u.id),
+      fullName: u.fullName,
+      roleCode: u.roleCode,
+      department: u.department,
+      positionTitle: u.positionTitle,
+    }));
+  }
+
   // ─── Token validation (used by guard) ───────────────────────────────────────
 
   async validateToken(token: string) {

@@ -28,6 +28,7 @@ export class CasesController {
   @ApiQuery({ name: 'academicYearId', required: false, type: Number })
   @ApiQuery({ name: 'dateFrom', required: false })
   @ApiQuery({ name: 'dateTo', required: false })
+  @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'take', required: false, type: Number })
   @ApiQuery({ name: 'skip', required: false, type: Number })
   listCases(
@@ -38,6 +39,7 @@ export class CasesController {
     @Query('academicYearId') academicYearId?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('search') search?: string,
     @Query('take') take?: string,
     @Query('skip') skip?: string,
   ) {
@@ -49,6 +51,7 @@ export class CasesController {
       academicYearId: academicYearId ? Number(academicYearId) : undefined,
       dateFrom,
       dateTo,
+      search,
       take: take ? Number(take) : undefined,
       skip: skip ? Number(skip) : undefined,
     });
@@ -79,6 +82,29 @@ export class CasesController {
   @ApiOperation({ summary: 'Create case from a classified document intake' })
   createFromIntake(@Param('documentIntakeId', ParseIntPipe) documentIntakeId: number) {
     return this.svc.createFromIntake(documentIntakeId);
+  }
+
+  @Post('manual')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'CLERK', 'DIRECTOR', 'VICE_DIRECTOR')
+  @ApiOperation({ summary: 'สร้างเอกสารเข้าด้วยมือ (ไม่ผ่าน AI pipeline)' })
+  createManual(
+    @CurrentUser() user: any,
+    @Body() body: {
+      title: string;
+      description?: string;
+      documentNo?: string;
+      documentDate?: string;
+      senderOrg?: string;
+      urgencyLevel?: string;
+      dueDate?: string;
+    },
+  ) {
+    return this.svc.createManual({
+      ...body,
+      organizationId: Number(user.organizationId),
+      createdByUserId: Number(user.id),
+    });
   }
 
   @Get(':id')
