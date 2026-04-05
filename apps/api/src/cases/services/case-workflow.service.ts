@@ -5,6 +5,7 @@ import { GoogleCalendarService } from '../../calendar/services/google-calendar.s
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ['registered'],
   analyzing: ['registered'],
+  proposed: ['registered'],
   registered: ['assigned'],
   assigned: ['in_progress'],
   in_progress: ['completed'],
