@@ -61,6 +61,20 @@ export class CasesController {
     return this.svc.getOverdue(orgId ? Number(orgId) : undefined);
   }
 
+  @Get('my-tasks')
+  @ApiOperation({ summary: 'งานที่ฉันต้องทำ เรียงตามความเร่งด่วน' })
+  getMyTasks(@CurrentUser() user: any) {
+    return this.svc.getMyTasks(Number(user.id));
+  }
+
+  @Get('school-pending')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'HEAD_TEACHER', 'CLERK')
+  @ApiOperation({ summary: 'ภาพรวมงานทั้งโรงเรียน (เจ้าหน้าที่/ผู้บริหาร)' })
+  getSchoolPending(@CurrentUser() user: any) {
+    return this.svc.getSchoolPending(Number(user.organizationId));
+  }
+
   @Post('from-intake/:documentIntakeId')
   @ApiOperation({ summary: 'Create case from a classified document intake' })
   createFromIntake(@Param('documentIntakeId', ParseIntPipe) documentIntakeId: number) {

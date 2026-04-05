@@ -19,10 +19,12 @@ import {
   BarChart3,
   Users,
   Inbox,
+  BellRing,
 } from "lucide-react";
 
 const links = [
   { href: "/", label: "ภาพรวม", icon: LayoutDashboard },
+  { href: "/notifications", label: "การแจ้งเตือนงาน", icon: BellRing },
   { href: "/chat", label: "AI สารบรรณ", icon: MessageSquareText },
   { href: "/intakes", label: "เอกสารขาเข้า", icon: FileText },
   { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },

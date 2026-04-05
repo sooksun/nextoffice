@@ -5,6 +5,7 @@ import { ReasoningService } from '../../rag/services/reasoning.service';
 import { LineMessagingService } from '../../line/services/line-messaging.service';
 import { LineSessionService } from '../../line/services/line-session.service';
 import { SmartRoutingService } from '../../notifications/smart-routing.service';
+import { GoogleCalendarService } from '../../calendar/services/google-calendar.service';
 
 // Map AI urgency text → schema urgencyLevel
 function mapUrgency(aiUrgency: string): string {
@@ -27,6 +28,7 @@ export class OfficialWorkflowService {
     private readonly messaging: LineMessagingService,
     private readonly sessions: LineSessionService,
     private readonly smartRouting: SmartRoutingService,
+    private readonly calendar: GoogleCalendarService,
   ) {}
 
   async process(documentIntakeId: bigint): Promise<void> {
@@ -52,6 +54,10 @@ export class OfficialWorkflowService {
         deadlineDate: metadata.deadlineDate ? new Date(metadata.deadlineDate) : null,
         summaryText: metadata.summary,
         nextActionJson: JSON.stringify(metadata.actions),
+        isMeeting: metadata.isMeeting,
+        meetingDate: metadata.meetingDate ? new Date(metadata.meetingDate) : null,
+        meetingTime: metadata.meetingTime || null,
+        meetingLocation: metadata.meetingLocation || null,
       },
     });
 
@@ -84,6 +90,29 @@ export class OfficialWorkflowService {
         status: 'analyzing',
       },
     });
+
+    // สร้าง meeting event ถ้าหนังสือมีวันประชุม
+    if (metadata.isMeeting && metadata.meetingDate) {
+      try {
+        const meetingEventId = await this.calendar.createMeetingEvent({
+          summary: `[ประชุม] ${metadata.subjectText}`,
+          description: `จาก: ${metadata.issuingAuthority}\n\n${metadata.summary}`,
+          meetingDate: new Date(metadata.meetingDate),
+          meetingTime: metadata.meetingTime || undefined,
+          location: metadata.meetingLocation || undefined,
+          caseId: Number(inboundCase.id),
+        });
+        if (meetingEventId) {
+          await this.prisma.inboundCase.update({
+            where: { id: inboundCase.id },
+            data: { meetingCalendarEventId: meetingEventId },
+          });
+          this.logger.log(`Meeting calendar event created for case #${inboundCase.id}`);
+        }
+      } catch (calErr) {
+        this.logger.warn(`Meeting event creation failed (non-blocking): ${calErr.message}`);
+      }
+    }
 
     // Smart routing: auto-suggest & set responsible user
     try {

@@ -107,6 +107,124 @@ export class CasesService {
     return { total, data: cases.map((c) => this.serialize(c)) };
   }
 
+  async getMyTasks(userId: number) {
+    const now = new Date();
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+    const in3Days = new Date(now);
+    in3Days.setDate(in3Days.getDate() + 3);
+
+    const assignments = await this.prisma.caseAssignment.findMany({
+      where: {
+        assignedToUserId: BigInt(userId),
+        status: { notIn: ['completed'] },
+        inboundCase: { status: { notIn: ['completed', 'archived'] } },
+      },
+      include: {
+        inboundCase: {
+          select: {
+            id: true,
+            title: true,
+            registrationNo: true,
+            urgencyLevel: true,
+            dueDate: true,
+            status: true,
+            directorNote: true,
+          },
+        },
+      },
+    });
+
+    const URGENCY_ORDER: Record<string, number> = { most_urgent: 0, very_urgent: 1, urgent: 2, normal: 3 };
+    assignments.sort((a, b) => {
+      const ua = URGENCY_ORDER[a.inboundCase.urgencyLevel] ?? 3;
+      const ub = URGENCY_ORDER[b.inboundCase.urgencyLevel] ?? 3;
+      if (ua !== ub) return ua - ub;
+      const da = a.dueDate || a.inboundCase.dueDate;
+      const db = b.dueDate || b.inboundCase.dueDate;
+      if (da && db) return da.getTime() - db.getTime();
+      if (da) return -1;
+      if (db) return 1;
+      return 0;
+    });
+
+    const tasks = assignments.map((a) => {
+      const due = a.dueDate || a.inboundCase.dueDate;
+      const isOverdue = due ? due < now : false;
+      return {
+        assignmentId: Number(a.id),
+        caseId: Number(a.inboundCase.id),
+        title: a.inboundCase.title,
+        registrationNo: a.inboundCase.registrationNo,
+        urgencyLevel: a.inboundCase.urgencyLevel,
+        dueDate: due,
+        caseStatus: a.inboundCase.status,
+        assignmentStatus: a.status,
+        role: a.role,
+        note: a.note,
+        directorNote: a.inboundCase.directorNote,
+        isOverdue,
+        assignedAt: a.createdAt,
+      };
+    });
+
+    const overdue = tasks.filter((t) => t.isOverdue).length;
+    const dueToday = tasks.filter((t) => t.dueDate && t.dueDate <= endOfToday && !t.isOverdue).length;
+    const dueSoon = tasks.filter((t) => t.dueDate && t.dueDate <= in3Days && !t.isOverdue).length;
+
+    return { tasks, summary: { total: tasks.length, overdue, dueToday, dueSoon } };
+  }
+
+  async getSchoolPending(organizationId: number) {
+    const now = new Date();
+
+    const cases = await this.prisma.inboundCase.findMany({
+      where: {
+        organizationId: BigInt(organizationId),
+        status: { notIn: ['completed', 'archived'] },
+      },
+      include: {
+        assignedTo: { select: { id: true, fullName: true } },
+        assignments: {
+          where: { status: { notIn: ['completed'] } },
+          select: { id: true },
+        },
+      },
+    });
+
+    const URGENCY_ORDER: Record<string, number> = { most_urgent: 0, very_urgent: 1, urgent: 2, normal: 3 };
+    cases.sort((a, b) => {
+      const ua = URGENCY_ORDER[a.urgencyLevel] ?? 3;
+      const ub = URGENCY_ORDER[b.urgencyLevel] ?? 3;
+      if (ua !== ub) return ua - ub;
+      if (a.dueDate && b.dueDate) return a.dueDate.getTime() - b.dueDate.getTime();
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return 0;
+    });
+
+    const data = cases.map((c) => ({
+      caseId: Number(c.id),
+      title: c.title,
+      registrationNo: c.registrationNo,
+      urgencyLevel: c.urgencyLevel,
+      dueDate: c.dueDate,
+      status: c.status,
+      isOverdue: c.dueDate ? c.dueDate < now : false,
+      assignedTo: c.assignedTo ? { id: Number(c.assignedTo.id), fullName: c.assignedTo.fullName } : null,
+      pendingAssignmentCount: c.assignments.length,
+    }));
+
+    const total = data.length;
+    const overdue = data.filter((c) => c.isOverdue).length;
+    const unregistered = data.filter((c) => ['new', 'analyzing', 'proposed'].includes(c.status)).length;
+    const registered = data.filter((c) => c.status === 'registered').length;
+    const assigned = data.filter((c) => c.status === 'assigned').length;
+    const inProgress = data.filter((c) => c.status === 'in_progress').length;
+
+    return { cases: data, summary: { total, overdue, unregistered, registered, assigned, inProgress } };
+  }
+
   async getOverdue(organizationId?: number) {
     const where: any = {
       status: { notIn: ['completed', 'archived'] },

@@ -8,9 +8,10 @@ import { RagModule } from '../rag/rag.module';
 import { LineModule } from '../line/line.module';
 import { GeminiModule } from '../gemini/gemini.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
-  imports: [GeminiModule, RagModule, LineModule, NotificationsModule],
+  imports: [GeminiModule, RagModule, LineModule, NotificationsModule, CalendarModule],
   providers: [
     OcrService,
     ClassifierService,

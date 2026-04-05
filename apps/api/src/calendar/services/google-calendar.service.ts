@@ -88,6 +88,121 @@ export class GoogleCalendarService {
     }
   }
 
+  async createMeetingEvent(params: {
+    summary: string;
+    description?: string;
+    meetingDate: Date;
+    meetingTime?: string;
+    location?: string;
+    attendeeEmails?: string[];
+    caseId: number;
+  }): Promise<string | null> {
+    try {
+      const token = await this.getAccessToken();
+
+      const startDate = new Date(params.meetingDate);
+      const endDate = new Date(params.meetingDate);
+
+      if (params.meetingTime) {
+        const parts = params.meetingTime.split('-');
+        const [startH, startM] = parts[0].trim().split(':').map(Number);
+        startDate.setHours(startH, startM || 0, 0, 0);
+        if (parts[1]) {
+          const [endH, endM] = parts[1].trim().split(':').map(Number);
+          endDate.setHours(endH, endM || 0, 0, 0);
+        } else {
+          endDate.setHours(startH + 1, startM || 0, 0, 0);
+        }
+      } else {
+        startDate.setHours(9, 0, 0, 0);
+        endDate.setHours(10, 0, 0, 0);
+      }
+
+      const event: any = {
+        summary: params.summary,
+        description: params.description || '',
+        location: params.location || '',
+        start: { dateTime: startDate.toISOString(), timeZone: 'Asia/Bangkok' },
+        end: { dateTime: endDate.toISOString(), timeZone: 'Asia/Bangkok' },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: 3 * 24 * 60 }, // 3 days before
+            { method: 'popup', minutes: 24 * 60 },       // 1 day before
+            { method: 'popup', minutes: 2 * 60 },         // 2 hours before
+          ],
+        },
+        extendedProperties: {
+          private: { nextoffice_case_id: String(params.caseId), event_type: 'meeting' },
+        },
+      };
+
+      if (params.attendeeEmails?.length) {
+        event.attendees = params.attendeeEmails.map((email) => ({ email }));
+      }
+
+      const res = await axios.post(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?sendUpdates=all`,
+        event,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+      );
+
+      this.logger.log(`Meeting event created: ${res.data.id} for case #${params.caseId}`);
+      return res.data.id;
+    } catch (err) {
+      this.logger.warn(`Meeting event creation failed: ${err?.response?.data?.error?.message || err.message}`);
+      return null;
+    }
+  }
+
+  async createAssignmentReminderEvent(params: {
+    summary: string;
+    description?: string;
+    dueDate: Date;
+    attendeeEmail: string;
+    assignmentId: number;
+  }): Promise<string | null> {
+    try {
+      const token = await this.getAccessToken();
+
+      const startDate = new Date(params.dueDate);
+      startDate.setHours(9, 0, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setHours(10, 0, 0, 0);
+
+      const event: any = {
+        summary: params.summary,
+        description: params.description || '',
+        start: { dateTime: startDate.toISOString(), timeZone: 'Asia/Bangkok' },
+        end: { dateTime: endDate.toISOString(), timeZone: 'Asia/Bangkok' },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: 'popup', minutes: 2 * 24 * 60 }, // 2 days before
+            { method: 'popup', minutes: 24 * 60 },       // 1 day before
+            { method: 'popup', minutes: 2 * 60 },         // 2 hours before
+          ],
+        },
+        attendees: [{ email: params.attendeeEmail }],
+        extendedProperties: {
+          private: { nextoffice_assignment_id: String(params.assignmentId), event_type: 'task_reminder' },
+        },
+      };
+
+      const res = await axios.post(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events?sendUpdates=all`,
+        event,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+      );
+
+      this.logger.log(`Assignment reminder created: ${res.data.id} for assignment #${params.assignmentId}`);
+      return res.data.id;
+    } catch (err) {
+      this.logger.warn(`Assignment reminder creation failed: ${err?.response?.data?.error?.message || err.message}`);
+      return null;
+    }
+  }
+
   async updateEvent(eventId: string, updates: {
     summary?: string;
     description?: string;

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Search, Bell, Grid3x3, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { getUser, getToken, logout } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
@@ -16,10 +17,14 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const user = getUser();
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (!getToken()) return;
     void apiFetch("/auth/me").catch(() => {});
+    void apiFetch<{ summary: { total: number; overdue: number } }>("/cases/my-tasks")
+      .then((d) => setPendingCount(d.summary.total))
+      .catch(() => {});
   }, []);
 
   function handleLogout() {
@@ -66,10 +71,18 @@ export default function Header() {
 
       {/* Right: Actions + User */}
       <div className="flex items-center gap-2">
-        <button className="p-2 text-on-surface-variant hover:bg-surface-high rounded-full transition-colors relative">
+        <Link
+          href="/notifications"
+          className="p-2 text-on-surface-variant hover:bg-surface-high rounded-full transition-colors relative"
+          title="การแจ้งเตือนงาน"
+        >
           <Bell size={18} />
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-error rounded-full ring-2 ring-surface-lowest" />
-        </button>
+          {pendingCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-error text-on-error text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 ring-2 ring-surface-lowest">
+              {pendingCount > 99 ? "99+" : pendingCount}
+            </span>
+          )}
+        </Link>
         <button className="p-2 text-on-surface-variant hover:bg-surface-high rounded-full transition-colors">
           <Grid3x3 size={18} />
         </button>

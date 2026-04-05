@@ -84,6 +84,36 @@ export class CaseWorkflowService {
           note: a.note,
         },
       });
+
+      // สร้าง reminder event รายบุคคลสำหรับครูที่รับมอบหมาย
+      const assignmentDue = a.dueDate ? new Date(a.dueDate) : c.dueDate;
+      if (assignmentDue) {
+        try {
+          const user = await this.prisma.user.findUnique({
+            where: { id: BigInt(a.userId) },
+            select: { googleEmail: true, email: true, fullName: true },
+          });
+          const userEmail = user?.googleEmail || user?.email;
+          if (userEmail) {
+            const reminderId = await this.calendar.createAssignmentReminderEvent({
+              summary: `งาน: ${c.title}`,
+              description: `คำสั่ง: ${directorNote || '-'}\nเลขที่: ${c.registrationNo || '-'}${a.note ? `\nหมายเหตุ: ${a.note}` : ''}`,
+              dueDate: assignmentDue,
+              attendeeEmail: userEmail,
+              assignmentId: Number(assignment.id),
+            });
+            if (reminderId) {
+              await this.prisma.caseAssignment.update({
+                where: { id: assignment.id },
+                data: { googleCalendarEventId: reminderId },
+              });
+            }
+          }
+        } catch (calErr) {
+          this.logger.warn(`Assignment reminder creation failed (non-blocking): ${calErr.message}`);
+        }
+      }
+
       created.push(assignment);
     }
 

@@ -362,9 +362,10 @@ model InboundCase {
   urgencyLevel          String    @map("urgency_level") @db.VarChar(20) @default("normal") // normal | urgent | very_urgent | most_urgent
   securityLevel         String    @map("security_level") @db.VarChar(20) @default("normal") // normal | confidential | secret
   directorNote          String?   @map("director_note") @db.Text // คำสั่ง ผอ.
-  googleCalendarEventId String?   @map("google_calendar_event_id") @db.VarChar(255)
-  createdAt             DateTime  @map("created_at") @default(now())
-  updatedAt             DateTime  @map("updated_at") @updatedAt
+  googleCalendarEventId  String?   @map("google_calendar_event_id") @db.VarChar(255)
+  meetingCalendarEventId String?   @map("meeting_calendar_event_id") @db.VarChar(255)
+  createdAt              DateTime  @map("created_at") @default(now())
+  updatedAt              DateTime  @map("updated_at") @updatedAt
 
   organization       Organization          @relation(fields: [organizationId], references: [id])
   academicYear       AcademicYear?         @relation(fields: [academicYearId], references: [id])
@@ -564,6 +565,10 @@ model DocumentAiResult {
   summaryText              String?   @map("summary_text") @db.LongText
   extractedText            String?   @map("extracted_text") @db.LongText
   deadlineDate             DateTime? @map("deadline_date")
+  isMeeting                Boolean   @map("is_meeting") @default(false)
+  meetingDate              DateTime? @map("meeting_date")
+  meetingTime              String?   @map("meeting_time") @db.VarChar(20)
+  meetingLocation          String?   @map("meeting_location") @db.VarChar(500)
   nextActionJson           String?   @map("next_action_json") @db.LongText
   createdAt                DateTime  @map("created_at") @default(now())
   updatedAt                DateTime  @map("updated_at") @updatedAt
