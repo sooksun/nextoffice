@@ -125,7 +125,7 @@ export default function Sidebar() {
           นโยบายความเป็นส่วนตัว
         </Link>
         <Link
-          href="#"
+          href="/help"
           className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"
         >
           <HelpCircle size={16} />
