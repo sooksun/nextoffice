@@ -66,21 +66,33 @@ export class CasesService {
     dueDate?: string;
     intakeId?: number;
   }) {
-    const lines: string[] = [];
-    if (dto.documentNo) lines.push(`เลขที่หนังสือ: ${dto.documentNo}`);
-    if (dto.senderOrg) lines.push(`หน่วยงานที่ส่ง: ${dto.senderOrg}`);
-    if (dto.recipientNote) lines.push(`ถึง: ${dto.recipientNote}`);
-    if (dto.description) lines.push(dto.description);
-    if (dto.intakeId) lines.push(`intake:${dto.intakeId}`);
+    // Create a Document record so sourceDocument relation is populated in the detail view
+    const sourceDoc = await this.prisma.document.create({
+      data: {
+        title: dto.title,
+        sourceType: 'inbound_manual',
+        documentType: 'official',
+        issuingAuthority: dto.senderOrg || null,
+        documentCode: dto.documentNo || null,
+        publishedAt: dto.documentDate ? new Date(dto.documentDate) : null,
+        status: 'active',
+      },
+    });
+
+    const descLines: string[] = [];
+    if (dto.recipientNote) descLines.push(`ถึง: ${dto.recipientNote}`);
+    if (dto.description) descLines.push(dto.description);
+    if (dto.intakeId) descLines.push(`intake:${dto.intakeId}`);
 
     const inboundCase = await this.prisma.inboundCase.create({
       data: {
         organizationId: BigInt(dto.organizationId),
         title: dto.title,
-        description: lines.join('\n') || null,
+        description: descLines.join('\n') || null,
         urgencyLevel: dto.urgencyLevel || 'normal',
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         status: 'new',
+        sourceDocumentId: sourceDoc.id,
       },
     });
     return { caseId: Number(inboundCase.id), status: 'created' };

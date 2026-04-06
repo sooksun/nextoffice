@@ -67,6 +67,14 @@ const ACTION_LABEL: Record<string, string> = {
   close: "ปิดเรื่อง", auto_complete: "เสร็จอัตโนมัติ",
 };
 
+/** For manually-created cases (no sourceDocument), parse senderOrg/docNo from description text */
+function parseSenderFromDescription(desc: string | null) {
+  if (!desc) return { documentCode: null, issuingAuthority: null };
+  const docNo = desc.match(/เลขที่หนังสือ:\s*(.+)/)?.[1]?.trim() ?? null;
+  const sender = desc.match(/หน่วยงานที่ส่ง:\s*(.+)/)?.[1]?.trim() ?? null;
+  return { documentCode: docNo, issuingAuthority: sender };
+}
+
 async function getCase(id: string) {
   try { return await apiFetch<CaseDetail>(`/cases/${id}`); } catch { return null; }
 }
@@ -88,6 +96,11 @@ export default async function InboxDetailPage({
     getAssignments(id),
     getActivities(id),
   ]);
+
+  // Fallback: parse sender info from description for legacy manual cases (no sourceDocument)
+  const senderFallback = parseSenderFromDescription(caseData?.description ?? null);
+  const issuingAuthority = caseData?.sourceDocument?.issuingAuthority ?? senderFallback.issuingAuthority;
+  const documentCode = caseData?.sourceDocument?.documentCode ?? senderFallback.documentCode;
 
   if (!caseData) {
     return (
@@ -143,7 +156,7 @@ export default async function InboxDetailPage({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-on-surface-variant">หน่วยงานที่ส่ง:</span>
-              <p className="font-medium">{caseData.sourceDocument?.issuingAuthority || "—"}</p>
+              <p className="font-medium">{issuingAuthority || "—"}</p>
             </div>
             <div>
               <span className="text-on-surface-variant">หน่วยงานรับ:</span>
@@ -151,7 +164,7 @@ export default async function InboxDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant">เลขที่หนังสือ:</span>
-              <p className="font-medium">{caseData.sourceDocument?.documentCode || "—"}</p>
+              <p className="font-medium">{documentCode || "—"}</p>
             </div>
             <div>
               <span className="text-on-surface-variant">เลขทะเบียนรับ:</span>

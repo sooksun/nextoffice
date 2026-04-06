@@ -133,8 +133,8 @@ export class CasesController {
 
   @Post(':id/assign')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR')
-  @ApiOperation({ summary: 'มอบหมายงาน (ผอ./รอง ผอ.)' })
+  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: 'มอบหมายงาน (ผอ./รอง ผอ./เจ้าหน้าที่)' })
   assign(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: any,
