@@ -4,25 +4,26 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { Building2, FileText, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
+
 interface SchoolSummary {
   organizationId: number;
-  organizationName: string;
+  name: string;
+  shortName: string | null;
   totalCases: number;
   pendingCases: number;
   completedCases: number;
   overdueCases: number;
-  urgentCases: number;
+  completionRate: number;
 }
 
 interface DistrictSummaryResponse {
-  parentOrgId: number;
-  schoolCount: number;
   totals: {
+    schoolCount: number;
     totalCases: number;
     pendingCases: number;
     completedCases: number;
     overdueCases: number;
-    urgentCases: number;
+    completionRate: number;
   };
   schools: SchoolSummary[];
 }
@@ -62,17 +63,16 @@ export default function DistrictReportPage() {
           รายงานภาพรวมระดับเขต
         </h1>
         <p className="text-on-surface-variant mt-1">
-          {data.schoolCount} โรงเรียนในสังกัด
+          {totals.schoolCount} โรงเรียนในสังกัด
         </p>
       </div>
 
       {/* Totals */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="เอกสารทั้งหมด" value={totals.totalCases} icon={<FileText size={20} />} color="text-primary" />
         <StatCard label="รอดำเนินการ" value={totals.pendingCases} icon={<Clock size={20} />} color="text-amber-500" />
         <StatCard label="เสร็จแล้ว" value={totals.completedCases} icon={<CheckCircle size={20} />} color="text-green-500" />
         <StatCard label="เกินกำหนด" value={totals.overdueCases} icon={<AlertTriangle size={20} />} color="text-red-500" />
-        <StatCard label="ด่วน" value={totals.urgentCases} icon={<AlertTriangle size={20} />} color="text-orange-500" />
       </div>
 
       {/* Per-school table */}
@@ -89,13 +89,13 @@ export default function DistrictReportPage() {
                 <th className="px-4 py-3 text-right">รอดำเนินการ</th>
                 <th className="px-4 py-3 text-right">เสร็จแล้ว</th>
                 <th className="px-4 py-3 text-right">เกินกำหนด</th>
-                <th className="px-4 py-3 text-right">ด่วน</th>
+                <th className="px-4 py-3 text-right">% เสร็จ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/10">
               {schools.map((school) => (
                 <tr key={school.organizationId} className="hover:bg-surface-bright transition-colors">
-                  <td className="px-5 py-3 font-medium text-on-surface">{school.organizationName}</td>
+                  <td className="px-5 py-3 font-medium text-on-surface">{school.name}</td>
                   <td className="px-4 py-3 text-right text-on-surface">{school.totalCases}</td>
                   <td className="px-4 py-3 text-right">
                     <span className={school.pendingCases > 10 ? "text-amber-500 font-semibold" : "text-on-surface"}>
@@ -108,11 +108,7 @@ export default function DistrictReportPage() {
                       {school.overdueCases}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={school.urgentCases > 0 ? "text-orange-500 font-semibold" : "text-on-surface-variant"}>
-                      {school.urgentCases}
-                    </span>
-                  </td>
+                  <td className="px-4 py-3 text-right text-on-surface-variant">{school.completionRate}%</td>
                 </tr>
               ))}
               {schools.length === 0 && (
