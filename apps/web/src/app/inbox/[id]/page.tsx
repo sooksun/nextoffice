@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
-import { ArrowLeft, FileText, Clock, User } from "lucide-react";
+import { ArrowLeft, FileText, Clock, User, Paperclip, ExternalLink, FileImage } from "lucide-react";
 import { formatThaiDate, formatThaiDateShort, formatThaiDateTime } from "@/lib/thai-date";
 import RegisterButton from "@/components/actions/RegisterButton";
 import AssignButton from "@/components/actions/AssignButton";
@@ -24,6 +24,14 @@ const ASSIGNMENT_STATUS: Record<string, string> = {
   pending: "รอรับทราบ", accepted: "รับทราบแล้ว", in_progress: "กำลังดำเนินการ", completed: "เสร็จสิ้น",
 };
 
+interface IntakeFile {
+  id: number;
+  storagePath: string | null;
+  mimeType: string;
+  originalFileName: string | null;
+  fileSize: number | null;
+}
+
 interface CaseDetail {
   id: number;
   title: string;
@@ -39,6 +47,7 @@ interface CaseDetail {
   organization: { id: number; name: string } | null;
   sourceDocument: { id: number; issuingAuthority: string | null; documentCode: string | null } | null;
   assignedTo: { id: number; fullName: string } | null;
+  intake?: IntakeFile | null;
 }
 
 interface Assignment {
@@ -75,6 +84,12 @@ function parseSenderFromDescription(desc: string | null) {
   return { documentCode: docNo, issuingAuthority: sender };
 }
 
+interface FileUrl {
+  url: string;
+  mimeType: string;
+  originalFileName: string | null;
+}
+
 async function getCase(id: string) {
   try { return await apiFetch<CaseDetail>(`/cases/${id}`); } catch { return null; }
 }
@@ -83,6 +98,9 @@ async function getAssignments(id: string) {
 }
 async function getActivities(id: string) {
   try { return await apiFetch<Activity[]>(`/cases/${id}/activities`); } catch { return []; }
+}
+async function getFileUrl(intakeId: number) {
+  try { return await apiFetch<FileUrl>(`/intake/${intakeId}/file-url`); } catch { return null; }
 }
 
 export default async function InboxDetailPage({
@@ -96,6 +114,8 @@ export default async function InboxDetailPage({
     getAssignments(id),
     getActivities(id),
   ]);
+
+  const fileUrl = caseData?.intake?.id ? await getFileUrl(caseData.intake.id) : null;
 
   // Fallback: parse sender info from description for legacy manual cases (no sourceDocument)
   const senderFallback = parseSenderFromDescription(caseData?.description ?? null);
@@ -148,6 +168,75 @@ export default async function InboxDetailPage({
         <AcknowledgeButton caseId={caseData.id} assignments={assignments} />
         <CompleteButton caseId={caseData.id} assignments={assignments} />
       </div>
+
+      {/* Original File */}
+      {fileUrl && (
+        <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6 overflow-hidden">
+          <div className="px-5 pt-5 pb-3">
+            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Paperclip size={14} />
+              เอกสารไฟล์ต้นฉบับ
+            </h2>
+
+            {/* PDF preview */}
+            {fileUrl.mimeType === "application/pdf" ? (
+              <div className="space-y-3">
+                <iframe
+                  src={fileUrl.url}
+                  className="w-full rounded-xl border border-outline-variant/20"
+                  style={{ height: "600px" }}
+                  title="เอกสารต้นฉบับ"
+                />
+                <a
+                  href={fileUrl.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-primary font-medium hover:underline"
+                >
+                  <ExternalLink size={14} />
+                  เปิดในแท็บใหม่
+                  {fileUrl.originalFileName && (
+                    <span className="text-on-surface-variant font-normal">({fileUrl.originalFileName})</span>
+                  )}
+                </a>
+              </div>
+            ) : fileUrl.mimeType.startsWith("image/") ? (
+              <div className="space-y-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={fileUrl.url}
+                  alt="เอกสารต้นฉบับ"
+                  className="max-w-full rounded-xl border border-outline-variant/20 object-contain"
+                  style={{ maxHeight: "600px" }}
+                />
+                <a
+                  href={fileUrl.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-primary font-medium hover:underline"
+                >
+                  <FileImage size={14} />
+                  ดูภาพขนาดเต็ม
+                  {fileUrl.originalFileName && (
+                    <span className="text-on-surface-variant font-normal">({fileUrl.originalFileName})</span>
+                  )}
+                </a>
+              </div>
+            ) : (
+              <a
+                href={fileUrl.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
+              >
+                <ExternalLink size={14} />
+                ดาวน์โหลดไฟล์
+                {fileUrl.originalFileName && <span>({fileUrl.originalFileName})</span>}
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Document Metadata */}
       <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6">

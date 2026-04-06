@@ -55,6 +55,15 @@ export class FileStorageService {
     });
   }
 
+  async presignedUrl(objectPath: string, expirySeconds = 3600): Promise<string> {
+    try {
+      return await this.client.presignedGetObject(this.bucket, objectPath, expirySeconds);
+    } catch (err) {
+      this.logger.error(`Failed to generate presigned URL: ${err.message}`);
+      throw err;
+    }
+  }
+
   computeSha256(buffer: Buffer): string {
     return crypto.createHash('sha256').update(buffer).digest('hex');
   }

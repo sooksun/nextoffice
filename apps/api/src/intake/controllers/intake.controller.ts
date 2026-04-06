@@ -17,13 +17,17 @@ import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { IntakeService } from '../services/intake.service';
+import { FileStorageService } from '../services/file-storage.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @ApiTags('intake')
 @Controller('intake')
 export class IntakeController {
-  constructor(private readonly svc: IntakeService) {}
+  constructor(
+    private readonly svc: IntakeService,
+    private readonly storage: FileStorageService,
+  ) {}
 
   @Post('upload')
   @ApiOperation({ summary: 'Upload file from LIFF/web (image or PDF)' })
@@ -107,6 +111,23 @@ export class IntakeController {
   @ApiOperation({ summary: 'Get AI analysis result for intake' })
   getResult(@Param('id', ParseIntPipe) id: number) {
     return this.svc.getResult(id);
+  }
+
+  @Get(':id/file-url')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get presigned URL for original file of an intake' })
+  async getFileUrl(@Param('id', ParseIntPipe) id: number) {
+    const intake = await this.svc.findById(id);
+    if (!intake?.storagePath) throw new NotFoundException(`No file for intake #${id}`);
+    const url = await this.storage.presignedUrl(intake.storagePath, 3600);
+    return {
+      intakeId: id,
+      url,
+      mimeType: intake.mimeType,
+      originalFileName: intake.originalFileName,
+      expiresInSeconds: 3600,
+    };
   }
 
   @Get()

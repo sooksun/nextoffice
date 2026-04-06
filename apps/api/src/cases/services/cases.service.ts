@@ -110,7 +110,28 @@ export class CasesService {
       },
     });
     if (!c) throw new NotFoundException(`Case #${id} not found`);
-    return this.serialize(c);
+    const result = this.serialize(c);
+
+    // Parse intakeId from description (pattern: "intake:{id}")
+    const intakeMatch = c.description?.match(/intake:(\d+)/);
+    if (intakeMatch) {
+      const intakeId = Number(intakeMatch[1]);
+      const intake = await this.prisma.documentIntake.findUnique({
+        where: { id: BigInt(intakeId) },
+        select: { id: true, storagePath: true, mimeType: true, originalFileName: true, fileSize: true },
+      });
+      if (intake) {
+        result.intake = {
+          id: Number(intake.id),
+          storagePath: intake.storagePath,
+          mimeType: intake.mimeType,
+          originalFileName: intake.originalFileName,
+          fileSize: intake.fileSize ? Number(intake.fileSize) : null,
+        };
+      }
+    }
+
+    return result;
   }
 
   async getOptions(id: number) {
