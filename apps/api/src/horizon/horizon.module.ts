@@ -22,6 +22,14 @@ import { HorizonIntelligenceController } from './controllers/horizon-intelligenc
     HorizonEmbedService,
     HorizonPipelineService,
   ],
-  exports: [HorizonSourceService, HorizonPipelineService, HorizonClassifyService],
+  exports: [
+    HorizonSourceService,
+    HorizonFetchService,
+    HorizonNormalizeService,
+    HorizonClassifyService,
+    HorizonSignalService,
+    HorizonEmbedService,
+    HorizonPipelineService,
+  ],
 })
 export class HorizonModule {}
