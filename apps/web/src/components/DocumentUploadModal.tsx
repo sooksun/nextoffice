@@ -27,6 +27,7 @@ const URGENCY_COLOR: Record<string, string> = {
 
 interface UploadResult {
   documentIntakeId: number;
+  caseId: number | null;
   isOfficialDocument: boolean;
   classificationLabel: string;
   confidence: number;
@@ -165,12 +166,13 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     if (!result?.documentIntakeId) return;
     setLoadingRouting(true);
     try {
-      const caseRes = await apiFetch<{ caseId: number; status: string }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" });
-      const routeRes = await apiFetch<RoutingResponse>(`/cases/${caseRes.caseId}/routing-suggestion`);
+      // Use caseId returned from web-upload if available, otherwise create from intake
+      const caseId = result.caseId
+        ?? (await apiFetch<{ caseId: number; status: string }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" })).caseId;
+      const routeRes = await apiFetch<RoutingResponse>(`/cases/${caseId}/routing-suggestion`);
       if (routeRes?.found && routeRes.suggestion) {
         setRouting(routeRes.suggestion);
       } else {
-        // ไม่ควรเกิดขึ้นแล้ว เพราะ backend ส่ง suggestion เสมอ
         setRouting(null);
       }
     } catch (err: any) {
@@ -185,12 +187,12 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     if (!result?.documentIntakeId) return;
     setSavingCase(true);
     try {
-      // Create case if not already created
-      const caseRes = await apiFetch<{ caseId: number }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" });
+      // Use caseId returned from web-upload; fallback to creating from intake
+      const caseId = result.caseId
+        ?? (await apiFetch<{ caseId: number }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" })).caseId;
       handleClose();
-      router.push(`/inbox/${caseRes.caseId}`);
+      router.push(`/inbox/${caseId}`);
     } catch {
-      // Case might already exist, try to find it
       handleClose();
       router.push("/inbox");
     } finally {

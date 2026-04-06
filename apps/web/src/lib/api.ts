@@ -8,6 +8,7 @@ function clearClientAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem("token");
   localStorage.removeItem("user");
+  document.cookie = "token=; path=/; max-age=0";
 }
 
 export function getAuthToken(): string | null {
@@ -17,8 +18,22 @@ export function getAuthToken(): string | null {
   return t || null;
 }
 
+/** Read JWT from cookie — used by server components where localStorage is unavailable */
+async function getServerToken(): Promise<string | null> {
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    return store.get("token")?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getAuthToken();
+  const token =
+    typeof window === "undefined"
+      ? await getServerToken()
+      : getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {

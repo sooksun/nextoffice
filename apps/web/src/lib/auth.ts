@@ -25,6 +25,9 @@ export async function login(
   if (typeof window !== "undefined") {
     localStorage.setItem("token", data.token.trim());
     localStorage.setItem("user", JSON.stringify(data.user));
+    // Also set cookie so server-side components can read JWT
+    const maxAge = 7 * 24 * 3600;
+    document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Lax`;
   }
   return data;
 }
@@ -33,6 +36,7 @@ export function logout() {
   if (typeof window !== "undefined") {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    document.cookie = "token=; path=/; max-age=0";
   }
 }
 

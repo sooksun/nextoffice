@@ -211,11 +211,45 @@ export class IntakeService {
       },
     });
 
-    // 7. Backup to Drive (non-blocking)
+    // 7. Auto-create InboundCase for official documents
+    let caseId: number | null = null;
+    if (classResult.isOfficialDocument) {
+      const orgId = intake.organizationId || BigInt(1);
+      const intakeRef = `intake:${Number(intake.id)}`;
+      const existing = await this.prisma.inboundCase.findFirst({
+        where: { description: { contains: intakeRef } },
+      });
+      if (existing) {
+        caseId = Number(existing.id);
+      } else {
+        const title = metadata?.subjectText || (intake as any).originalFileName || 'เอกสารไม่ระบุชื่อ';
+        const urgencyLevel = (() => {
+          const u = (metadata?.urgency || '').toLowerCase();
+          if (u.includes('ที่สุด') || u === 'most_urgent') return 'most_urgent';
+          if (u.includes('มาก') || u === 'very_urgent') return 'very_urgent';
+          if (u.includes('ด่วน') || u === 'urgent') return 'urgent';
+          return 'normal';
+        })();
+        const newCase = await this.prisma.inboundCase.create({
+          data: {
+            organizationId: orgId,
+            title,
+            description: [metadata?.summary || '', intakeRef].filter(Boolean).join('\n'),
+            dueDate: metadata?.deadlineDate ? new Date(metadata.deadlineDate) : null,
+            urgencyLevel,
+            status: 'new',
+          },
+        });
+        caseId = Number(newCase.id);
+      }
+    }
+
+    // 8. Backup to Drive (non-blocking)
     this.dispatcher.dispatchDriveBackup(intake.id).catch(() => {});
 
     return {
       documentIntakeId: Number(intake.id),
+      caseId,
       isOfficialDocument: classResult.isOfficialDocument,
       classificationLabel: classResult.classificationLabel,
       confidence: classResult.classificationConfidence,
