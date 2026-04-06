@@ -36,12 +36,20 @@ const URGENCY_OPTIONS = [
   { value: "most_urgent", label: "ด่วนที่สุด" },
 ];
 
+/** Parse date string to CE YYYY-MM-DD.
+ *  If the year part > 2500 it is assumed to be Buddhist Era and is converted to CE (−543). */
 function toInputDate(raw: string | null | undefined): string {
   if (!raw) return "";
   try {
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) {
+      const year = parseInt(iso[1], 10);
+      const ceYear = year > 2500 ? year - 543 : year;
+      const d = new Date(`${ceYear}-${iso[2]}-${iso[3]}T00:00:00`);
+      return isNaN(d.getTime()) ? "" : `${ceYear}-${iso[2]}-${iso[3]}`;
+    }
     const d = new Date(raw);
-    if (isNaN(d.getTime())) return "";
-    return d.toISOString().split("T")[0];
+    return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0];
   } catch {
     return "";
   }

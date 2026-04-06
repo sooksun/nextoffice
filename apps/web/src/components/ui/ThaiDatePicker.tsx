@@ -29,8 +29,17 @@ interface Props {
   disabled?: boolean;
 }
 
+/** Parse a CE date string (YYYY-MM-DD).
+ *  Safety: if year > 2500 assume it is BE and subtract 543 before parsing. */
 function ceStringToDate(s: string | undefined): Date | null {
   if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const year = parseInt(iso[1], 10);
+    const ceYear = year > 2500 ? year - 543 : year;
+    const d = new Date(`${ceYear}-${iso[2]}-${iso[3]}T00:00:00`);
+    return isNaN(d.getTime()) ? null : d;
+  }
   const d = new Date(s + "T00:00:00");
   return isNaN(d.getTime()) ? null : d;
 }
