@@ -56,7 +56,7 @@ interface Assignment {
 interface Activity {
   id: number;
   action: string;
-  detail: any;
+  detail: Record<string, unknown> | string | null;
   user: { id: number; fullName: string; roleCode: string } | null;
   createdAt: string;
 }

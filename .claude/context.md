@@ -238,6 +238,73 @@ function normalizeDateToCe(raw: string | null | undefined): string {
 
 ---
 
+## Google Calendar Integration
+
+**Status**: ✅ ติดตั้งแล้วใน `apps/api/src/calendar/`
+
+### Files
+- `apps/api/src/calendar/services/google-calendar.service.ts` — core service
+- `apps/api/src/calendar/calendar.module.ts` — NestJS module
+- Import ใน `app.module.ts`, `ai.module.ts`, `cases.module.ts`
+
+### Events ที่สร้างอัตโนมัติ
+| Trigger | Method | Event type |
+|---------|--------|------------|
+| ลงรับเอกสาร (`register`) | `createDeadlineEvent()` | Deadline event |
+| มอบหมายงาน (`assign`) | `createAssignmentReminderEvent()` | Reminder event |
+| เอกสารเป็นการประชุม | `createMeetingEvent()` | Meeting event + attendees |
+
+### DB Fields (InboundCase)
+```prisma
+googleCalendarEventId  String?  # deadline event
+meetingCalendarEventId String?  # meeting event
+isMeeting              Boolean
+meetingDate            DateTime?
+meetingTime            String?  # "HH:MM-HH:MM"
+meetingLocation        String?
+```
+
+### Environment Variables (apps/api/.env.production)
+```env
+GOOGLE_DRIVE_CLIENT_ID=<see .env.production on server>
+GOOGLE_DRIVE_CLIENT_SECRET=<see .env.production on server>
+GOOGLE_DRIVE_REFRESH_TOKEN=<see .env.production on server>
+GOOGLE_CALENDAR_ID=primary
+```
+
+### ขั้นตอนขอ Refresh Token (ทำครั้งเดียว)
+
+1. เพิ่ม Redirect URI ใน [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → OAuth 2.0 Client
+   - `https://nextoffice.cnppai.com/oauth2callback`
+   - `http://localhost:3000/oauth2callback`
+
+2. เปิด Authorization URL:
+```
+https://accounts.google.com/o/oauth2/v2/auth?client_id=CLIENT_ID&redirect_uri=http://localhost:3000/oauth2callback&response_type=code&scope=https://www.googleapis.com/auth/drive.file%20https://www.googleapis.com/auth/calendar&access_type=offline&prompt=consent
+```
+
+3. Login → Allow → copy `code=...` จาก URL bar
+
+4. Exchange code → refresh token:
+```bash
+curl -X POST https://oauth2.googleapis.com/token \
+  -d "code=CODE_HERE" \
+  -d "client_id=CLIENT_ID" \
+  -d "client_secret=CLIENT_SECRET" \
+  -d "redirect_uri=http://localhost:3000/oauth2callback" \
+  -d "grant_type=authorization_code"
+# → ได้ refresh_token ใน response JSON
+```
+
+5. อัปเดต `.env.production` บน server แล้วรัน:
+```bash
+docker compose up -d --build api
+```
+
+> **หมายเหตุ**: ใช้ OAuth credentials เดียวกันกับ Google Drive — Refresh token authorize ทั้ง Drive + Calendar scope
+
+---
+
 ## Permissions
 
 | Action | Allowed Roles |

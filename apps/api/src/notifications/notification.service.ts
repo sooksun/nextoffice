@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { LineMessagingService } from '../line/services/line-messaging.service';
 
@@ -9,6 +10,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly messaging: LineMessagingService,
+    private readonly config: ConfigService,
   ) {}
 
   /** G1-A: หนังสือด่วนที่สุด ยังไม่ลงรับภายใน 1 ชั่วโมง */
@@ -271,6 +273,57 @@ export class NotificationService {
     }
 
     this.logger.log(`notifyStatusChanged: case #${caseId} ${fromStatus} → ${toStatus}`);
+  }
+
+  /** V2: Executive Snapshot — ส่งสรุปประจำเช้าให้ ผอ. ทุกหน่วยงาน */
+  async sendExecutiveSnapshot() {
+    if (!this.config.get('ENABLE_EXECUTIVE_SNAPSHOT')) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const orgs = await this.prisma.organization.findMany({
+      where: { isActive: true },
+      include: {
+        users: {
+          where: { roleCode: { in: ['DIRECTOR', 'VICE_DIRECTOR'] }, isActive: true },
+          include: { lineUser: { select: { lineUserId: true } } },
+        },
+      },
+    });
+
+    for (const org of orgs) {
+      const directors = org.users.filter((u) => u.lineUser?.lineUserId);
+      if (directors.length === 0) continue;
+
+      const orgId = org.id;
+      const [totalInbound, urgentCount, pendingCount, overdueCount, recentCases] = await Promise.all([
+        this.prisma.inboundCase.count({ where: { organizationId: orgId, createdAt: { gte: today, lt: tomorrow } } }),
+        this.prisma.inboundCase.count({ where: { organizationId: orgId, urgencyLevel: { in: ['urgent', 'very_urgent', 'most_urgent'] }, status: { notIn: ['completed', 'archived'] } } }),
+        this.prisma.inboundCase.count({ where: { organizationId: orgId, status: { in: ['new', 'analyzing', 'proposed', 'registered'] } } }),
+        this.prisma.inboundCase.count({ where: { organizationId: orgId, dueDate: { lt: today }, status: { notIn: ['completed', 'archived'] } } }),
+        this.prisma.inboundCase.findMany({ where: { organizationId: orgId }, orderBy: { createdAt: 'desc' }, take: 5, select: { title: true, urgencyLevel: true, status: true } }),
+      ]);
+
+      const dateStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear() + 543}`;
+      const messages = this.messaging.buildExecutiveSnapshotFlex({
+        date: dateStr,
+        totalInbound,
+        urgentCount,
+        pendingCount,
+        overdueCount,
+        recentItems: recentCases.map((c) => ({ title: c.title, urgency: c.urgencyLevel, status: c.status })),
+      });
+
+      for (const director of directors) {
+        if (director.lineUser?.lineUserId) {
+          await this.messaging.push(director.lineUser.lineUserId, messages);
+        }
+      }
+    }
+    this.logger.log(`sendExecutiveSnapshot: sent to ${orgs.length} orgs`);
   }
 
   private async sendLineNotification(lineUserId: string, text: string) {

@@ -15,6 +15,13 @@ export class NotificationScheduler {
     await this.notificationSvc.alertMostUrgentUnregistered();
   }
 
+  /** 07:30 ทุกวันทำการ — V2: ส่ง executive snapshot ให้ ผอ. */
+  @Cron('0 30 7 * * 1-5')
+  async executiveSnapshot() {
+    this.logger.debug('Cron: executiveSnapshot');
+    await this.notificationSvc.sendExecutiveSnapshot();
+  }
+
   /** 08:30 ทุกวันทำการ — เตือน deadline ใกล้ + แจ้งเช็คระบบ */
   @Cron('0 30 8 * * 1-5')
   async morningReminder() {

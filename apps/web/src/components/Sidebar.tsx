@@ -25,6 +25,13 @@ import {
   ClipboardList,
   SendHorizontal,
   SlidersHorizontal,
+  Radar,
+  Globe,
+  CalendarClock,
+  Newspaper,
+  FolderKanban,
+  GitFork,
+  Network,
 } from "lucide-react";
 
 const documentFlowLinks = [
@@ -42,6 +49,23 @@ const toolLinks = [
   { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
   { href: "/cases", label: "เคส", icon: Briefcase },
   { href: "/saraban/reports", label: "รายงาน", icon: BarChart3 },
+];
+
+const horizonLinks = [
+  { href: "/horizon", label: "ภาพรวม Horizon", icon: Radar },
+  { href: "/horizon/sources", label: "แหล่งข้อมูล", icon: Globe },
+  { href: "/horizon/agendas", label: "วาระนโยบาย", icon: CalendarClock },
+  { href: "/horizon/signals", label: "สัญญาณ", icon: Newspaper },
+];
+
+const vaultLinks = [
+  { href: "/vault", label: "บันทึกความรู้", icon: BookOpen },
+  { href: "/vault/graph", label: "Knowledge Graph", icon: GitFork },
+  { href: "/vault/settings", label: "ตั้งค่า Vault", icon: SlidersHorizontal },
+];
+
+const projectLinks = [
+  { href: "/projects", label: "โครงการ", icon: FolderKanban },
 ];
 
 const adminLinks = [
@@ -111,6 +135,63 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">Horizon Intelligence</p>
+        </div>
+        {horizonLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+          return (
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">โครงการ</p>
+        </div>
+        {projectLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+          return (
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">Knowledge Vault</p>
+        </div>
+        {vaultLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+          return (
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">วิเคราะห์</p>
+        </div>
+        <Link
+          href="/reports/1/analytics"
+          className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", pathname.includes("/analytics") ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}
+        >
+          <BarChart3 size={18} />
+          Analytics
+        </Link>
+        <Link
+          href="/reports/district"
+          className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", pathname.startsWith("/reports/district") ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}
+        >
+          <Network size={18} />
+          รายงานระดับเขต
+        </Link>
 
         <div className="px-4 pt-3 pb-1">
           <p className="text-[10px] uppercase tracking-widest text-outline font-bold">จัดการ</p>

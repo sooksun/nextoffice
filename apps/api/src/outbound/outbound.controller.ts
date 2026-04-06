@@ -72,6 +72,16 @@ export class OutboundController {
     );
   }
 
+  @Post('ai-draft')
+  @ApiOperation({ summary: 'V2: Generate AI draft for outbound document' })
+  generateAiDraft(@Body() dto: {
+    caseId: number;
+    draftType: string;
+    additionalContext?: string;
+  }) {
+    return this.svc.generateAiDraft(dto.caseId, dto.draftType, dto.additionalContext);
+  }
+
   @Post('registry/inbound/:caseId')
   @ApiOperation({ summary: 'Create inbound registry entry for a case' })
   registerInbound(@Param('caseId', ParseIntPipe) caseId: number) {

@@ -18,7 +18,7 @@ interface Props {
   assignments: Assignment[];
 }
 
-export default function AcknowledgeButton({ caseId, assignments }: Props) {
+export default function AcknowledgeButton({ assignments }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -49,8 +49,8 @@ export default function AcknowledgeButton({ caseId, assignments }: Props) {
       });
       toastSuccess("รับทราบสำเร็จ");
       router.refresh();
-    } catch (err: any) {
-      toastError(err.message || "รับทราบไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "รับทราบไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

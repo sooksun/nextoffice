@@ -3,6 +3,9 @@ import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { CasesService } from '../services/cases.service';
 import { CaseWorkflowService } from '../services/case-workflow.service';
 import { SmartRoutingService } from '../../notifications/smart-routing.service';
+import { PredictiveWorkflowService } from '../../ai/services/predictive-workflow.service';
+import { DraftGeneratorService } from '../../ai/services/draft-generator.service';
+import { PolicyAlignmentService } from '../../rag/services/policy-alignment.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -17,6 +20,9 @@ export class CasesController {
     private readonly svc: CasesService,
     private readonly workflow: CaseWorkflowService,
     private readonly smartRouting: SmartRoutingService,
+    private readonly predictive: PredictiveWorkflowService,
+    private readonly draftGen: DraftGeneratorService,
+    private readonly policyAlignment: PolicyAlignmentService,
   ) {}
 
   @Get()
@@ -121,6 +127,12 @@ export class CasesController {
     return this.svc.getOptions(id);
   }
 
+  @Get(':id/policy-alignment')
+  @ApiOperation({ summary: 'V2 Phase 4: คะแนนความสอดคล้องกับนโยบาย' })
+  getPolicyAlignment(@Param('id', ParseIntPipe) id: number) {
+    return this.policyAlignment.getAlignmentForCase(id);
+  }
+
   // ─── Workflow endpoints ───
 
   @Post(':id/register')
@@ -195,5 +207,39 @@ export class CasesController {
   @ApiOperation({ summary: 'ใช้ smart routing มอบหมายผู้รับผิดชอบอัตโนมัติ' })
   applyRouting(@Param('id', ParseIntPipe) id: number) {
     return this.smartRouting.applyRoutingToCase(id);
+  }
+
+  // ─── V2: Predictions ────────────────────────
+
+  @Get(':id/predictions')
+  @ApiOperation({ summary: 'V2: ดู AI predictions ของ case (ทำนาย next steps, risks, deadlines)' })
+  getPredictions(@Param('id', ParseIntPipe) id: number) {
+    return this.predictive.getPredictions(BigInt(id));
+  }
+
+  @Post(':id/predictions/:predictionId/feedback')
+  @ApiOperation({ summary: 'V2: ตอบรับ/ปฏิเสธ prediction' })
+  submitPredictionFeedback(
+    @Param('id', ParseIntPipe) _id: number,
+    @Param('predictionId', ParseIntPipe) predictionId: number,
+    @Body() body: { accepted: boolean },
+  ) {
+    return this.predictive.submitFeedback(BigInt(predictionId), body.accepted);
+  }
+
+  // ─── V2: AI Draft Generator ─────────────────
+
+  @Post(':id/draft')
+  @ApiOperation({ summary: 'V2: สร้างร่างเอกสาร (บันทึกเสนอ, หนังสือตอบ, รายงานผล)' })
+  @ApiQuery({ name: 'type', required: false, description: 'memo | reply_letter | report | assignment_order' })
+  generateDraft(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { draftType?: string; additionalContext?: string },
+  ) {
+    return this.draftGen.generateDraft(
+      BigInt(id),
+      body.draftType || 'memo',
+      body.additionalContext,
+    );
   }
 }

@@ -40,6 +40,7 @@ model Organization {
   staffAssignments     StaffAssignment[]
   outboundDocuments    OutboundDocument[]
   documentRegistries   DocumentRegistry[]
+  projects             Project[]
 
   @@index([parentOrganizationId])
   @@map("organizations")
@@ -379,6 +380,7 @@ model InboundCase {
   activities         CaseActivity[]
   outboundDocuments  OutboundDocument[]
   documentRegistries DocumentRegistry[]
+  predictions        CasePrediction[]
 
   @@index([academicYearId])
   @@index([status])
@@ -646,6 +648,7 @@ model User {
   staffAssignments      StaffAssignment[]
   outboundApprovals     OutboundDocument[] @relation("OutboundApprovedBy")
   outboundCreated       OutboundDocument[] @relation("OutboundCreatedBy")
+  projectsResponsible   Project[]          @relation("ProjectResponsible")
 
   @@index([email])
   @@index([roleCode])
@@ -903,6 +906,26 @@ model DocumentRegistry {
 }
 
 // ─────────────────────────────────────────────
+// PHASE V2: Predictive Workflow
+// ─────────────────────────────────────────────
+
+model CasePrediction {
+  id              BigInt    @id @default(autoincrement())
+  inboundCaseId   BigInt    @map("inbound_case_id")
+  predictionType  String    @map("prediction_type") @db.VarChar(50)   // deadline, risk, next_step, assignee, routing
+  predictionValue String    @map("prediction_value") @db.Text         // JSON with prediction details
+  confidence      Decimal   @db.Decimal(5, 4)
+  isAccepted      Boolean?  @map("is_accepted")                       // null = pending, true = accepted, false = rejected
+  createdAt       DateTime  @map("created_at") @default(now())
+  updatedAt       DateTime  @map("updated_at") @updatedAt
+
+  inboundCase InboundCase @relation(fields: [inboundCaseId], references: [id])
+
+  @@index([inboundCaseId])
+  @@map("case_predictions")
+}
+
+// ─────────────────────────────────────────────
 // PHASE F: System Configuration
 // ─────────────────────────────────────────────
 
@@ -940,4 +963,288 @@ model KnowledgeEmbedding {
   @@index([sourceType, sourceId])
   @@index([qdrantPointId])
   @@map("knowledge_embeddings")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 2: Horizon Intelligence System
+// ─────────────────────────────────────────────
+
+model HorizonSource {
+  id               BigInt    @id @default(autoincrement())
+  sourceCode       String    @unique @map("source_code") @db.VarChar(50)
+  sourceName       String    @map("source_name") @db.VarChar(255)
+  sourceType       String    @map("source_type") @db.VarChar(50)   // website, rss, api, manual
+  organizationName String    @map("organization_name") @db.VarChar(255) // สพฐ., ศธ.
+  baseUrl          String    @map("base_url") @db.Text
+  trustLevel       Decimal   @map("trust_level") @db.Decimal(3, 2) @default(0.80)
+  fetchFrequency   String    @map("fetch_frequency") @db.VarChar(30) @default("daily")
+  configJson       String?   @map("config_json") @db.Text
+  isActive         Boolean   @map("is_active") @default(true)
+  lastFetchAt      DateTime? @map("last_fetch_at")
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  documents HorizonSourceDocument[]
+
+  @@map("horizon_sources")
+}
+
+model HorizonSourceDocument {
+  id              BigInt    @id @default(autoincrement())
+  sourceId        BigInt    @map("source_id")
+  externalId      String?   @map("external_id") @db.VarChar(255)
+  title           String    @db.Text
+  url             String    @db.Text
+  contentType     String    @map("content_type") @db.VarChar(50)  // news, policy_news, event, announcement, speech, report
+  publishedAt     DateTime? @map("published_at")
+  fetchedAt       DateTime  @map("fetched_at") @default(now())
+  rawText         String    @map("raw_text") @db.LongText
+  normalizedText  String?   @map("normalized_text") @db.LongText
+  summaryText     String?   @map("summary_text") @db.LongText
+  contentHash     String    @map("content_hash") @db.VarChar(128)
+  qualityScore    Decimal?  @map("quality_score") @db.Decimal(5, 4)
+  status          String    @db.VarChar(30) @default("fetched")   // fetched, normalized, classified, embedded
+  createdAt       DateTime  @map("created_at") @default(now())
+  updatedAt       DateTime  @map("updated_at") @updatedAt
+
+  source  HorizonSource           @relation(fields: [sourceId], references: [id])
+  agendas HorizonDocumentAgenda[]
+  signals HorizonSignal[]
+  chunks  HorizonChunk[]
+
+  @@unique([sourceId, contentHash])
+  @@index([status])
+  @@index([contentType])
+  @@map("horizon_source_documents")
+}
+
+model HorizonAgenda {
+  id              BigInt    @id @default(autoincrement())
+  agendaCode      String    @unique @map("agenda_code") @db.VarChar(100)
+  agendaTitle     String    @map("agenda_title") @db.VarChar(255)
+  agendaType      String    @map("agenda_type") @db.VarChar(50)   // policy_push, campaign, event_series, reform_signal, operational_focus
+  agendaScope     String    @map("agenda_scope") @db.VarChar(50)  // national, regional, district
+  leadOrg         String?   @map("lead_org") @db.VarChar(255)
+  currentStatus   String    @map("current_status") @db.VarChar(50) @default("emerging") // emerging, active, peak, fading, closed
+  priorityScore   Decimal?  @map("priority_score") @db.Decimal(5, 4)
+  momentumScore   Decimal?  @map("momentum_score") @db.Decimal(5, 4)
+  summaryText     String?   @map("summary_text") @db.LongText
+  topicTags       String?   @map("topic_tags") @db.Text           // JSON array of topic codes
+  startDate       DateTime? @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
+  createdAt       DateTime  @map("created_at") @default(now())
+  updatedAt       DateTime  @map("updated_at") @updatedAt
+
+  documents       HorizonDocumentAgenda[]
+  recommendations HorizonRecommendationPattern[]
+
+  @@index([currentStatus])
+  @@index([agendaType])
+  @@map("horizon_agendas")
+}
+
+model HorizonDocumentAgenda {
+  id                BigInt   @id @default(autoincrement())
+  horizonDocumentId BigInt   @map("horizon_document_id")
+  horizonAgendaId   BigInt   @map("horizon_agenda_id")
+  relationType      String   @map("relation_type") @db.VarChar(50) // primary, secondary, mention
+  confidenceScore   Decimal  @map("confidence_score") @db.Decimal(5, 4)
+  createdAt         DateTime @map("created_at") @default(now())
+
+  document HorizonSourceDocument @relation(fields: [horizonDocumentId], references: [id])
+  agenda   HorizonAgenda         @relation(fields: [horizonAgendaId], references: [id])
+
+  @@index([horizonDocumentId])
+  @@index([horizonAgendaId])
+  @@map("horizon_document_agendas")
+}
+
+model HorizonSignal {
+  id                 BigInt    @id @default(autoincrement())
+  horizonDocumentId  BigInt    @map("horizon_document_id")
+  signalType         String    @map("signal_type") @db.VarChar(50)  // policy_signal, event_signal, urgency_signal, funding_signal, implementation_signal
+  signalTitle        String    @map("signal_title") @db.VarChar(255)
+  signalText         String    @map("signal_text") @db.LongText
+  actionabilityLevel String    @map("actionability_level") @db.VarChar(30) // low, medium, high
+  targetEntities     String?   @map("target_entities") @db.VarChar(255)
+  effectiveDate      DateTime? @map("effective_date") @db.Date
+  expiresAt          DateTime? @map("expires_at") @db.Date
+  createdAt          DateTime  @map("created_at") @default(now())
+
+  document HorizonSourceDocument @relation(fields: [horizonDocumentId], references: [id])
+
+  @@index([horizonDocumentId])
+  @@index([signalType])
+  @@map("horizon_signals")
+}
+
+model HorizonChunk {
+  id                BigInt    @id @default(autoincrement())
+  horizonDocumentId BigInt    @map("horizon_document_id")
+  chunkIndex        Int       @map("chunk_index")
+  chunkText         String    @map("chunk_text") @db.LongText
+  sectionLabel      String?   @map("section_label") @db.VarChar(100) // title, summary, body, agenda_signal
+  tokenCount        Int?      @map("token_count")
+  qdrantPointId     String?   @map("qdrant_point_id") @db.VarChar(100)
+  embeddedAt        DateTime? @map("embedded_at")
+  createdAt         DateTime  @map("created_at") @default(now())
+
+  document HorizonSourceDocument @relation(fields: [horizonDocumentId], references: [id])
+
+  @@index([horizonDocumentId])
+  @@map("horizon_chunks")
+}
+
+model HorizonRecommendationPattern {
+  id                  BigInt   @id @default(autoincrement())
+  horizonAgendaId     BigInt   @map("horizon_agenda_id")
+  contextProfileCode  String   @map("context_profile_code") @db.VarChar(100) // remote_low_budget, urban_large_school
+  recommendationTitle String   @map("recommendation_title") @db.VarChar(255)
+  recommendationText  String   @map("recommendation_text") @db.LongText
+  feasibilityNote     String?  @map("feasibility_note") @db.Text
+  riskNote            String?  @map("risk_note") @db.Text
+  createdAt           DateTime @map("created_at") @default(now())
+  updatedAt           DateTime @map("updated_at") @updatedAt
+
+  agenda HorizonAgenda @relation(fields: [horizonAgendaId], references: [id])
+
+  @@index([horizonAgendaId])
+  @@map("horizon_recommendation_patterns")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 2: Project Memory Engine
+// ─────────────────────────────────────────────
+
+model Project {
+  id                BigInt    @id @default(autoincrement())
+  organizationId    BigInt    @map("organization_id")
+  name              String    @db.VarChar(255)
+  description       String?   @db.Text
+  status            String    @db.VarChar(50) @default("draft") // draft, active, completed, archived
+  startDate         DateTime? @map("start_date") @db.Date
+  endDate           DateTime? @map("end_date") @db.Date
+  budgetAmount      Decimal?  @map("budget_amount") @db.Decimal(12, 2)
+  responsibleUserId BigInt?   @map("responsible_user_id")
+  policyAlignment   String?   @map("policy_alignment") @db.Text // JSON: aligned agenda codes
+  createdAt         DateTime  @map("created_at") @default(now())
+  updatedAt         DateTime  @map("updated_at") @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  responsible  User?          @relation("ProjectResponsible", fields: [responsibleUserId], references: [id])
+  topics       ProjectTopic[]
+  documents    ProjectDocument[]
+  reports      ProjectReport[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("projects")
+}
+
+model ProjectTopic {
+  id        BigInt   @id @default(autoincrement())
+  projectId BigInt   @map("project_id")
+  topicCode String   @map("topic_code") @db.VarChar(100)
+  score     Decimal? @db.Decimal(5, 4)
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, topicCode])
+  @@map("project_topics")
+}
+
+model ProjectDocument {
+  id             BigInt   @id @default(autoincrement())
+  projectId      BigInt   @map("project_id")
+  inboundCaseId  BigInt?  @map("inbound_case_id")
+  documentId     BigInt?  @map("document_id")
+  linkType       String   @map("link_type") @db.VarChar(30) // auto_matched, manual
+  matchScore     Decimal? @map("match_score") @db.Decimal(5, 4)
+  matchRationale String?  @map("match_rationale") @db.Text
+  createdAt      DateTime @map("created_at") @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([inboundCaseId])
+  @@map("project_documents")
+}
+
+model ProjectReport {
+  id         BigInt   @id @default(autoincrement())
+  projectId  BigInt   @map("project_id")
+  reportType String   @map("report_type") @db.VarChar(50)  // progress, final, evaluation
+  period     String?  @db.VarChar(50) // Q1-2026, annual-2026
+  content    String?  @db.LongText
+  status     String   @db.VarChar(30) @default("draft")    // draft, submitted, approved
+  createdAt  DateTime @map("created_at") @default(now())
+  updatedAt  DateTime @map("updated_at") @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@map("project_reports")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 2: Adaptive Workflow Learning
+// ─────────────────────────────────────────────
+
+model WorkflowPattern {
+  id              BigInt   @id @default(autoincrement())
+  organizationId  BigInt   @map("organization_id")
+  documentType    String   @map("document_type") @db.VarChar(50)
+  topicCode       String   @map("topic_code") @db.VarChar(100)
+  routedToGroup   String?  @map("routed_to_group") @db.VarChar(100)
+  assignedToRole  String?  @map("assigned_to_role") @db.VarChar(100)
+  avgProcessDays  Decimal? @map("avg_process_days") @db.Decimal(6, 2)
+  sampleCount     Int      @map("sample_count") @default(1)
+  createdAt       DateTime @map("created_at") @default(now())
+  updatedAt       DateTime @map("updated_at") @updatedAt
+
+  @@unique([organizationId, documentType, topicCode])
+  @@index([organizationId])
+  @@map("workflow_patterns")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 3: Knowledge Vault
+// ─────────────────────────────────────────────
+
+model KnowledgeNote {
+  id              BigInt    @id @default(autoincrement())
+  organizationId  BigInt?   @map("organization_id")
+  noteType        String    @map("note_type") @db.VarChar(50)   // policy, letter, project, report, agenda
+  title           String    @db.VarChar(255)
+  contentMd       String    @map("content_md") @db.LongText     // Markdown content
+  frontmatterJson String?   @map("frontmatter_json") @db.Text   // YAML frontmatter as JSON
+  folderPath      String?   @map("folder_path") @db.VarChar(255) // e.g. 01_Policies/
+  status          String    @db.VarChar(30) @default("ai_draft") // ai_draft, reviewed, published, archived
+  sourceType      String?   @map("source_type") @db.VarChar(50) // inbound_case, horizon_document, project, horizon_agenda
+  sourceId        BigInt?   @map("source_id")
+  linkedNotes     String?   @map("linked_notes") @db.Text       // JSON: [{noteId, relation, title}]
+  confidence      Decimal?  @db.Decimal(5, 4)
+  syncedAt        DateTime? @map("synced_at")
+  createdAt       DateTime  @map("created_at") @default(now())
+  updatedAt       DateTime  @map("updated_at") @updatedAt
+
+  @@index([organizationId])
+  @@index([noteType])
+  @@index([status])
+  @@index([sourceType, sourceId])
+  @@map("knowledge_notes")
+}
+
+model KnowledgeVaultConfig {
+  id              BigInt    @id @default(autoincrement())
+  organizationId  BigInt    @unique @map("organization_id")
+  vaultPath       String    @map("vault_path") @db.VarChar(500)
+  syncEnabled     Boolean   @map("sync_enabled") @default(false)
+  autoGenerate    Boolean   @map("auto_generate") @default(true)
+  lastSyncAt      DateTime? @map("last_sync_at")
+  configJson      String?   @map("config_json") @db.Text        // JSON: folder mapping, template overrides
+  createdAt       DateTime  @map("created_at") @default(now())
+  updatedAt       DateTime  @map("updated_at") @updatedAt
+
+  @@map("knowledge_vault_configs")
 }

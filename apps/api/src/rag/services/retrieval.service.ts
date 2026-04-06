@@ -1,11 +1,12 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HorizonRagService } from './horizon-rag.service';
 import { PolicyRagService } from './policy-rag.service';
 import { HybridSearchService } from './hybrid-search.service';
 
 export interface RetrievalResult {
-  sourceType: 'horizon' | 'policy' | 'context';
+  sourceType: 'horizon' | 'horizon_v2' | 'policy' | 'context';
   sourceRecordId: bigint;
   semanticScore: number;
   trustScore: number;
@@ -20,6 +21,7 @@ export interface RetrievalResult {
 export class RetrievalService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
     private readonly horizonRag: HorizonRagService,
     private readonly policyRag: PolicyRagService,
     @Optional() private readonly hybridSearch: HybridSearchService,
@@ -31,10 +33,18 @@ export class RetrievalService {
       return this.retrieveHybrid(caseId, query, orgId);
     }
 
-    const [horizonResults, policyResults] = await Promise.all([
+    const searchPromises: Promise<any>[] = [
       this.horizonRag.search(query),
       this.policyRag.search(query),
-    ]);
+    ];
+
+    const enableV2 = this.configService.get('ENABLE_HORIZON_V2', 'false') === 'true';
+    if (enableV2) {
+      const keywords = query.split(/\s+/).filter((k) => k.length > 1);
+      searchPromises.push(this.horizonRag.searchHorizonV2(keywords));
+    }
+
+    const [horizonResults, policyResults, horizonV2Results = []] = await Promise.all(searchPromises);
 
     const contextFitScore = await this.computeContextFit(orgId);
 
@@ -52,6 +62,21 @@ export class RetrievalService {
         finalScore: final,
         rationale: `Horizon: ${h.summary?.substring(0, 100) || ''}`,
         data: h,
+      });
+    }
+
+    for (const v2 of horizonV2Results) {
+      const final = this.computeFinalScore(v2.semanticScore, v2.trustScore, v2.freshnessScore, contextFitScore);
+      allResults.push({
+        sourceType: 'horizon_v2',
+        sourceRecordId: v2.id,
+        semanticScore: v2.semanticScore,
+        trustScore: v2.trustScore,
+        freshnessScore: v2.freshnessScore,
+        contextFitScore,
+        finalScore: final,
+        rationale: `Horizon V2: ${v2.summary?.substring(0, 100) || ''}`,
+        data: v2,
       });
     }
 

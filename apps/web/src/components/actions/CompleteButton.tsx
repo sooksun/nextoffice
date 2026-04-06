@@ -18,7 +18,7 @@ interface Props {
   assignments: Assignment[];
 }
 
-export default function CompleteButton({ caseId, assignments }: Props) {
+export default function CompleteButton({ assignments }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -49,8 +49,8 @@ export default function CompleteButton({ caseId, assignments }: Props) {
         body: JSON.stringify({ status: "completed" }),
       });
       router.refresh();
-    } catch (err: any) {
-      toastError(err.message || "ดำเนินการไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "ดำเนินการไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

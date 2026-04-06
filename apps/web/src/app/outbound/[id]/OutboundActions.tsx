@@ -26,8 +26,8 @@ export default function OutboundActions({ docId, status }: Props) {
       });
       toastSuccess("อนุมัติสำเร็จ");
       router.refresh();
-    } catch (err: any) {
-      toastError(err.message || "อนุมัติไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "อนุมัติไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -40,8 +40,8 @@ export default function OutboundActions({ docId, status }: Props) {
     try {
       await apiFetch(`/outbound/documents/${docId}/send`, { method: "POST" });
       router.refresh();
-    } catch (err: any) {
-      toastError(err.message || "ส่งไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "ส่งไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

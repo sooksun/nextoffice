@@ -62,15 +62,6 @@ function defaultDueDate(daysFromNow = 3): string {
   return d.toISOString().split("T")[0];
 }
 
-function mapUrgency(raw: string | null | undefined): string {
-  if (!raw) return "normal";
-  const u = raw.toLowerCase();
-  if (u.includes("ที่สุด") || u === "most_urgent") return "most_urgent";
-  if (u.includes("มาก") || u === "very_urgent") return "very_urgent";
-  if (u.includes("ด่วน") || u === "urgent") return "urgent";
-  return "normal";
-}
-
 function NewInboxForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -144,8 +135,8 @@ function NewInboxForm() {
         }),
       });
       router.push(`/inbox/${res.caseId}`);
-    } catch (err: any) {
-      toastError(err.message || "สร้างเอกสารไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "สร้างเอกสารไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

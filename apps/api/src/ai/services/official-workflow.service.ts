@@ -1,11 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ExtractionService } from './extraction.service';
+import { PredictiveWorkflowService } from './predictive-workflow.service';
 import { ReasoningService } from '../../rag/services/reasoning.service';
 import { LineMessagingService } from '../../line/services/line-messaging.service';
 import { LineSessionService } from '../../line/services/line-session.service';
 import { SmartRoutingService } from '../../notifications/smart-routing.service';
 import { GoogleCalendarService } from '../../calendar/services/google-calendar.service';
+import { ProjectMatchingService } from '../../projects/services/project-matching.service';
+import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 
 // Map AI urgency text → schema urgencyLevel
 function mapUrgency(aiUrgency: string): string {
@@ -24,11 +27,14 @@ export class OfficialWorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly extraction: ExtractionService,
+    private readonly predictive: PredictiveWorkflowService,
     private readonly reasoning: ReasoningService,
     private readonly messaging: LineMessagingService,
     private readonly sessions: LineSessionService,
     private readonly smartRouting: SmartRoutingService,
     private readonly calendar: GoogleCalendarService,
+    @Optional() private readonly projectMatching: ProjectMatchingService,
+    @Optional() private readonly dispatcher: QueueDispatcherService,
   ) {}
 
   async process(documentIntakeId: bigint): Promise<void> {
@@ -118,7 +124,7 @@ export class OfficialWorkflowService {
     try {
       const routing = await this.smartRouting.applyRoutingToCase(Number(inboundCase.id));
       if (routing) {
-        this.logger.log(`Smart routing applied to case #${inboundCase.id}: ${routing.workGroupCode} (${routing.confidence.toFixed(2)})`);
+        this.logger.log(`Smart routing applied to case #${inboundCase.id}: ${(routing as any).workGroupCode} (${((routing as any).confidence ?? 0).toFixed(2)})`);
       }
     } catch (routingErr) {
       this.logger.warn(`Smart routing failed (non-blocking): ${routingErr.message}`);
@@ -129,6 +135,32 @@ export class OfficialWorkflowService {
       await this.reasoning.generateCaseOptions(inboundCase.id, orgId, metadata.subjectText);
     } catch (ragErr) {
       this.logger.warn(`RAG analysis failed (non-blocking): ${ragErr.message}`);
+    }
+
+    // V2: Generate predictive workflow predictions (non-blocking)
+    try {
+      await this.predictive.generatePredictions(inboundCase.id);
+    } catch (predErr) {
+      this.logger.warn(`Predictive workflow failed (non-blocking): ${predErr.message}`);
+    }
+
+    // V2: Auto-match case to projects (non-blocking)
+    if (this.projectMatching) {
+      this.projectMatching
+        .matchCase(Number(inboundCase.id))
+        .then((matches) => {
+          if (matches?.length) {
+            this.logger.log(`Project matching: ${matches.length} matches for case #${inboundCase.id}`);
+          }
+        })
+        .catch((e) => this.logger.warn(`Project matching failed (non-blocking): ${e.message}`));
+    }
+
+    // V2: Dispatch vault note generation (non-blocking)
+    if (this.dispatcher) {
+      this.dispatcher
+        .dispatchVaultNoteGenerate(inboundCase.id, 'case_created')
+        .catch((e) => this.logger.warn(`Vault dispatch failed (non-blocking): ${e.message}`));
     }
 
     // Mark intake as completed

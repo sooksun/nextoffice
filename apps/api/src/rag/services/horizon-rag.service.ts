@@ -54,6 +54,83 @@ export class HorizonRagService {
     return base[item.evidenceStrength as keyof typeof base] ?? 0.7;
   }
 
+  /**
+   * Search HorizonSourceDocument (Phase 2 V2 data) by keyword matching
+   * against title, rawText, summaryText, and linked agenda topicTags.
+   */
+  async searchHorizonV2(keywords: string[], options?: { topK?: number }): Promise<any[]> {
+    const topK = options?.topK ?? 5;
+
+    // Guard: skip if no V2 data exists
+    const count = await this.prisma.horizonSourceDocument.count();
+    if (count === 0) return [];
+
+    const docs = await this.prisma.horizonSourceDocument.findMany({
+      where: { status: { not: 'fetched' } },
+      include: {
+        source: true,
+        agendas: { include: { agenda: true } },
+        signals: true,
+      },
+      take: 200,
+    });
+
+    const query = keywords.join(' ');
+
+    const scored = docs
+      .map((doc) => {
+        const agendaTags = doc.agendas
+          .map((da) => {
+            const tags = da.agenda.topicTags ? String(da.agenda.topicTags) : '';
+            return `${da.agenda.agendaTitle} ${da.agenda.summaryText || ''} ${tags}`;
+          })
+          .join(' ');
+
+        const signalText = doc.signals
+          .map((s) => `${s.signalTitle} ${s.signalText}`)
+          .join(' ');
+
+        const searchText = [
+          doc.title,
+          doc.summaryText || '',
+          doc.normalizedText || '',
+          agendaTags,
+          signalText,
+        ].join(' ');
+
+        const semanticScore = this.tokenizer.computeRelevance(query, searchText);
+
+        return { doc, semanticScore };
+      })
+      .filter((x) => x.semanticScore > 0.05)
+      .sort((a, b) => b.semanticScore - a.semanticScore)
+      .slice(0, topK);
+
+    return scored.map(({ doc, semanticScore }) => ({
+      type: 'horizon_v2',
+      id: doc.id,
+      title: doc.title,
+      summary: doc.summaryText,
+      contentType: doc.contentType,
+      semanticScore,
+      trustScore: this.computeV2TrustScore(doc),
+      freshnessScore: this.computeFreshnessScore(doc),
+      signals: doc.signals,
+      agendas: doc.agendas.map((da) => ({
+        agendaTitle: da.agenda.agendaTitle,
+        relationType: da.relationType,
+        confidenceScore: Number(da.confidenceScore),
+      })),
+    }));
+  }
+
+  private computeV2TrustScore(doc: any): number {
+    const quality = doc.qualityScore ? Number(doc.qualityScore) : 0.7;
+    // Boost trust for docs with signals (they have been analyzed)
+    const signalBoost = doc.signals?.length > 0 ? 0.05 : 0;
+    return Math.min(quality + signalBoost, 1);
+  }
+
   private computeFreshnessScore(doc: any): number {
     if (!doc?.publishedAt) return 0.7;
     const ageYears =

@@ -21,10 +21,12 @@ export class ReasoningService {
     const horizonItems = results.filter((r) => r.sourceType === 'horizon').slice(0, 3);
     const policyItems = results.filter((r) => r.sourceType === 'policy').slice(0, 3);
 
+    const enhancedCtx = await this.getEnhancedContext(caseId, orgId);
+
     let options: any[];
 
     if (this.gemini.getApiKey()) {
-      options = await this.generateOptionsWithLLM(query, horizonItems, policyItems);
+      options = await this.generateOptionsWithLLM(query, horizonItems, policyItems, enhancedCtx);
     } else {
       options = this.generateFallbackOptions(query);
     }
@@ -74,6 +76,7 @@ export class ReasoningService {
     query: string,
     horizonItems: any[],
     policyItems: any[],
+    enhancedCtx?: { horizonInsights: string; projectContext: string; workflowSuggestion: string },
   ): Promise<any[]> {
     const horizonContext = horizonItems
       .map((h) => `- ${h.data?.title || h.rationale}`)
@@ -83,10 +86,14 @@ export class ReasoningService {
       .join('\n');
 
     const cfg = await this.prompts.get('reasoning.options');
-    const prompt = cfg.promptText
+    let prompt = cfg.promptText
       .replace('{{query}}', query)
       .replace('{{horizon_context}}', horizonContext || 'ไม่มีข้อมูล')
       .replace('{{policy_context}}', policyContext || 'ไม่มีข้อมูล');
+
+    if (enhancedCtx) {
+      prompt += `\n\n--- บริบทเพิ่มเติม ---\nวาระนโยบายที่เกี่ยวข้อง:\n${enhancedCtx.horizonInsights}\nโครงการโรงเรียนที่เกี่ยวข้อง:\n${enhancedCtx.projectContext}\nรูปแบบการทำงานที่เรียนรู้:\n${enhancedCtx.workflowSuggestion}`;
+    }
 
     try {
       const rawText =
@@ -101,6 +108,71 @@ export class ReasoningService {
       this.logger.error(`LLM option generation failed: ${err.message}`);
       return this.generateFallbackOptions(query);
     }
+  }
+
+  async getEnhancedContext(
+    caseId: bigint,
+    orgId: bigint,
+  ): Promise<{
+    horizonInsights: string;
+    projectContext: string;
+    workflowSuggestion: string;
+  }> {
+    const caseTopics = await this.prisma.caseTopic.findMany({
+      where: { inboundCaseId: caseId },
+      include: { topic: true },
+    });
+    const topicCodes = caseTopics.map((t) => t.topic.topicCode);
+
+    const agendas = await this.prisma.horizonAgenda.findMany({
+      where: { currentStatus: { in: ['active', 'peak'] } },
+      take: 3,
+      orderBy: { priorityScore: 'desc' },
+    });
+
+    const matchedAgendas = agendas.filter((a) => {
+      const tags = a.topicTags ? JSON.parse(a.topicTags) : [];
+      return topicCodes.some((t) => tags.includes(t));
+    });
+
+    const horizonInsights =
+      matchedAgendas.length > 0
+        ? matchedAgendas
+            .map((a) => `- ${a.agendaTitle} (priority: ${a.priorityScore})`)
+            .join('\n')
+        : 'ไม่มีวาระนโยบายที่เกี่ยวข้อง';
+
+    const projects = await this.prisma.project.findMany({
+      where: { organizationId: orgId, status: 'active' },
+      include: { topics: true },
+    });
+
+    const matchedProjects = projects.filter((p) =>
+      p.topics.some((t) => topicCodes.includes(t.topicCode)),
+    );
+
+    const projectContext =
+      matchedProjects.length > 0
+        ? matchedProjects.map((p) => `- ${p.name} (${p.status})`).join('\n')
+        : 'ไม่มีโครงการที่เกี่ยวข้อง';
+
+    const patterns = await this.prisma.workflowPattern.findMany({
+      where: { organizationId: orgId },
+      orderBy: { sampleCount: 'desc' },
+      take: 3,
+    });
+
+    const workflowSuggestion =
+      patterns.length > 0
+        ? patterns
+            .map(
+              (p) =>
+                `- ${p.documentType}/${p.topicCode} → ${p.routedToGroup || 'ไม่ระบุ'} (${p.sampleCount} ครั้ง, avg ${p.avgProcessDays} วัน)`,
+            )
+            .join('\n')
+        : 'ไม่มีรูปแบบที่เรียนรู้';
+
+    return { horizonInsights, projectContext, workflowSuggestion };
   }
 
   private generateFallbackOptions(query: string): any[] {

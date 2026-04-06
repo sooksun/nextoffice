@@ -5,6 +5,7 @@ import {
   QUEUE_LINE_EVENTS,
   QUEUE_FILE_INTAKE,
   QUEUE_AI_PROCESSING,
+  QUEUE_HORIZON,
 } from '../queue.constants';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class QueueDispatcherService {
     @InjectQueue(QUEUE_LINE_EVENTS) private readonly lineEventsQueue: Queue,
     @InjectQueue(QUEUE_FILE_INTAKE) private readonly fileIntakeQueue: Queue,
     @InjectQueue(QUEUE_AI_PROCESSING) private readonly aiQueue: Queue,
+    @InjectQueue(QUEUE_HORIZON) private readonly horizonQueue: Queue,
   ) {}
 
   async dispatchLineIntake(lineEventId: bigint) {
@@ -72,5 +74,68 @@ export class QueueDispatcherService {
       sessionId: sessionId.toString(),
       actionCode,
     });
+  }
+
+  // ── Horizon Intelligence Pipeline ──
+
+  async dispatchHorizonFetchAll() {
+    await this.horizonQueue.add('horizon.fetch.sources', { all: true });
+    this.logger.log('Dispatched horizon.fetch.sources (all)');
+  }
+
+  async dispatchHorizonFetchSource(sourceId: bigint) {
+    await this.horizonQueue.add('horizon.fetch.sources', {
+      sourceId: sourceId.toString(),
+    });
+    this.logger.log(`Dispatched horizon.fetch.sources for source ${sourceId}`);
+  }
+
+  async dispatchHorizonParse(documentId: bigint) {
+    await this.horizonQueue.add('horizon.parse.documents', {
+      documentId: documentId.toString(),
+    });
+  }
+
+  async dispatchHorizonExtract(documentId: bigint) {
+    await this.horizonQueue.add('horizon.extract.intelligence', {
+      documentId: documentId.toString(),
+    });
+  }
+
+  async dispatchHorizonScore(agendaId?: bigint) {
+    await this.horizonQueue.add('horizon.score.agendas', {
+      agendaId: agendaId?.toString() ?? null,
+    });
+  }
+
+  async dispatchHorizonPublish(documentId: bigint) {
+    await this.horizonQueue.add('horizon.publish.rag', {
+      documentId: documentId.toString(),
+    });
+  }
+
+  async dispatchHorizonFullPipeline() {
+    await this.horizonQueue.add('horizon.fetch.sources', {
+      all: true,
+      fullPipeline: true,
+    });
+    this.logger.log('Dispatched horizon full pipeline');
+  }
+
+  // ── Knowledge Vault ──
+
+  async dispatchVaultNoteGenerate(caseId: bigint, trigger: string) {
+    await this.aiQueue.add('vault.note.generate', {
+      caseId: caseId.toString(),
+      trigger,
+    });
+    this.logger.log(`Dispatched vault.note.generate for case ${caseId} (trigger: ${trigger})`);
+  }
+
+  async dispatchVaultSync(organizationId: bigint) {
+    await this.aiQueue.add('vault.sync.batch', {
+      organizationId: organizationId.toString(),
+    });
+    this.logger.log(`Dispatched vault.sync.batch for org ${organizationId}`);
   }
 }

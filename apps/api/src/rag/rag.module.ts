@@ -8,6 +8,7 @@ import { EmbeddingService } from './services/embedding.service';
 import { VectorStoreService } from './services/vector-store.service';
 import { ChunkingService } from './services/chunking.service';
 import { HybridSearchService } from './services/hybrid-search.service';
+import { PolicyAlignmentService } from './services/policy-alignment.service';
 import { GeminiModule } from '../gemini/gemini.module';
 
 @Module({
@@ -22,6 +23,7 @@ import { GeminiModule } from '../gemini/gemini.module';
     HybridSearchService,
     RetrievalService,
     ReasoningService,
+    PolicyAlignmentService,
   ],
   exports: [
     ThaiTokenizerService,
@@ -33,6 +35,7 @@ import { GeminiModule } from '../gemini/gemini.module';
     HybridSearchService,
     RetrievalService,
     ReasoningService,
+    PolicyAlignmentService,
   ],
 })
 export class RagModule {}

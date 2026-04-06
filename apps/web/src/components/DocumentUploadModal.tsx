@@ -9,12 +9,6 @@ import {
   Building2, Calendar, Hash, AlertTriangle, Sparkles, UserPlus,
 } from "lucide-react";
 
-const DOCUMENT_TYPE_LABELS: Record<string, string> = {
-  official_letter: "หนังสือราชการ",
-  possibly_official: "อาจเป็นหนังสือราชการ",
-  non_official: "ไม่ใช่หนังสือราชการ",
-  unknown: "ไม่สามารถระบุได้",
-};
 
 const URGENCY_LABEL: Record<string, string> = {
   high: "ด่วนที่สุด", medium: "ด่วน", low: "ปกติ",
@@ -157,8 +151,8 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
       } else {
         setStep("not_official");
       }
-    } catch (err: any) {
-      toastError(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
       setStep("upload");
     }
   };
@@ -176,9 +170,9 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
       } else {
         setRouting(null);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setRouting(null);
-      toastError(err.message || "เกิดข้อผิดพลาดในการขอคำแนะนำ");
+      toastError((err as Error).message || "เกิดข้อผิดพลาดในการขอคำแนะนำ");
     } finally {
       setLoadingRouting(false);
     }
@@ -466,7 +460,7 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
                   </div>
                 ) : !loadingRouting && (
                   <p className="text-xs text-purple-600">
-                    คลิก "ขอคำแนะนำมอบหมายงาน" เพื่อให้ AI ช่วยแนะนำกลุ่มงานและครูที่เหมาะสม
+                    คลิก &quot;ขอคำแนะนำมอบหมายงาน&quot; เพื่อให้ AI ช่วยแนะนำกลุ่มงานและครูที่เหมาะสม
                   </p>
                 )}
               </div>

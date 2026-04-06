@@ -174,6 +174,27 @@ export class LineMessagingService {
                   },
                 ],
               },
+              {
+                type: 'box',
+                layout: 'horizontal',
+                spacing: 'sm',
+                contents: [
+                  {
+                    type: 'button',
+                    style: 'secondary',
+                    color: '#757575',
+                    action: { type: 'message', label: 'รอพิจารณา', text: caseId ? `รอพิจารณา #${caseId}` : 'รอพิจารณา' },
+                    flex: 1,
+                  },
+                  {
+                    type: 'button',
+                    style: 'secondary',
+                    color: '#0288D1',
+                    action: { type: 'message', label: 'สร้างเรื่อง', text: 'สร้างเรื่อง' },
+                    flex: 1,
+                  },
+                ],
+              },
             ],
           },
         },
@@ -387,6 +408,48 @@ export class LineMessagingService {
         { label: '🔑 ดึงสาระสำคัญ', text: 'ดึงสาระสำคัญ' },
         { label: '✉️ ร่างตอบ', text: 'ร่างตอบ' },
         { label: '📋 มอบหมายงาน', text: 'มอบหมายงาน' },
+      ]),
+    ];
+  }
+
+  // ─── V2: Executive Snapshot ───────────────────────
+
+  buildExecutiveSnapshotFlex(data: {
+    date: string;
+    totalInbound: number;
+    urgentCount: number;
+    pendingCount: number;
+    overdueCount: number;
+    recentItems: Array<{ title: string; urgency: string; status: string }>;
+  }): any[] {
+    const urgencyIcon = data.urgentCount > 0 ? '🔴' : '🟢';
+    const overdueIcon = data.overdueCount > 0 ? '⚠️' : '✅';
+
+    const recentLines = data.recentItems
+      .slice(0, 5)
+      .map((item) => {
+        const icon = item.urgency !== 'normal' ? '🔴' : '📄';
+        return `${icon} ${item.title.substring(0, 40)}`;
+      })
+      .join('\n');
+
+    const summaryText = [
+      `📊 สรุปประจำวัน ${data.date}`,
+      '',
+      `📥 หนังสือเข้าวันนี้: ${data.totalInbound} ฉบับ`,
+      `${urgencyIcon} ด่วน: ${data.urgentCount} เรื่อง`,
+      `⏳ รอดำเนินการ: ${data.pendingCount} เรื่อง`,
+      `${overdueIcon} เกินกำหนด: ${data.overdueCount} เรื่อง`,
+      '',
+      '📋 เรื่องล่าสุด:',
+      recentLines || '(ไม่มี)',
+    ].join('\n');
+
+    return [
+      this.buildTextMessage(summaryText.substring(0, 5000)),
+      this.buildQuickReply('ต้องการดูอะไรเพิ่มเติม?', [
+        { label: '📥 ดูเรื่องด่วน', text: 'งานของฉัน' },
+        { label: '📊 ภาพรวม', text: 'สถานะงาน' },
       ]),
     ];
   }

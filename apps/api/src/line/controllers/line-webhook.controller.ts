@@ -16,6 +16,7 @@ import { LineUsersService } from '../services/line-users.service';
 import { LinePairingService } from '../services/line-pairing.service';
 import { LineWorkflowService } from '../services/line-workflow.service';
 import { LineMessagingService } from '../services/line-messaging.service';
+import { IntentClassifierService } from '../../ai/services/intent-classifier.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 
 @ApiTags('line')
@@ -30,6 +31,7 @@ export class LineWebhookController {
     private readonly pairingSvc: LinePairingService,
     private readonly workflowSvc: LineWorkflowService,
     private readonly messagingSvc: LineMessagingService,
+    private readonly intentSvc: IntentClassifierService,
     private readonly dispatcher: QueueDispatcherService,
   ) {}
 
@@ -95,6 +97,8 @@ export class LineWebhookController {
             const acceptMatch = text.match(/^รับทราบ\s*#(\d+)$/);
             const completeMatch = text.match(/^เสร็จแล้ว\s*#(\d+)$/);
             const myTasksMatch = /^(งานของฉัน|สถานะงาน)$/.test(text);
+            const holdMatch = text.match(/^รอพิจารณา\s*#(\d+)$/);
+            const createCaseMatch = /^สร้างเรื่อง/.test(text);
 
             if (pairingMatch && uid) {
               await this.pairingSvc.handlePairingMessage(uid, pairingMatch[1], rt);
@@ -112,9 +116,35 @@ export class LineWebhookController {
               await this.workflowSvc.handleCompleteAssignment(uid, Number(completeMatch[1]), rt);
             } else if (myTasksMatch && uid) {
               await this.workflowSvc.handleMyTasks(uid, rt);
+            } else if (holdMatch && rt) {
+              await this.messagingSvc.reply(rt, [
+                { type: 'text', text: `รับทราบครับ เรื่อง #${holdMatch[1]} จะรอพิจารณาก่อน\nสามารถลงรับได้ภายหลังโดยพิมพ์ "ลงรับ #${holdMatch[1]}"` },
+              ]);
+            } else if (createCaseMatch && rt) {
+              await this.messagingSvc.reply(rt, [
+                this.messagingSvc.buildQuickReply('เลือกประเภทเรื่องที่ต้องการสร้าง:', [
+                  { label: 'บันทึกเสนอ', text: 'สร้างบันทึกเสนอ' },
+                  { label: 'หนังสือตอบ', text: 'ร่างข้อความตอบ' },
+                  { label: 'รายงานผล', text: 'สร้างรายงาน' },
+                ]),
+              ]);
             } else {
-              // Text messages are QuickReply actions or freeform queries → RAG pipeline
-              await this.dispatcher.dispatchLineMenuAction(eventId);
+              // V2: Try NLU intent classification before RAG fallback
+              let handledByNlu = false;
+              try {
+                const intent = await this.intentSvc.classify(text);
+                if (intent.confidence >= 0.8 && intent.intent !== 'unknown') {
+                  this.logger.log(`NLU classified "${text}" as ${intent.intent} (${intent.confidence})`);
+                  handledByNlu = await this.handleNluIntent(uid, rt, intent, eventId);
+                }
+              } catch (nluErr) {
+                this.logger.warn(`NLU classification failed (falling back to RAG): ${nluErr.message}`);
+              }
+
+              if (!handledByNlu) {
+                // Text messages are QuickReply actions or freeform queries → RAG pipeline
+                await this.dispatcher.dispatchLineMenuAction(eventId);
+              }
             }
           } else {
             // Image / file messages → document intake pipeline
@@ -141,5 +171,73 @@ export class LineWebhookController {
     }
 
     return { ok: true };
+  }
+
+  /**
+   * V2: Handle NLU-classified intents from LINE text messages.
+   * Returns true if the intent was handled, false to fall back to RAG pipeline.
+   */
+  private async handleNluIntent(
+    uid: string | undefined,
+    rt: string | undefined,
+    intent: { intent: string; entities: Record<string, any>; confidence: number },
+    eventId: bigint,
+  ): Promise<boolean> {
+    if (!uid) return false;
+
+    switch (intent.intent) {
+      case 'forward':
+        if (intent.entities.targetDepartment) {
+          // Forward current document context to target department
+          if (rt) {
+            await this.messagingSvc.reply(rt, [
+              { type: 'text', text: `รับทราบครับ จะส่งเรื่องนี้ไปที่ "${intent.entities.targetDepartment}" ให้` },
+            ]);
+          }
+          // Still dispatch to queue for actual routing logic
+          await this.dispatcher.dispatchLineMenuAction(eventId);
+          return true;
+        }
+        return false;
+
+      case 'register':
+        // Find the latest active session's case
+        if (rt) {
+          await this.messagingSvc.reply(rt, [
+            { type: 'text', text: 'กำลังลงรับหนังสือให้ครับ...' },
+          ]);
+        }
+        await this.dispatcher.dispatchLineMenuAction(eventId);
+        return true;
+
+      case 'daily_summary':
+        // Trigger executive snapshot
+        if (rt) {
+          await this.messagingSvc.reply(rt, [
+            { type: 'text', text: 'กำลังสรุปภาพรวมวันนี้ให้ครับ...' },
+          ]);
+        }
+        await this.dispatcher.dispatchLineMenuAction(eventId);
+        return true;
+
+      case 'create_memo':
+        // Acknowledge and forward to RAG for draft generation
+        if (rt) {
+          await this.messagingSvc.reply(rt, [
+            { type: 'text', text: 'รับทราบครับ กำลังร่างเอกสารให้...' },
+          ]);
+        }
+        await this.dispatcher.dispatchLineMenuAction(eventId);
+        return true;
+
+      case 'ask_ai':
+      case 'summarize':
+      case 'translate':
+        // These intents map directly to existing RAG pipeline actions
+        return false; // Let RAG pipeline handle
+
+      default:
+        return false;
+    }
   }
 }

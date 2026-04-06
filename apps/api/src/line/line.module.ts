@@ -8,12 +8,14 @@ import { LineMessagingService } from './services/line-messaging.service';
 import { LineSessionService } from './services/line-session.service';
 import { LinePairingService } from './services/line-pairing.service';
 import { LineWorkflowService } from './services/line-workflow.service';
+import { IntentClassifierService } from '../ai/services/intent-classifier.service';
 import { QueueModule } from '../queue/queue.module';
 import { AuthModule } from '../auth/auth.module';
 import { CasesModule } from '../cases/cases.module';
+import { GeminiModule } from '../gemini/gemini.module';
 
 @Module({
-  imports: [QueueModule, AuthModule, forwardRef(() => CasesModule)],
+  imports: [QueueModule, AuthModule, GeminiModule, forwardRef(() => CasesModule)],
   controllers: [LineWebhookController, LineReplyController],
   providers: [
     LineSignatureService,
@@ -23,6 +25,7 @@ import { CasesModule } from '../cases/cases.module';
     LineSessionService,
     LinePairingService,
     LineWorkflowService,
+    IntentClassifierService,
   ],
   exports: [LineMessagingService, LineUsersService, LineSessionService],
 })

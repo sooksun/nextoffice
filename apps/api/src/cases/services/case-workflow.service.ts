@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException, BadRequestException, Optional } 
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleCalendarService } from '../../calendar/services/google-calendar.service';
 import { NotificationService } from '../../notifications/notification.service';
+import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
+import { WorkflowLearningService } from '../../projects/services/workflow-learning.service';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ['registered'],
@@ -21,6 +23,8 @@ export class CaseWorkflowService {
     private readonly prisma: PrismaService,
     private readonly calendar: GoogleCalendarService,
     @Optional() private readonly notifications: NotificationService,
+    @Optional() private readonly dispatcher: QueueDispatcherService,
+    @Optional() private readonly workflowLearning: WorkflowLearningService,
   ) {}
 
   async register(caseId: number, userId: number): Promise<any> {
@@ -50,6 +54,20 @@ export class CaseWorkflowService {
       this.notifications.notifyCaseRegistered(caseId).catch((e) =>
         this.logger.warn(`notify register failed: ${e.message}`),
       );
+    }
+
+    // V2: Dispatch vault note generation on registration
+    if (this.dispatcher) {
+      this.dispatcher
+        .dispatchVaultNoteGenerate(BigInt(caseId), 'case_registered')
+        .catch((e) => this.logger.warn(`Vault dispatch on register failed: ${e.message}`));
+    }
+
+    // V2: Learn workflow pattern from this registration
+    if (this.workflowLearning) {
+      this.workflowLearning
+        .learnFromCase(caseId)
+        .catch((e) => this.logger.warn(`Workflow learning failed: ${e.message}`));
     }
 
     return this.serialize(updated);
@@ -203,6 +221,20 @@ export class CaseWorkflowService {
       this.notifications.notifyStatusChanged(caseId, c.status, newStatus, userId).catch((e) =>
         this.logger.warn(`notify status change failed: ${e.message}`),
       );
+    }
+
+    // V2: On completion — dispatch vault note + learn workflow pattern
+    if (newStatus === 'completed') {
+      if (this.dispatcher) {
+        this.dispatcher
+          .dispatchVaultNoteGenerate(BigInt(caseId), 'case_completed')
+          .catch((e) => this.logger.warn(`Vault dispatch on complete failed: ${e.message}`));
+      }
+      if (this.workflowLearning) {
+        this.workflowLearning
+          .learnFromCase(caseId)
+          .catch((e) => this.logger.warn(`Workflow learning on complete failed: ${e.message}`));
+      }
     }
 
     return this.serialize(updated);

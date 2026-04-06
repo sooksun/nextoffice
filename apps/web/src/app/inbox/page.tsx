@@ -100,7 +100,7 @@ export default async function InboxPage({
           <ThaiDateRangeFilter dateFrom={sp.dateFrom} dateTo={sp.dateTo} />
         </Suspense>
         <button type="submit" className="btn-primary">ค้นหา</button>
-        <a href="/inbox" className="btn-ghost">ล้าง</a>
+        <Link href="/inbox" className="btn-ghost">ล้าง</Link>
       </form>
 
       {/* Table */}

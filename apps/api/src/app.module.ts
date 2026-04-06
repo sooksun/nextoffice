@@ -21,6 +21,9 @@ import { OutboundModule } from './outbound/outbound.module';
 import { ReportsModule } from './reports/reports.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SystemPromptsModule } from './system-prompts/system-prompts.module';
+import { HorizonModule } from './horizon/horizon.module';
+import { ProjectsModule } from './projects/projects.module';
+import { VaultModule } from './vault/vault.module';
 
 @Module({
   imports: [
@@ -48,6 +51,9 @@ import { SystemPromptsModule } from './system-prompts/system-prompts.module';
     OutboundModule,
     ReportsModule,
     NotificationsModule,
+    HorizonModule,
+    ProjectsModule,
+    VaultModule,
   ],
 })
 export class AppModule {}

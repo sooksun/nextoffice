@@ -1,9 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class OutboundService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(OutboundService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async findAll(organizationId: number, status?: string) {
     const where: any = { organizationId: BigInt(organizationId) };
@@ -175,6 +182,102 @@ export class OutboundService {
       },
     });
     return { id: Number(entry.id) };
+  }
+
+  // ─── V2: AI Draft Generation ─────────────────
+
+  async generateAiDraft(caseId: number, draftType: string, additionalContext?: string) {
+    const cas = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        sourceDocument: true,
+        topics: true,
+        organization: { select: { id: true, name: true, orgCode: true } },
+      },
+    });
+    if (!cas) return null;
+
+    // Gather document text from the latest DocumentIntake's aiResult
+    let documentText = '';
+    if (cas.sourceDocument) {
+      const intake = await this.prisma.documentIntake.findFirst({
+        where: { organizationId: cas.organizationId },
+        include: { aiResult: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (intake?.aiResult?.extractedText) {
+        documentText = intake.aiResult.extractedText;
+      }
+    }
+    // Fallback to document fullText
+    if (!documentText && cas.sourceDocument?.fullText) {
+      documentText = cas.sourceDocument.fullText;
+    }
+
+    const topicNames = cas.topics?.map((t: any) => t.topicName || t.name).filter(Boolean).join(', ');
+
+    const typePrompts: Record<string, string> = {
+      memo: 'สร้างบันทึกเสนอผู้บริหาร (บันทึกข้อความภายใน) เพื่อเสนอให้พิจารณาเรื่องนี้',
+      reply: 'ร่างหนังสือตอบกลับ ในรูปแบบหนังสือราชการภายนอก',
+      report: 'ร่างรายงานผลการดำเนินงาน ตามเรื่องที่ได้รับ',
+      order: 'ร่างคำสั่ง ตามเนื้อหาของหนังสือที่ได้รับ',
+    };
+
+    const typeInstruction = typePrompts[draftType] ?? `ร่างเอกสารประเภท "${draftType}"`;
+
+    const prompt = `คุณเป็นผู้เชี่ยวชาญด้านงานสารบรรณราชการไทย
+
+เรื่อง: ${cas.title}
+${cas.description ? `รายละเอียด: ${cas.description}` : ''}
+${topicNames ? `หัวข้อที่เกี่ยวข้อง: ${topicNames}` : ''}
+${documentText ? `เนื้อหาเอกสารต้นฉบับ:\n${documentText.substring(0, 3000)}` : ''}
+${additionalContext ? `บริบทเพิ่มเติม: ${additionalContext}` : ''}
+
+คำสั่ง: ${typeInstruction}
+
+กรุณาร่างเอกสารให้ครบถ้วนตามรูปแบบราชการไทย โดยใช้ภาษาทางการ
+ตอบเป็นเนื้อหาเอกสารเท่านั้น ไม่ต้องอธิบายเพิ่มเติม`;
+
+    try {
+      const response = await axios.post(
+        'https://api.anthropic.com/v1/messages',
+        {
+          model: this.configService.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
+          max_tokens: 4096,
+          messages: [{ role: 'user', content: prompt }],
+        },
+        {
+          headers: {
+            'x-api-key': this.configService.get('ANTHROPIC_API_KEY'),
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+        },
+      );
+
+      const generatedText = response.data.content?.[0]?.text || '';
+
+      // Create OutboundDocument with draft status
+      const doc = await this.prisma.outboundDocument.create({
+        data: {
+          organizationId: cas.organizationId,
+          subject: `[${draftType.toUpperCase()}] ${cas.title}`,
+          bodyText: generatedText,
+          status: 'draft',
+          relatedInboundCaseId: cas.id,
+          urgencyLevel: cas.urgencyLevel ?? 'normal',
+          securityLevel: cas.securityLevel ?? 'normal',
+        },
+      });
+
+      return this.serialize({
+        ...doc,
+        relatedInboundCase: { id: cas.id, title: cas.title, registrationNo: cas.registrationNo },
+      });
+    } catch (error) {
+      this.logger.error(`AI draft generation failed for case ${caseId}`, error?.message);
+      throw error;
+    }
   }
 
   private async generateDocumentNo(organizationId: bigint, orgCode?: string): Promise<string> {

@@ -22,8 +22,8 @@ export default function CreateCaseButton({ documentIntakeId }: Props) {
         { method: "POST" },
       );
       router.push(`/inbox/${res.caseId}`);
-    } catch (err: any) {
-      toastError(err.message || "สร้างเคสไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "สร้างเคสไม่สำเร็จ");
       setLoading(false);
     }
   };

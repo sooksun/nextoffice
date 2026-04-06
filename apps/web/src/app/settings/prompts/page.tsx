@@ -78,8 +78,8 @@ export default function PromptsSettingsPage() {
       const exp: Record<string, boolean> = {};
       groups.forEach((g) => (exp[g] = true));
       setExpandedGroups(exp);
-    } catch (err: any) {
-      toastError(err.message || "โหลด prompts ไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "โหลด prompts ไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -107,9 +107,9 @@ export default function PromptsSettingsPage() {
       setEdit(promptKey, { saving: false, dirty: false, saved: true });
       toastSuccess("บันทึกสำเร็จ");
       setTimeout(() => setEdit(promptKey, { saved: false }), 2500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setEdit(promptKey, { saving: false });
-      toastError(err.message || "บันทึกไม่สำเร็จ");
+      toastError((err as Error).message || "บันทึกไม่สำเร็จ");
     }
   };
 
@@ -128,9 +128,9 @@ export default function PromptsSettingsPage() {
       });
       toastSuccess("รีเซ็ตสำเร็จ");
       setTimeout(() => setEdit(promptKey, { saved: false }), 2500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setEdit(promptKey, { resetting: false });
-      toastError(err.message || "รีเซ็ตไม่สำเร็จ");
+      toastError((err as Error).message || "รีเซ็ตไม่สำเร็จ");
     }
   };
 

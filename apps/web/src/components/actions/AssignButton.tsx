@@ -66,8 +66,8 @@ export default function AssignButton({ caseId, status }: Props) {
       toastSuccess("มอบหมายงานสำเร็จ");
       setOpen(false);
       router.refresh();
-    } catch (err: any) {
-      toastError(err.message || "มอบหมายไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "มอบหมายไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

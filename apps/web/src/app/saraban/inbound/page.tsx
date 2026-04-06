@@ -67,8 +67,6 @@ export default async function InboundRegistryPage({
 }) {
   const sp = await searchParams;
   const { total, data } = await getCases(sp);
-  const now = new Date();
-
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
@@ -128,7 +126,6 @@ export default async function InboundRegistryPage({
               </tr>
             )}
             {data.map((c, i) => {
-              const isOverdue = c.dueDate && new Date(c.dueDate) < now && !["completed", "archived"].includes(c.status);
               return (
                 <tr key={c.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
                   <td className="px-4 py-3 text-on-surface-variant">{i + 1}</td>

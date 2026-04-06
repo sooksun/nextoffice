@@ -7,6 +7,7 @@ import {
   QUEUE_FILE_INTAKE,
   QUEUE_AI_PROCESSING,
   QUEUE_OUTBOUND,
+  QUEUE_HORIZON,
 } from './queue.constants';
 
 export * from './queue.constants';
@@ -34,6 +35,7 @@ export * from './queue.constants';
       { name: QUEUE_FILE_INTAKE },
       { name: QUEUE_AI_PROCESSING },
       { name: QUEUE_OUTBOUND },
+      { name: QUEUE_HORIZON },
     ),
   ],
   providers: [QueueDispatcherService],

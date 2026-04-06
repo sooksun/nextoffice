@@ -42,8 +42,8 @@ export default function NewOutboundPage() {
         }),
       });
       router.push(`/outbound/${res.id}`);
-    } catch (err: any) {
-      toastError(err.message || "สร้างเอกสารไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "สร้างเอกสารไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

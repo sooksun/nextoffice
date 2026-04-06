@@ -26,8 +26,8 @@ export default function RegisterButton({ caseId, status }: Props) {
       setRegNo(res.registrationNo);
       toastSuccess("ลงรับเอกสารสำเร็จ");
       router.refresh();
-    } catch (err: any) {
-      toastError(err.message || "ลงรับไม่สำเร็จ");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "ลงรับไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
