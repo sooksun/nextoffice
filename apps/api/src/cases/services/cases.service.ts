@@ -80,7 +80,13 @@ export class CasesService {
   async findById(id: number) {
     const c = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(id) },
-      include: { organization: true, sourceDocument: true, topics: { include: { topic: true } } },
+      include: {
+        organization: true,
+        sourceDocument: true,
+        topics: { include: { topic: true } },
+        assignedTo: { select: { id: true, fullName: true, roleCode: true } },
+        registeredBy: { select: { id: true, fullName: true } },
+      },
     });
     if (!c) throw new NotFoundException(`Case #${id} not found`);
     return this.serialize(c);
@@ -301,6 +307,7 @@ export class CasesService {
       ...c,
       id: Number(c.id),
       organizationId: Number(c.organizationId),
+      academicYearId: c.academicYearId ? Number(c.academicYearId) : null,
       sourceDocumentId: c.sourceDocumentId ? Number(c.sourceDocumentId) : null,
       registeredByUserId: c.registeredByUserId ? Number(c.registeredByUserId) : null,
       assignedToUserId: c.assignedToUserId ? Number(c.assignedToUserId) : null,
@@ -318,6 +325,12 @@ export class CasesService {
         ...c.sourceDocument,
         id: Number(c.sourceDocument.id),
       };
+    }
+    if (c.assignedTo) {
+      result.assignedTo = { ...c.assignedTo, id: Number(c.assignedTo.id) };
+    }
+    if (c.registeredBy) {
+      result.registeredBy = { ...c.registeredBy, id: Number(c.registeredBy.id) };
     }
     if (c.topics) {
       result.topics = c.topics.map((t: any) => ({
