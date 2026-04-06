@@ -244,35 +244,38 @@ export default async function InboxDetailPage({
           <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-4">ข้อมูลหนังสือ</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-on-surface-variant">หน่วยงานที่ส่ง:</span>
+              <span className="text-on-surface-variant text-xs">หน่วยงานที่ส่ง:</span>
               <p className="font-medium">{issuingAuthority || "—"}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant">หน่วยงานรับ:</span>
+              <span className="text-on-surface-variant text-xs">หน่วยงานรับ:</span>
               <p className="font-medium">{caseData.organization?.name || "—"}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant">เลขที่หนังสือ:</span>
+              <span className="text-on-surface-variant text-xs">ที่หนังสือ (เลขที่จากหน่วยส่ง):</span>
               <p className="font-medium">{documentCode || "—"}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant">เลขทะเบียนรับ:</span>
-              <p className="font-medium font-mono">{caseData.registrationNo || "—"}</p>
+              <span className="text-on-surface-variant text-xs">เลขทะเบียนรับ (ลำดับโรงเรียน):</span>
+              {caseData.registrationNo
+                ? <p className="font-bold font-mono text-primary text-base">{caseData.registrationNo}</p>
+                : <p className="text-on-surface-variant italic text-xs">ยังไม่ได้ลงรับ</p>
+              }
             </div>
             <div>
-              <span className="text-on-surface-variant">วันที่รับ:</span>
+              <span className="text-on-surface-variant text-xs">วันที่รับ:</span>
               <p className="font-medium">{formatThaiDate(caseData.receivedAt)}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant">กำหนดเสร็จ:</span>
+              <span className="text-on-surface-variant text-xs">กำหนดเสร็จ:</span>
               <p className="font-medium">{caseData.dueDate ? formatThaiDate(caseData.dueDate) : "—"}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant">ประเภทเอกสาร:</span>
+              <span className="text-on-surface-variant text-xs">ความเร่งด่วน:</span>
               <p className="font-medium">{URGENCY_LABEL[caseData.urgencyLevel]}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant">ชั้นความลับ:</span>
+              <span className="text-on-surface-variant text-xs">ชั้นความลับ:</span>
               <p className="font-medium">{caseData.securityLevel || "ปกติ"}</p>
             </div>
           </div>

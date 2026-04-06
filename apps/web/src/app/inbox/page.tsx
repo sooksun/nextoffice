@@ -111,7 +111,8 @@ export default async function InboxPage({
               <th className="px-4 py-3 text-left w-10">#</th>
               <th className="px-4 py-3 text-left w-24">เอกสาร</th>
               <th className="px-4 py-3 text-left">ชื่อเรื่อง</th>
-              <th className="px-4 py-3 text-left">ที่</th>
+              <th className="px-4 py-3 text-left">ที่หนังสือ</th>
+              <th className="px-4 py-3 text-left">เลขรับ</th>
               <th className="px-4 py-3 text-left">ผู้ส่ง</th>
               <th className="px-4 py-3 text-left">สถานะ</th>
               <th className="px-4 py-3 text-left">วันที่รับ</th>
@@ -120,7 +121,7 @@ export default async function InboxPage({
           <tbody>
             {data.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={8} className="px-4 py-10 text-center text-on-surface-variant">
                   ไม่พบเอกสาร
                 </td>
               </tr>
@@ -139,7 +140,13 @@ export default async function InboxPage({
                   </Link>
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
-                  {c.sourceDocument?.documentCode || c.registrationNo || "—"}
+                  {c.sourceDocument?.documentCode || "—"}
+                </td>
+                <td className="px-4 py-3 text-xs whitespace-nowrap">
+                  {c.registrationNo
+                    ? <span className="font-mono font-bold text-primary">{c.registrationNo}</span>
+                    : <span className="text-on-surface-variant">—</span>
+                  }
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant">
                   {c.sourceDocument?.issuingAuthority || "—"}
