@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { Inbox, Plus } from "lucide-react";
 import { formatThaiDateTime } from "@/lib/thai-date";
+import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -94,8 +96,9 @@ export default async function InboxPage({
           placeholder="ค้นหา..."
           className="input-text flex-1 min-w-[200px]"
         />
-        <input type="date" name="dateFrom" defaultValue={sp.dateFrom ?? ""} className="input-date" />
-        <input type="date" name="dateTo" defaultValue={sp.dateTo ?? ""} className="input-date" />
+        <Suspense fallback={<div className="w-40 h-9 rounded-xl bg-surface-bright animate-pulse" />}>
+          <ThaiDateRangeFilter dateFrom={sp.dateFrom} dateTo={sp.dateTo} />
+        </Suspense>
         <button type="submit" className="btn-primary">ค้นหา</button>
         <a href="/inbox" className="btn-ghost">ล้าง</a>
       </form>

@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { apiFetch } from "@/lib/api";
 import { FileText } from "lucide-react";
 import { formatThaiDateShort } from "@/lib/thai-date";
+import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -94,8 +96,9 @@ export default async function InboundRegistryPage({
             <option key={v} value={v}>{l}</option>
           ))}
         </select>
-        <input type="date" name="dateFrom" defaultValue={sp.dateFrom ?? ""} className="input-date" />
-        <input type="date" name="dateTo" defaultValue={sp.dateTo ?? ""} className="input-date" />
+        <Suspense fallback={<div className="w-40 h-9 rounded-xl bg-surface-bright animate-pulse" />}>
+          <ThaiDateRangeFilter dateFrom={sp.dateFrom} dateTo={sp.dateTo} />
+        </Suspense>
         <button type="submit" className="btn-primary">กรอง</button>
         <a href="/saraban/inbound" className="btn-ghost">ล้าง</a>
       </form>
