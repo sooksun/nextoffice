@@ -158,26 +158,50 @@ export class IntakeService {
       metadata = await this.extraction.extractOfficialMetadata(extractedText);
     }
 
-    // 6. Save AI result
-    const aiResult = await this.prisma.documentAiResult.create({
-      data: {
-        documentIntakeId: intake.id,
-        extractedText,
-        isOfficialDocument: classResult.isOfficialDocument,
-        classificationLabel: classResult.classificationLabel,
-        classificationConfidence: classResult.classificationConfidence,
-        documentNo: metadata?.documentNo || null,
-        documentDate: metadata?.documentDate ? new Date(metadata.documentDate) : null,
-        subjectText: metadata?.subjectText || null,
-        summaryText: metadata?.summary || null,
-        deadlineDate: metadata?.deadlineDate ? new Date(metadata.deadlineDate) : null,
-        isMeeting: metadata?.isMeeting || false,
-        meetingDate: metadata?.meetingDate ? new Date(metadata.meetingDate) : null,
-        meetingTime: metadata?.meetingTime || null,
-        meetingLocation: metadata?.meetingLocation || null,
-        nextActionJson: metadata?.actions ? JSON.stringify(metadata.actions) : null,
-      },
-    });
+    // 6. Save AI result — try with meeting fields first, fallback without if columns missing
+    let aiResult: any;
+    try {
+      aiResult = await this.prisma.documentAiResult.create({
+        data: {
+          documentIntakeId: intake.id,
+          extractedText,
+          isOfficialDocument: classResult.isOfficialDocument,
+          classificationLabel: classResult.classificationLabel,
+          classificationConfidence: classResult.classificationConfidence,
+          documentNo: metadata?.documentNo || null,
+          documentDate: metadata?.documentDate ? new Date(metadata.documentDate) : null,
+          subjectText: metadata?.subjectText || null,
+          summaryText: metadata?.summary || null,
+          deadlineDate: metadata?.deadlineDate ? new Date(metadata.deadlineDate) : null,
+          isMeeting: metadata?.isMeeting || false,
+          meetingDate: metadata?.meetingDate ? new Date(metadata.meetingDate) : null,
+          meetingTime: metadata?.meetingTime || null,
+          meetingLocation: metadata?.meetingLocation || null,
+          nextActionJson: metadata?.actions ? JSON.stringify(metadata.actions) : null,
+        },
+      });
+    } catch (e: any) {
+      // Fallback: save without meeting fields (DB schema not yet migrated)
+      if (e?.message?.includes('is_meeting') || e?.message?.includes('meeting')) {
+        aiResult = await this.prisma.documentAiResult.create({
+          data: {
+            documentIntakeId: intake.id,
+            extractedText,
+            isOfficialDocument: classResult.isOfficialDocument,
+            classificationLabel: classResult.classificationLabel,
+            classificationConfidence: classResult.classificationConfidence,
+            documentNo: metadata?.documentNo || null,
+            documentDate: metadata?.documentDate ? new Date(metadata.documentDate) : null,
+            subjectText: metadata?.subjectText || null,
+            summaryText: metadata?.summary || null,
+            deadlineDate: metadata?.deadlineDate ? new Date(metadata.deadlineDate) : null,
+            nextActionJson: metadata?.actions ? JSON.stringify(metadata.actions) : null,
+          },
+        });
+      } else {
+        throw e;
+      }
+    }
 
     await this.prisma.documentIntake.update({
       where: { id: intake.id },
