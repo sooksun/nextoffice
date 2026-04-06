@@ -67,6 +67,8 @@ services:
       MINIO_USE_SSL: "false"
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
+    volumes:
+      - vault_data:/app/vault
     ports:
       - "9911:3000"
     depends_on:
@@ -102,6 +104,7 @@ volumes:
   redis_data:
   minio_data:
   qdrant_data:
+  vault_data:
 
 networks:
   nextoffice:
