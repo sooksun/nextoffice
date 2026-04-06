@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetrievalService } from './retrieval.service';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
+import { SystemPromptsService } from '../../system-prompts/system-prompts.service';
 
 @Injectable()
 export class ReasoningService {
@@ -11,6 +12,7 @@ export class ReasoningService {
     private readonly prisma: PrismaService,
     private readonly retrieval: RetrievalService,
     private readonly gemini: GeminiApiService,
+    private readonly prompts: SystemPromptsService,
   ) {}
 
   async generateCaseOptions(caseId: bigint, orgId: bigint, query: string): Promise<void> {
@@ -80,39 +82,18 @@ export class ReasoningService {
       .map((p) => `- ${p.data?.title || p.rationale}`)
       .join('\n');
 
-    const prompt = `คุณเป็นที่ปรึกษาด้านนโยบายการศึกษาระดับผู้เชี่ยวชาญ
-เรื่อง: ${query}
-
-ข้อมูล Horizon RAG (แนวโน้มโลก):
-${horizonContext || 'ไม่มีข้อมูล'}
-
-ข้อมูล Policy RAG (กฎระเบียบที่เกี่ยวข้อง):
-${policyContext || 'ไม่มีข้อมูล'}
-
-สร้างข้อเสนอ 3 ทางเลือก (A=ปลอดภัย, B=สมดุล, C=นวัตกรรม) ตอบเป็น JSON array:
-[
-  {
-    "code": "A",
-    "title": "ชื่อทางเลือก",
-    "description": "รายละเอียด",
-    "implementationSteps": "ขั้นตอนการดำเนินงาน",
-    "expectedBenefits": "ประโยชน์ที่คาดหวัง",
-    "risks": "ความเสี่ยง",
-    "policyComplianceNote": "มุมกติกา",
-    "contextFitNote": "มุมบริบท",
-    "feasibilityScore": 0.0-1.0,
-    "innovationScore": 0.0-1.0,
-    "complianceScore": 0.0-1.0,
-    "overallScore": 0.0-1.0
-  }
-]`;
+    const cfg = await this.prompts.get('reasoning.options');
+    const prompt = cfg.promptText
+      .replace('{{query}}', query)
+      .replace('{{horizon_context}}', horizonContext || 'ไม่มีข้อมูล')
+      .replace('{{policy_context}}', policyContext || 'ไม่มีข้อมูล');
 
     try {
       const rawText =
         (await this.gemini.generateText({
           user: prompt,
-          maxOutputTokens: 2048,
-          temperature: 0.35,
+          maxOutputTokens: cfg.maxTokens,
+          temperature: cfg.temperature,
         })) || '[]';
       const jsonMatch = rawText.match(/\[[\s\S]*\]/);
       return JSON.parse(jsonMatch?.[0] || '[]');

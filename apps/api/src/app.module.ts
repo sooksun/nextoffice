@@ -20,6 +20,7 @@ import { WorkGroupsModule } from './work-groups/work-groups.module';
 import { OutboundModule } from './outbound/outbound.module';
 import { ReportsModule } from './reports/reports.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { SystemPromptsModule } from './system-prompts/system-prompts.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       envFilePath: resolveApiRootEnvPath(),
     }),
     PrismaModule,
+    SystemPromptsModule,
     QueueModule,
     ProcessorModule,
     AuthModule,

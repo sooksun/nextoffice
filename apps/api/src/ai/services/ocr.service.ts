@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
+import { SystemPromptsService } from '../../system-prompts/system-prompts.service';
 
 @Injectable()
 export class OcrService {
   private readonly logger = new Logger(OcrService.name);
 
-  constructor(private readonly gemini: GeminiApiService) {}
+  constructor(
+    private readonly gemini: GeminiApiService,
+    private readonly prompts: SystemPromptsService,
+  ) {}
 
   async extractText(buffer: Buffer, mimeType: string): Promise<string> {
     if (mimeType === 'application/pdf') {
@@ -18,21 +22,15 @@ export class OcrService {
     if (!this.gemini.getApiKey()) return '[PDF text extraction not configured]';
 
     try {
+      const p = await this.prompts.get('ocr.pdf');
       const base64 = buffer.toString('base64');
       const text = await this.gemini.generateFromParts({
         parts: [
-          {
-            inlineData: {
-              mimeType: 'application/pdf',
-              data: base64,
-            },
-          },
-          {
-            text: 'Extract all text from this PDF document. Return only the extracted text, no commentary.',
-          },
+          { inlineData: { mimeType: 'application/pdf', data: base64 } },
+          { text: p.promptText },
         ],
-        maxOutputTokens: 4096,
-        temperature: 0.1,
+        maxOutputTokens: p.maxTokens,
+        temperature: p.temperature,
       });
       return text || '';
     } catch (err) {
@@ -45,21 +43,15 @@ export class OcrService {
     if (!this.gemini.getApiKey()) return '[Image OCR not configured]';
 
     try {
+      const p = await this.prompts.get('ocr.image');
       const base64 = buffer.toString('base64');
       const text = await this.gemini.generateFromParts({
         parts: [
-          {
-            inlineData: {
-              mimeType: mimeType || 'image/jpeg',
-              data: base64,
-            },
-          },
-          {
-            text: 'Extract all text visible in this image. Return only the extracted text, preserving the original structure.',
-          },
+          { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64 } },
+          { text: p.promptText },
         ],
-        maxOutputTokens: 4096,
-        temperature: 0.1,
+        maxOutputTokens: p.maxTokens,
+        temperature: p.temperature,
       });
       return text || '';
     } catch (err) {

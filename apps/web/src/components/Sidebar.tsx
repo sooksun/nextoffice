@@ -24,6 +24,7 @@ import {
   BellRing,
   ClipboardList,
   SendHorizontal,
+  SlidersHorizontal,
 } from "lucide-react";
 
 const documentFlowLinks = [
@@ -46,6 +47,7 @@ const toolLinks = [
 const adminLinks = [
   { href: "/work-groups", label: "โครงสร้างองค์กร", icon: Users },
   { href: "/knowledge", label: "ฐานข้อมูลความรู้", icon: BookOpen },
+  { href: "/settings/prompts", label: "ตั้งค่า AI Prompts", icon: SlidersHorizontal },
   { href: "/organizations", label: "หน่วยงาน", icon: Building2 },
 ];
 

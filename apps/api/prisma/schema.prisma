@@ -902,6 +902,27 @@ model DocumentRegistry {
 }
 
 // ─────────────────────────────────────────────
+// PHASE F: System Configuration
+// ─────────────────────────────────────────────
+
+model SystemPrompt {
+  id          Int      @id @default(autoincrement())
+  promptKey   String   @unique @map("prompt_key") @db.VarChar(80)  // e.g. "ocr.pdf", "action.summarize"
+  groupName   String   @map("group_name") @db.VarChar(60)          // e.g. "OCR", "AI Actions"
+  label       String   @db.VarChar(120)                            // ชื่อแสดงผล
+  description String?  @db.Text                                    // คำอธิบาย
+  promptText  String   @map("prompt_text") @db.LongText            // เนื้อหา prompt
+  temperature Float    @default(0.3)
+  maxTokens   Int      @map("max_tokens") @default(1024)
+  isActive    Boolean  @map("is_active") @default(true)
+  updatedBy   String?  @map("updated_by") @db.VarChar(100)
+  createdAt   DateTime @map("created_at") @default(now())
+  updatedAt   DateTime @map("updated_at") @updatedAt
+
+  @@map("system_prompts")
+}
+
+// ─────────────────────────────────────────────
 // PHASE E: Vector Embeddings
 // ─────────────────────────────────────────────
 

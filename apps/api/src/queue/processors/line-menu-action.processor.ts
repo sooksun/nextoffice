@@ -7,6 +7,7 @@ import { LineMessagingService } from '../../line/services/line-messaging.service
 import { LineSessionService } from '../../line/services/line-session.service';
 import { PolicyRagService } from '../../rag/services/policy-rag.service';
 import { HorizonRagService } from '../../rag/services/horizon-rag.service';
+import { SystemPromptsService } from '../../system-prompts/system-prompts.service';
 import { QUEUE_LINE_EVENTS } from '../queue.constants';
 
 export type MenuActionCode =
@@ -52,6 +53,7 @@ export class LineMenuActionProcessor {
     private readonly policyRag: PolicyRagService,
     private readonly horizonRag: HorizonRagService,
     private readonly gemini: GeminiApiService,
+    private readonly prompts: SystemPromptsService,
   ) {}
 
   @Process('line.menu.action')
@@ -132,9 +134,9 @@ export class LineMenuActionProcessor {
       aiReply =
         'ยังไม่มีเนื้อหาเอกสารในเซสชันนี้ กรุณาส่งไฟล์แล้วรอให้บอทวิเคราะห์จนมีข้อความสรุปหนังสือราชการก่อน จากนั้นค่อยกดปุ่มสรุป/แปล/ดึงสาระสำคัญ หรือพิมพ์ "สรุป..." อีกครั้ง';
     } else {
-      const prompt = this.buildPrompt(actionCode, text, docExtractedText, docSubject, ragContext);
       try {
-        aiReply = await this.callGemini(prompt);
+        const prompt = await this.buildPrompt(actionCode, text, docExtractedText, docSubject, ragContext);
+        aiReply = await this.callGemini(prompt, actionCode);
       } catch (err) {
         this.logger.error(`Gemini call failed: ${err.message}`);
         aiReply = 'ขออภัย ระบบ AI ไม่สามารถประมวลผลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
@@ -191,64 +193,41 @@ export class LineMenuActionProcessor {
     ]);
   }
 
-  private buildPrompt(
+  private async buildPrompt(
     action: MenuActionCode,
     userText: string,
     docText: string,
     subject: string,
     ragContext: string,
-  ): string {
+  ): Promise<string> {
+    if (action === 'save_reference') return '';
+
     const docSection = docText
       ? `\n\n--- เนื้อหาเอกสาร ---\n${docText.substring(0, 1500)}\n---`
       : '';
     const ragSection = ragContext
       ? `\n\n--- ข้อมูลอ้างอิง (RAG) ---\n${ragContext}\n---`
       : '';
-    const base = docSection + ragSection;
 
-    const prompts: Record<MenuActionCode, string> = {
-      summarize:
-        `คุณเป็นผู้ช่วยสรุปเอกสารราชการไทย ` +
-        `สรุปเอกสารต่อไปนี้เป็นภาษาไทยให้กระชับ ชัดเจน ไม่เกิน 200 คำ${base}`,
+    const promptKey = action === 'extract_key' ? 'action.extract_key' : `action.${action}`;
+    const p = await this.prompts.get(promptKey);
 
-      translate:
-        `คุณเป็นนักแปลเอกสาร ` +
-        `แปลเอกสารต่อไปนี้เป็นภาษาไทยให้ถูกต้องและเป็นธรรมชาติ${base}`,
-
-      extract_key:
-        `คุณเป็นผู้ช่วยวิเคราะห์เอกสารราชการ ` +
-        `ดึงสาระสำคัญจากเอกสารนี้เป็นข้อๆ ภาษาไทย ` +
-        `ระบุ: ประเด็นหลัก, การดำเนินการที่ต้องทำ, กำหนดเวลา${base}`,
-
-      draft_reply:
-        `คุณเป็นผู้เชี่ยวชาญด้านการเขียนหนังสือราชการไทย ` +
-        `ร่างหนังสือตอบกลับอย่างเป็นทางการ สำหรับเรื่อง: ${subject}${base}`,
-
-      create_memo:
-        `คุณเป็นผู้เชี่ยวชาญด้านการเขียนบันทึกข้อความราชการไทย ` +
-        `ร่างบันทึกข้อความเสนอ (internal memo) สำหรับเรื่อง: ${subject}${base}`,
-
-      assign_task:
-        `คุณเป็นที่ปรึกษาการบริหารงาน ` +
-        `วิเคราะห์เอกสารและเสนอแนะการมอบหมายงาน ` +
-        `ระบุ: ผู้รับผิดชอบ, งานที่ต้องทำ, กำหนดเวลาที่แนะนำ${base}`,
-
-      freeform:
-        `ตอบคำถาม/คำขอต่อไปนี้เป็นภาษาไทย: ${userText}${base}`,
-
-      save_reference: '',
-    };
-
-    return prompts[action];
+    return p.promptText
+      .replace('{{user_text}}', userText)
+      .replace('{{subject}}', subject)
+      .replace('{{doc_section}}', docSection)
+      .replace('{{rag_section}}', ragSection);
   }
 
-  private async callGemini(prompt: string): Promise<string> {
+  private async callGemini(prompt: string, action: MenuActionCode): Promise<string> {
     if (!this.gemini.getApiKey()) throw new Error('GEMINI_API_KEY not configured');
+    const promptKey = action === 'extract_key' ? 'action.extract_key' : `action.${action}`;
+    const p = await this.prompts.get(promptKey);
     return (
       (await this.gemini.generateText({
         user: prompt,
-        maxOutputTokens: 1024,
-        temperature: 0.4,
+        maxOutputTokens: p.maxTokens,
+        temperature: p.temperature,
       })) || ''
     );
   }

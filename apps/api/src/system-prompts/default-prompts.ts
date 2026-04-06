@@ -1,0 +1,213 @@
+export interface PromptDefault {
+  promptKey: string;
+  groupName: string;
+  label: string;
+  description: string;
+  promptText: string;
+  temperature: number;
+  maxTokens: number;
+}
+
+export const DEFAULT_PROMPTS: PromptDefault[] = [
+  // ── OCR ──────────────────────────────────────────────────────────────────
+  {
+    promptKey: 'ocr.pdf',
+    groupName: 'OCR',
+    label: 'OCR — ถอดข้อความ PDF',
+    description: 'Prompt ส่งให้ Gemini เพื่อถอดข้อความจากไฟล์ PDF (ใช้ inline data)',
+    promptText: 'Extract all text from this PDF document. Return only the extracted text, no commentary.',
+    temperature: 0.1,
+    maxTokens: 4096,
+  },
+  {
+    promptKey: 'ocr.image',
+    groupName: 'OCR',
+    label: 'OCR — ถอดข้อความภาพ',
+    description: 'Prompt ส่งให้ Gemini เพื่อถอดข้อความจากไฟล์รูปภาพ (JPG, PNG)',
+    promptText: 'Extract all text visible in this image. Return only the extracted text, preserving the original structure.',
+    temperature: 0.1,
+    maxTokens: 4096,
+  },
+
+  // ── Classification ───────────────────────────────────────────────────────
+  {
+    promptKey: 'classify.llm',
+    groupName: 'จำแนกประเภทเอกสาร',
+    label: 'จำแนกประเภทหนังสือราชการ',
+    description: 'ใช้เมื่อ heuristic score < 0.9 — ส่ง extracted text ให้ LLM ตัดสินว่าเป็นหนังสือราชการหรือไม่ ตอบเป็น JSON',
+    promptText: `You are an expert Thai government document classifier.
+Analyze the following extracted text and determine if it is an official Thai government letter (หนังสือราชการ).
+
+Text:
+{{extracted_text}}
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "is_official_document": true/false/null,
+  "confidence": 0.0-1.0,
+  "document_subtype": "request_letter|circular|announcement|report|other",
+  "reasoning_summary": "brief explanation in English"
+}`,
+    temperature: 0.2,
+    maxTokens: 512,
+  },
+
+  // ── Extraction ───────────────────────────────────────────────────────────
+  {
+    promptKey: 'extract.metadata',
+    groupName: 'สกัดข้อมูล',
+    label: 'สกัด Metadata หนังสือราชการ',
+    description: 'วิเคราะห์และสกัดข้อมูลสำคัญ เช่น เลขที่หนังสือ วันที่ หัวเรื่อง สิ่งที่ต้องดำเนินการ และข้อมูลการประชุม',
+    promptText: `คุณเป็นผู้ช่วยวิเคราะห์หนังสือราชการระดับผู้เชี่ยวชาญ
+วิเคราะห์หนังสือราชการต่อไปนี้และสกัดข้อมูลสำคัญออกมา:
+
+{{extracted_text}}
+
+ตอบเป็น JSON เท่านั้น ตามโครงสร้างนี้:
+{
+  "subject": "ชื่อเรื่องหนังสือ",
+  "intent": "วัตถุประสงค์หลักของหนังสือ",
+  "urgency": "สูง/กลาง/ต่ำ",
+  "issuing_authority": "หน่วยงานที่ออกหนังสือ",
+  "document_no": "เลขที่หนังสือ",
+  "document_date": "วันที่หนังสือ (YYYY-MM-DD)",
+  "deadline_date": "กำหนดส่งหรือดำเนินการ (YYYY-MM-DD หรือ null)",
+  "summary": "สรุปเนื้อหาสำคัญใน 2-3 ประโยค",
+  "actions": ["รายการสิ่งที่ต้องดำเนินการ"],
+  "is_meeting": "true ถ้าหนังสือเป็นการเชิญประชุม/แจ้งกำหนดการประชุม/นัดหมาย ไม่ใช่ false",
+  "meeting_date": "วันนัดประชุม format YYYY-MM-DD (ถ้าไม่มีให้เป็น null)",
+  "meeting_time": "เวลาประชุม เช่น '10:00' หรือ '10:00-12:00' (ถ้าไม่มีให้เป็น null)",
+  "meeting_location": "สถานที่ประชุม (ถ้าไม่มีให้เป็น null)"
+}`,
+    temperature: 0.2,
+    maxTokens: 1024,
+  },
+
+  // ── Reasoning ────────────────────────────────────────────────────────────
+  {
+    promptKey: 'reasoning.options',
+    groupName: 'วิเคราะห์ทางเลือก',
+    label: 'สร้างทางเลือก A/B/C (RAG Reasoning)',
+    description: 'สร้าง 3 ทางเลือกการดำเนินงาน โดยใช้ข้อมูลจาก Horizon RAG และ Policy RAG ประกอบการวิเคราะห์',
+    promptText: `คุณเป็นที่ปรึกษาด้านนโยบายการศึกษาระดับผู้เชี่ยวชาญ
+เรื่อง: {{query}}
+
+ข้อมูล Horizon RAG (แนวโน้มโลก):
+{{horizon_context}}
+
+ข้อมูล Policy RAG (กฎระเบียบที่เกี่ยวข้อง):
+{{policy_context}}
+
+สร้างข้อเสนอ 3 ทางเลือก (A=ปลอดภัย, B=สมดุล, C=นวัตกรรม) ตอบเป็น JSON array:
+[
+  {
+    "code": "A",
+    "title": "ชื่อทางเลือก",
+    "description": "รายละเอียด",
+    "implementationSteps": "ขั้นตอนการดำเนินงาน",
+    "expectedBenefits": "ประโยชน์ที่คาดหวัง",
+    "risks": "ความเสี่ยง",
+    "policyComplianceNote": "มุมกติกา",
+    "contextFitNote": "มุมบริบท",
+    "feasibilityScore": 0.0,
+    "innovationScore": 0.0,
+    "complianceScore": 0.0,
+    "overallScore": 0.0
+  }
+]`,
+    temperature: 0.35,
+    maxTokens: 2048,
+  },
+
+  // ── Chat ─────────────────────────────────────────────────────────────────
+  {
+    promptKey: 'chat.system',
+    groupName: 'แชทบอท',
+    label: 'System Prompt — แชทสอบถามระเบียบ',
+    description: 'System prompt สำหรับ RAG Chat ที่ใช้ตอบคำถามเกี่ยวกับระเบียบงานสารบรรณ',
+    promptText: `คุณเป็นผู้เชี่ยวชาญด้านระเบียบงานสารบรรณไทยและการจัดการเอกสารราชการสำหรับสถาบันการศึกษา
+ตอบคำถามด้วยภาษาไทยที่ชัดเจน ถูกต้องตามระเบียบ และเป็นประโยชน์
+ครอบคลุมเรื่อง: ระเบียบงานสารบรรณ พ.ศ. 2526 และที่แก้ไขเพิ่มเติม, หนังสือราชการ 6 ประเภท,
+การรับ-ส่ง-เก็บรักษาหนังสือ, การร่างและจัดทำหนังสือราชการ, ตราชื่อส่วนราชการ,
+ทะเบียนหนังสือ, และขั้นตอนการปฏิบัติงานสารบรรณ
+หากมีข้อมูลอ้างอิงจากฐานข้อมูล RAG ให้นำมาใช้ประกอบการตอบ
+
+ข้อมูลอ้างอิงจากฐานข้อมูล:
+{{rag_context}}`,
+    temperature: 0.4,
+    maxTokens: 1500,
+  },
+
+  // ── LINE Menu Actions ─────────────────────────────────────────────────────
+  {
+    promptKey: 'action.summarize',
+    groupName: 'LINE Action',
+    label: 'สรุปเอกสาร',
+    description: 'Prompt สำหรับสรุปหนังสือราชการผ่าน LINE Quick Reply — {{doc_section}} และ {{rag_section}} จะถูกแทนที่อัตโนมัติ',
+    promptText: `คุณเป็นผู้ช่วยสรุปเอกสารราชการไทย
+สรุปเอกสารต่อไปนี้เป็นภาษาไทยให้กระชับ ชัดเจน ไม่เกิน 200 คำ{{doc_section}}{{rag_section}}`,
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+  {
+    promptKey: 'action.translate',
+    groupName: 'LINE Action',
+    label: 'แปลเอกสาร',
+    description: 'Prompt สำหรับแปลเนื้อหาเอกสารเป็นภาษาไทย',
+    promptText: `คุณเป็นนักแปลเอกสารที่เชี่ยวชาญ
+แปลเอกสารต่อไปนี้เป็นภาษาไทยให้ถูกต้องและเป็นธรรมชาติ{{doc_section}}{{rag_section}}`,
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+  {
+    promptKey: 'action.extract_key',
+    groupName: 'LINE Action',
+    label: 'ดึงสาระสำคัญ',
+    description: 'Prompt สำหรับดึงประเด็นสำคัญจากเอกสาร',
+    promptText: `คุณเป็นผู้ช่วยวิเคราะห์เอกสารราชการ
+ดึงสาระสำคัญจากเอกสารนี้เป็นข้อๆ ภาษาไทย
+ระบุ: ประเด็นหลัก, การดำเนินการที่ต้องทำ, กำหนดเวลา{{doc_section}}{{rag_section}}`,
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+  {
+    promptKey: 'action.draft_reply',
+    groupName: 'LINE Action',
+    label: 'ร่างหนังสือตอบ',
+    description: 'Prompt สำหรับร่างหนังสือตอบกลับอย่างเป็นทางการ — {{subject}} = หัวเรื่องของหนังสือ',
+    promptText: `คุณเป็นผู้เชี่ยวชาญด้านการเขียนหนังสือราชการไทย
+ร่างหนังสือตอบกลับอย่างเป็นทางการ สำหรับเรื่อง: {{subject}}{{doc_section}}{{rag_section}}`,
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+  {
+    promptKey: 'action.create_memo',
+    groupName: 'LINE Action',
+    label: 'สร้างบันทึกข้อความเสนอ',
+    description: 'Prompt สำหรับร่างบันทึกข้อความ (internal memo) — {{subject}} = หัวเรื่อง',
+    promptText: `คุณเป็นผู้เชี่ยวชาญด้านการเขียนบันทึกข้อความราชการไทย
+ร่างบันทึกข้อความเสนอ (internal memo) สำหรับเรื่อง: {{subject}}{{doc_section}}{{rag_section}}`,
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+  {
+    promptKey: 'action.assign_task',
+    groupName: 'LINE Action',
+    label: 'แนะนำการมอบหมายงาน',
+    description: 'Prompt สำหรับวิเคราะห์และเสนอแนะการมอบหมายงานจากเอกสาร',
+    promptText: `คุณเป็นที่ปรึกษาการบริหารงาน
+วิเคราะห์เอกสารและเสนอแนะการมอบหมายงาน
+ระบุ: ผู้รับผิดชอบ, งานที่ต้องทำ, กำหนดเวลาที่แนะนำ{{doc_section}}{{rag_section}}`,
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+  {
+    promptKey: 'action.freeform',
+    groupName: 'LINE Action',
+    label: 'คำถามอิสระ (Freeform)',
+    description: 'Prompt สำหรับตอบคำถามทั่วไปที่ไม่ตรงกับปุ่ม Quick Reply — {{user_text}} = ข้อความผู้ใช้',
+    promptText: `ตอบคำถาม/คำขอต่อไปนี้เป็นภาษาไทย: {{user_text}}{{doc_section}}{{rag_section}}`,
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+];

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OcrService } from './ocr.service';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
+import { SystemPromptsService } from '../../system-prompts/system-prompts.service';
 
 export interface ClassificationResult {
   isOfficialDocument: boolean | null;
@@ -17,13 +18,13 @@ export class ClassifierService {
   constructor(
     private readonly ocrService: OcrService,
     private readonly gemini: GeminiApiService,
+    private readonly prompts: SystemPromptsService,
   ) {}
 
   async classifyDocument(
     extractedText: string,
     fileMeta: { mimeType: string; originalFileName?: string },
   ): Promise<ClassificationResult> {
-    // Layer 1: Heuristic check
     const heuristicScore = this.heuristicCheck(extractedText);
     if (heuristicScore >= 0.9) {
       return {
@@ -33,8 +34,6 @@ export class ClassifierService {
         reasoningSummary: 'Heuristic: Thai official document structure detected',
       };
     }
-
-    // Layer 2: LLM Classifier
     return this.llmClassify(extractedText, fileMeta);
   }
 
@@ -61,26 +60,15 @@ export class ClassifierService {
       return { isOfficialDocument: null, classificationLabel: 'unknown', classificationConfidence: 0 };
     }
 
-    const prompt = `You are an expert Thai government document classifier.
-Analyze the following extracted text and determine if it is an official Thai government letter (หนังสือราชการ).
-
-Text:
-${extractedText.substring(0, 3000)}
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "is_official_document": true/false/null,
-  "confidence": 0.0-1.0,
-  "document_subtype": "request_letter|circular|announcement|report|other",
-  "reasoning_summary": "brief explanation in English"
-}`;
+    const p = await this.prompts.get('classify.llm');
+    const prompt = p.promptText.replace('{{extracted_text}}', extractedText.substring(0, 3000));
 
     try {
       const rawText =
         (await this.gemini.generateText({
           user: prompt,
-          maxOutputTokens: 512,
-          temperature: 0.2,
+          maxOutputTokens: p.maxTokens,
+          temperature: p.temperature,
         })) || '{}';
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch?.[0] || '{}');
