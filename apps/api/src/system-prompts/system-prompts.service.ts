@@ -16,15 +16,20 @@ export class SystemPromptsService implements OnModuleInit {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Seed ค่า default ถ้ายังไม่มีใน DB */
+  /** Seed ค่า default ถ้ายังไม่มีใน DB — ถ้า table ยังไม่มีก็ข้ามไป (ใช้ hardcoded fallback) */
   async onModuleInit() {
+    // Check if Prisma client has this model yet (table may not exist)
+    if (!(this.prisma as any).systemPrompt) {
+      this.logger.warn('SystemPrompt table not ready — skipping seed, using hardcoded defaults');
+      return;
+    }
     try {
       for (const d of DEFAULT_PROMPTS) {
-        const existing = await this.prisma.systemPrompt.findUnique({
+        const existing = await (this.prisma as any).systemPrompt.findUnique({
           where: { promptKey: d.promptKey },
         });
         if (!existing) {
-          await this.prisma.systemPrompt.create({
+          await (this.prisma as any).systemPrompt.create({
             data: {
               promptKey: d.promptKey,
               groupName: d.groupName,
@@ -51,7 +56,8 @@ export class SystemPromptsService implements OnModuleInit {
     }
 
     try {
-      const row = await this.prisma.systemPrompt.findUnique({ where: { promptKey } });
+      if (!(this.prisma as any).systemPrompt) throw new Error('model not ready');
+      const row = await (this.prisma as any).systemPrompt.findUnique({ where: { promptKey } });
       if (row) {
         const entry: PromptDefault = {
           promptKey: row.promptKey,
@@ -91,7 +97,8 @@ export class SystemPromptsService implements OnModuleInit {
 
   async listAll() {
     try {
-      const rows = await this.prisma.systemPrompt.findMany({ orderBy: [{ groupName: 'asc' }, { promptKey: 'asc' }] });
+      if (!(this.prisma as any).systemPrompt) throw new Error('model not ready');
+      const rows = await (this.prisma as any).systemPrompt.findMany({ orderBy: [{ groupName: 'asc' }, { promptKey: 'asc' }] });
       return rows;
     } catch {
       return DEFAULT_PROMPTS.map((d) => ({ ...d, id: 0, isActive: true, updatedBy: null, createdAt: new Date(), updatedAt: new Date() }));
@@ -99,7 +106,8 @@ export class SystemPromptsService implements OnModuleInit {
   }
 
   async update(promptKey: string, data: { promptText?: string; temperature?: number; maxTokens?: number; label?: string; description?: string }, updatedBy?: string) {
-    const row = await this.prisma.systemPrompt.upsert({
+    if (!(this.prisma as any).systemPrompt) throw new Error('SystemPrompt table not ready');
+    const row = await (this.prisma as any).systemPrompt.upsert({
       where: { promptKey },
       update: { ...data, updatedBy: updatedBy || null },
       create: {
@@ -118,9 +126,10 @@ export class SystemPromptsService implements OnModuleInit {
   }
 
   async resetToDefault(promptKey: string) {
+    if (!(this.prisma as any).systemPrompt) throw new Error('SystemPrompt table not ready');
     const def = DEFAULT_PROMPTS.find((p) => p.promptKey === promptKey);
     if (!def) return null;
-    const row = await this.prisma.systemPrompt.update({
+    const row = await (this.prisma as any).systemPrompt.update({
       where: { promptKey },
       data: {
         promptText: def.promptText,
