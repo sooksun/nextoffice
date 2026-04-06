@@ -4,6 +4,7 @@ import { SystemPromptsService } from '../../system-prompts/system-prompts.servic
 
 export interface OfficialMetadata {
   issuingAuthority: string;
+  recipient: string;
   documentNo: string;
   documentDate: string;
   subjectText: string;
@@ -47,6 +48,7 @@ export class ExtractionService {
 
       return {
         issuingAuthority: parsed.issuing_authority || '',
+        recipient: parsed.recipient || '',
         documentNo: parsed.document_no || '',
         documentDate: parsed.document_date || '',
         subjectText: parsed.subject || '',
@@ -69,8 +71,10 @@ export class ExtractionService {
   private fallbackExtraction(text: string): OfficialMetadata {
     const subjectMatch = text.match(/เรื่อง\s+(.+)/);
     const docNoMatch = text.match(/ที่\s+([\w\/\.-]+)/);
+    const recipientMatch = text.match(/เรียน\s+(.+)/);
     return {
       issuingAuthority: '',
+      recipient: recipientMatch?.[1]?.trim() || '',
       documentNo: docNoMatch?.[1] || '',
       documentDate: '',
       subjectText: subjectMatch?.[1] || '',

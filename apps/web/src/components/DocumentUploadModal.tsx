@@ -35,6 +35,7 @@ interface UploadResult {
   reasoningSummary: string | null;
   metadata: {
     issuingAuthority: string;
+    recipient: string;
     documentNo: string;
     documentDate: string;
     subjectText: string;

@@ -21,6 +21,7 @@ interface IntakeData {
     subjectText: string | null;
     summaryText: string | null;
     issuingAuthority: string | null;
+    recipientText: string | null;
     deadlineDate: string | null;
     nextActionJson: string | null;
   } | null;
@@ -89,7 +90,7 @@ function NewInboxForm() {
           documentNo: r.documentNo || "",
           documentDate: toInputDate(r.documentDate),
           senderOrg: r.issuingAuthority || "",
-          recipientNote: "",
+          recipientNote: r.recipientText || "",
           urgencyLevel: "normal",
           dueDate: toInputDate(r.deadlineDate),
           description: r.summaryText || "",

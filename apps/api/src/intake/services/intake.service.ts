@@ -26,13 +26,16 @@ export class IntakeService {
   ) {
     const mimeType = file.mimetype || this.storage.computeSha256(file.buffer);
     const sha256 = this.storage.computeSha256(file.buffer);
+    const originalFileNameDecoded = (() => {
+      try { return Buffer.from(file.originalname, 'latin1').toString('utf8'); } catch { return file.originalname; }
+    })();
 
     // Create intake record
     const intake = await this.prisma.documentIntake.create({
       data: {
         sourceChannel,
         organizationId: organizationId ? BigInt(organizationId) : null,
-        originalFileName: file.originalname,
+        originalFileName: originalFileNameDecoded,
         mimeType: file.mimetype,
         fileExtension: file.originalname?.split('.').pop() || null,
         fileSize: BigInt(file.size),
@@ -87,13 +90,21 @@ export class IntakeService {
     }
 
     const sha256 = this.storage.computeSha256(file.buffer);
+    // Multer uses Latin-1 for non-ASCII filenames — decode properly to UTF-8
+    const originalFileName = (() => {
+      try {
+        return Buffer.from(file.originalname, 'latin1').toString('utf8');
+      } catch {
+        return file.originalname;
+      }
+    })();
 
     // 1. Create intake record
     const intake = await this.prisma.documentIntake.create({
       data: {
         sourceChannel: 'web_upload',
         organizationId: organizationId ? BigInt(organizationId) : null,
-        originalFileName: file.originalname,
+        originalFileName,
         mimeType: file.mimetype,
         fileExtension: file.originalname?.split('.').pop() || null,
         fileSize: BigInt(file.size),
@@ -168,6 +179,8 @@ export class IntakeService {
           isOfficialDocument: classResult.isOfficialDocument,
           classificationLabel: classResult.classificationLabel,
           classificationConfidence: classResult.classificationConfidence,
+          issuingAuthority: metadata?.issuingAuthority || null,
+          recipientText: metadata?.recipient || null,
           documentNo: metadata?.documentNo || null,
           documentDate: metadata?.documentDate ? new Date(metadata.documentDate) : null,
           subjectText: metadata?.subjectText || null,
@@ -181,8 +194,8 @@ export class IntakeService {
         },
       });
     } catch (e: any) {
-      // Fallback: save without meeting fields (DB schema not yet migrated)
-      if (e?.message?.includes('is_meeting') || e?.message?.includes('meeting')) {
+      // Fallback: save without meeting/recipient fields (DB schema not yet migrated)
+      if (e?.message?.includes('is_meeting') || e?.message?.includes('meeting') || e?.message?.includes('recipient')) {
         aiResult = await this.prisma.documentAiResult.create({
           data: {
             documentIntakeId: intake.id,
@@ -190,6 +203,7 @@ export class IntakeService {
             isOfficialDocument: classResult.isOfficialDocument,
             classificationLabel: classResult.classificationLabel,
             classificationConfidence: classResult.classificationConfidence,
+            issuingAuthority: metadata?.issuingAuthority || null,
             documentNo: metadata?.documentNo || null,
             documentDate: metadata?.documentDate ? new Date(metadata.documentDate) : null,
             subjectText: metadata?.subjectText || null,
@@ -257,6 +271,7 @@ export class IntakeService {
       reasoningSummary: classResult.reasoningSummary || null,
       metadata: metadata ? {
         issuingAuthority: metadata.issuingAuthority,
+        recipient: metadata.recipient,
         documentNo: metadata.documentNo,
         documentDate: metadata.documentDate,
         subjectText: metadata.subjectText,
