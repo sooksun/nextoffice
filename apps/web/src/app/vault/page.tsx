@@ -106,8 +106,8 @@ export default function VaultPage() {
       if (noteType) params.set("noteType", noteType);
       if (status) params.set("status", status);
       const qs = params.toString();
-      const data = await apiFetch<VaultNote[]>(`/vault/notes${qs ? `?${qs}` : ""}`);
-      setNotes(data);
+      const res = await apiFetch<{ total: number; data: VaultNote[] }>(`/vault/notes${qs ? `?${qs}` : ""}`);
+      setNotes(res.data ?? []);
     } catch {
       setNotes([]);
     } finally {

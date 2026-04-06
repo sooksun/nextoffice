@@ -31,7 +31,8 @@ interface Signal {
 
 async function getAgendas(): Promise<Agenda[]> {
   try {
-    return await apiFetch<Agenda[]>("/horizon/agendas");
+    const res = await apiFetch<{ total: number; data: Agenda[] }>("/horizon/agendas?take=10");
+    return res.data ?? [];
   } catch {
     return [];
   }
@@ -39,7 +40,8 @@ async function getAgendas(): Promise<Agenda[]> {
 
 async function getSignals(): Promise<Signal[]> {
   try {
-    return await apiFetch<Signal[]>("/horizon/signals");
+    const res = await apiFetch<{ total: number; data: Signal[] }>("/horizon/signals?take=10");
+    return res.data ?? [];
   } catch {
     return [];
   }

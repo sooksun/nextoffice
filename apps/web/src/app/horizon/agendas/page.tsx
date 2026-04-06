@@ -66,8 +66,8 @@ export default function HorizonAgendasPage() {
   async function loadAgendas() {
     setLoading(true);
     try {
-      const data = await apiFetch<Agenda[]>("/horizon/agendas");
-      setAgendas(data);
+      const res = await apiFetch<{ total: number; data: Agenda[] }>("/horizon/agendas");
+      setAgendas(res.data ?? []);
     } catch {
       setAgendas([]);
     } finally {

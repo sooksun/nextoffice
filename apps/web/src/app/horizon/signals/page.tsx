@@ -15,7 +15,8 @@ interface Signal {
 
 async function getSignals(): Promise<Signal[]> {
   try {
-    return await apiFetch<Signal[]>("/horizon/signals");
+    const res = await apiFetch<{ total: number; data: Signal[] }>("/horizon/signals");
+    return res.data ?? [];
   } catch {
     return [];
   }
