@@ -283,6 +283,22 @@ export class IntakeService {
     return this.serialize(intake);
   }
 
+  async getFileBuffer(id: number): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
+    const intake = await this.prisma.documentIntake.findUnique({ where: { id: BigInt(id) } });
+    if (!intake) throw new NotFoundException(`DocumentIntake #${id} not found`);
+    if (!intake.storagePath) throw new NotFoundException('ไม่พบไฟล์ต้นฉบับ');
+    // storagePath stored as "bucket/path" or just "path"
+    const objectPath = intake.storagePath.startsWith(`${this.storage['bucket']}/`)
+      ? intake.storagePath.slice(`${this.storage['bucket']}/`.length)
+      : intake.storagePath;
+    const buffer = await this.storage.getBuffer(objectPath);
+    return {
+      buffer,
+      mimeType: intake.mimeType || 'application/octet-stream',
+      fileName: (intake as any).originalFileName || `intake-${id}.pdf`,
+    };
+  }
+
   async getResult(id: number) {
     const intake = await this.prisma.documentIntake.findUnique({
       where: { id: BigInt(id) },

@@ -88,7 +88,6 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
   const [result, setResult] = useState<UploadResult | null>(null);
   const [routing, setRouting] = useState<RoutingSuggestion | null>(null);
   const [loadingRouting, setLoadingRouting] = useState(false);
-  const [savingCase, setSavingCase] = useState(false);
 
   if (!isOpen) return null;
 
@@ -183,21 +182,11 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     }
   };
 
-  const handleSaveAndGo = async () => {
+  const handleSaveAndGo = () => {
     if (!result?.documentIntakeId) return;
-    setSavingCase(true);
-    try {
-      // Use caseId returned from web-upload; fallback to creating from intake
-      const caseId = result.caseId
-        ?? (await apiFetch<{ caseId: number }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" })).caseId;
-      handleClose();
-      router.push(`/inbox/${caseId}`);
-    } catch {
-      handleClose();
-      router.push("/inbox");
-    } finally {
-      setSavingCase(false);
-    }
+    handleClose();
+    // Go to registration form pre-filled with AI-extracted data
+    router.push(`/inbox/new?intakeId=${result.documentIntakeId}`);
   };
 
   return (
@@ -506,11 +495,10 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
               <button onClick={reset} className="btn-ghost">อัปโหลดใหม่</button>
               <button
                 onClick={handleSaveAndGo}
-                disabled={savingCase}
                 className="btn-primary flex items-center gap-2"
               >
                 <CheckCircle size={16} />
-                {savingCase ? "กำลังบันทึก..." : "บันทึกและดูรายละเอียด"}
+                ลงทะเบียนรับเอกสาร
               </button>
             </>
           )}

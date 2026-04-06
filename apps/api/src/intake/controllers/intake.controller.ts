@@ -5,12 +5,15 @@ import {
   Param,
   Body,
   Query,
+  Res,
   UploadedFile,
   UseInterceptors,
   ParseIntPipe,
   UseGuards,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { IntakeService } from '../services/intake.service';
@@ -80,6 +83,24 @@ export class IntakeController {
   @ApiOperation({ summary: 'Get document intake status' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.svc.findById(id);
+  }
+
+  @Get(':id/file')
+  @ApiOperation({ summary: 'Download original file for an intake' })
+  async downloadFile(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    try {
+      const { buffer, mimeType, fileName } = await this.svc.getFileBuffer(id);
+      const encoded = encodeURIComponent(fileName);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encoded}`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+    } catch (err: any) {
+      throw new NotFoundException(err.message || 'ไม่พบไฟล์');
+    }
   }
 
   @Get(':id/result')

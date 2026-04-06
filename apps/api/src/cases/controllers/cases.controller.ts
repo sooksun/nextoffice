@@ -96,8 +96,10 @@ export class CasesController {
       documentNo?: string;
       documentDate?: string;
       senderOrg?: string;
+      recipientNote?: string;
       urgencyLevel?: string;
       dueDate?: string;
+      intakeId?: number;
     },
   ) {
     return this.svc.createManual({

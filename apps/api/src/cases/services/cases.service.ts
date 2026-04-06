@@ -61,14 +61,23 @@ export class CasesService {
     documentNo?: string;
     documentDate?: string;
     senderOrg?: string;
+    recipientNote?: string;
     urgencyLevel?: string;
     dueDate?: string;
+    intakeId?: number;
   }) {
+    const lines: string[] = [];
+    if (dto.documentNo) lines.push(`เลขที่หนังสือ: ${dto.documentNo}`);
+    if (dto.senderOrg) lines.push(`หน่วยงานที่ส่ง: ${dto.senderOrg}`);
+    if (dto.recipientNote) lines.push(`ถึง: ${dto.recipientNote}`);
+    if (dto.description) lines.push(dto.description);
+    if (dto.intakeId) lines.push(`intake:${dto.intakeId}`);
+
     const inboundCase = await this.prisma.inboundCase.create({
       data: {
         organizationId: BigInt(dto.organizationId),
         title: dto.title,
-        description: dto.description || `เลขที่หนังสือ: ${dto.documentNo || '-'}\nหน่วยงานที่ส่ง: ${dto.senderOrg || '-'}`,
+        description: lines.join('\n') || null,
         urgencyLevel: dto.urgencyLevel || 'normal',
         dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         status: 'new',
