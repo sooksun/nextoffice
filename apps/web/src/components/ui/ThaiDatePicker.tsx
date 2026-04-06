@@ -5,6 +5,7 @@
  * แต่แสดงผลและเลื่อนปีเป็นพุทธศักราช (CE + 543)
  */
 
+import "react-datepicker/dist/react-datepicker.css";
 import DatePicker, { registerLocale, type ReactDatePickerCustomHeaderProps } from "react-datepicker";
 import { th } from "date-fns/locale/th";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,8 +18,19 @@ const MONTHS_TH = [
   "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
 ];
 
-// CE ช่วง ค.ศ. 1950–2100 → แสดงเป็น พ.ศ.
-const CE_YEARS = Array.from({ length: 151 }, (_, i) => 1950 + i);
+/** Standard Thai single-letter day abbreviations used in official calendars */
+const WEEKDAY_ABBR: Record<string, string> = {
+  "อาทิตย์": "อา",
+  "จันทร์":   "จ",
+  "อังคาร":   "อ",
+  "พุธ":      "พ",
+  "พฤหัสบดี": "พฤ",
+  "ศุกร์":    "ศ",
+  "เสาร์":    "ส",
+};
+
+// CE range ค.ศ. 1980–2080 (พ.ศ. 2523–2623) ครอบคลุมการใช้งานจริง
+const CE_YEARS = Array.from({ length: 101 }, (_, i) => 1980 + i);
 
 interface Props {
   value?: string;
@@ -57,6 +69,10 @@ function formatBeDisplay(d: Date): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear() + 543;
   return `${dd}/${mm}/${yyyy}`;
+}
+
+function formatWeekDay(dayName: string): string {
+  return WEEKDAY_ABBR[dayName] ?? dayName.charAt(0);
 }
 
 function CustomHeader({
@@ -134,11 +150,12 @@ export default function ThaiDatePicker({
         disabled={disabled}
         isClearable
         renderCustomHeader={(props) => <CustomHeader {...props} />}
-        formatWeekDay={(d: string) => d.slice(0, 2)}
+        formatWeekDay={formatWeekDay}
         calendarStartDay={0}
         className="input-date w-full cursor-pointer"
         value={selected ? formatBeDisplay(selected) : ""}
         wrapperClassName="w-full"
+        popperClassName="z-50"
       />
     </div>
   );
