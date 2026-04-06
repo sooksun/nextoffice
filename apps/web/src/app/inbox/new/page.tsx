@@ -55,6 +55,13 @@ function toInputDate(raw: string | null | undefined): string {
   }
 }
 
+/** Return CE YYYY-MM-DD for today + n days */
+function defaultDueDate(daysFromNow = 3): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  return d.toISOString().split("T")[0];
+}
+
 function mapUrgency(raw: string | null | undefined): string {
   if (!raw) return "normal";
   const u = raw.toLowerCase();
@@ -102,7 +109,7 @@ function NewInboxForm() {
           senderOrg: r.issuingAuthority || "",
           recipientNote: r.recipientText || "ผู้อำนวยการโรงเรียน",
           urgencyLevel: "normal",
-          dueDate: toInputDate(r.deadlineDate),
+          dueDate: toInputDate(r.deadlineDate) || defaultDueDate(3),
           description: r.summaryText || "",
         });
       }
