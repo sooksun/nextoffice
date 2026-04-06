@@ -90,7 +90,7 @@ function NewInboxForm() {
           documentNo: r.documentNo || "",
           documentDate: toInputDate(r.documentDate),
           senderOrg: r.issuingAuthority || "",
-          recipientNote: r.recipientText || "",
+          recipientNote: r.recipientText || "ผู้อำนวยการโรงเรียน",
           urgencyLevel: "normal",
           dueDate: toInputDate(r.deadlineDate),
           description: r.summaryText || "",
