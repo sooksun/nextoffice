@@ -54,11 +54,14 @@ interface RoutingSuggestion {
   workGroupCode: string;
   workGroupName: string;
   confidence: number;
+  isDefault: boolean;
+  defaultAction?: string;
   suggestedUsers: {
     userId: number;
     fullName: string;
     workFunctionName: string;
     role: string;
+    matchReason?: string;
   }[];
 }
 
@@ -167,8 +170,8 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
       if (routeRes?.found && routeRes.suggestion) {
         setRouting(routeRes.suggestion);
       } else {
+        // ไม่ควรเกิดขึ้นแล้ว เพราะ backend ส่ง suggestion เสมอ
         setRouting(null);
-        alert("ไม่พบกลุ่มงานที่ตรงกับหัวเรื่องเอกสาร กรุณามอบหมายงานด้วยตนเอง");
       }
     } catch (err: any) {
       setRouting(null);
@@ -421,20 +424,46 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
                 </div>
                 {routing ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-purple-700">
-                      <span className="font-semibold">กลุ่มงานที่แนะนำ:</span> {routing.workGroupName}
-                      <span className="text-xs ml-1">(ความมั่นใจ {(routing.confidence * 100).toFixed(0)}%)</span>
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm text-purple-700">
+                        <span className="font-semibold">กลุ่มงานที่แนะนำ:</span> {routing.workGroupName}
+                      </p>
+                      {routing.confidence > 0 && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                          ความมั่นใจ {(routing.confidence * 100).toFixed(0)}%
+                        </span>
+                      )}
+                      {routing.isDefault && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                          ไม่พบงานที่ตรง
+                        </span>
+                      )}
+                    </div>
+                    {routing.isDefault && routing.defaultAction && (
+                      <div className="flex items-start gap-2 p-2.5 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <AlertTriangle size={14} className="text-yellow-600 shrink-0 mt-0.5" />
+                        <p className="text-xs text-yellow-800">
+                          <span className="font-semibold">คำแนะนำ:</span> {routing.defaultAction}
+                        </p>
+                      </div>
+                    )}
                     {routing.suggestedUsers?.length > 0 && (
                       <div>
-                        <p className="text-xs text-purple-600 font-semibold mb-1.5">ครูที่แนะนำให้รับผิดชอบ:</p>
+                        <p className="text-xs text-purple-600 font-semibold mb-1.5">
+                          {routing.isDefault ? "ผู้รับผิดชอบดูแล:" : "ครูที่แนะนำให้รับผิดชอบ:"}
+                        </p>
                         <div className="space-y-1.5">
                           {routing.suggestedUsers.map((u) => (
                             <div key={u.userId} className="flex items-center gap-2 p-2 bg-white/60 rounded-lg">
                               <UserPlus size={14} className="text-purple-500 shrink-0" />
-                              <div>
+                              <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-purple-900">{u.fullName}</p>
-                                <p className="text-xs text-purple-600">{u.workFunctionName} ({u.role})</p>
+                                <p className="text-xs text-purple-600">
+                                  {u.workFunctionName}
+                                  {u.matchReason && (
+                                    <span className="ml-1.5 text-green-600 font-medium">· {u.matchReason}</span>
+                                  )}
+                                </p>
                               </div>
                             </div>
                           ))}
