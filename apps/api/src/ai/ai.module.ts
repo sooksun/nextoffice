@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { OcrService } from './services/ocr.service';
 import { ClassifierService } from './services/classifier.service';
 import { ExtractionService } from './services/extraction.service';
@@ -16,7 +16,7 @@ import { QueueModule } from '../queue/queue.module';
 import { ProjectsModule } from '../projects/projects.module';
 
 @Module({
-  imports: [GeminiModule, RagModule, LineModule, NotificationsModule, CalendarModule, QueueModule, ProjectsModule],
+  imports: [GeminiModule, RagModule, forwardRef(() => LineModule), NotificationsModule, CalendarModule, QueueModule, ProjectsModule],
   providers: [
     OcrService,
     ClassifierService,
