@@ -56,7 +56,7 @@ interface Assignment {
 interface Activity {
   id: number;
   action: string;
-  detail: Record<string, unknown> | string | null;
+  detail: Record<string, unknown> | null;
   user: { id: number; fullName: string; roleCode: string } | null;
   createdAt: string;
 }
@@ -258,11 +258,11 @@ export default async function InboxDetailPage({
                       {ACTION_LABEL[a.action] ?? a.action}
                       {a.user && <span className="text-on-surface-variant font-normal"> โดย {a.user.fullName}</span>}
                     </p>
-                    {a.detail?.registrationNo && (
-                      <p className="text-xs text-on-surface-variant">เลขรับ: {a.detail.registrationNo}</p>
+                    {!!a.detail?.registrationNo && (
+                      <p className="text-xs text-on-surface-variant">เลขรับ: {String(a.detail.registrationNo)}</p>
                     )}
-                    {a.detail?.from && a.detail?.to && (
-                      <p className="text-xs text-on-surface-variant">{a.detail.from} &rarr; {a.detail.to}</p>
+                    {!!a.detail?.from && !!a.detail?.to && (
+                      <p className="text-xs text-on-surface-variant">{String(a.detail.from)} &rarr; {String(a.detail.to)}</p>
                     )}
                     <p className="text-xs text-on-surface-variant">
                       {formatThaiDateTime(a.createdAt)}
