@@ -15,21 +15,32 @@ export class CasesService {
       include: { aiResult: true },
     });
     if (!intake) throw new NotFoundException(`DocumentIntake #${documentIntakeId} not found`);
-    if (!intake.aiResult?.isOfficialDocument) {
-      throw new Error('Document is not classified as an official document');
-    }
 
     const orgId = intake.organizationId || BigInt(1);
-    const existing = await this.prisma.inboundCase.findFirst({
-      where: { sourceDocumentId: null, organizationId: orgId },
+
+    // Check if case already exists for this intake (via description pattern)
+    const existingCase = await this.prisma.inboundCase.findFirst({
+      where: {
+        organizationId: orgId,
+        description: { contains: `intake:${documentIntakeId}` },
+      },
     });
+    if (existingCase) {
+      return { caseId: Number(existingCase.id), status: 'existing' };
+    }
+
+    const title = intake.aiResult?.subjectText || (intake as any).fileName || 'เอกสารไม่ระบุชื่อ';
+    const description = [
+      intake.aiResult?.summaryText || '',
+      `intake:${documentIntakeId}`,
+    ].filter(Boolean).join('\n');
 
     const inboundCase = await this.prisma.inboundCase.create({
       data: {
         organizationId: orgId,
-        title: intake.aiResult.subjectText || 'กรณีจาก intake',
-        description: intake.aiResult.summaryText,
-        dueDate: intake.aiResult.deadlineDate,
+        title,
+        description,
+        dueDate: intake.aiResult?.deadlineDate ?? null,
         status: 'new',
       },
     });

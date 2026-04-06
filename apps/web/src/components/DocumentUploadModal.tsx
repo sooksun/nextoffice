@@ -62,6 +62,12 @@ interface RoutingSuggestion {
   }[];
 }
 
+interface RoutingResponse {
+  found: boolean;
+  suggestion: RoutingSuggestion | null;
+  reason?: string;
+}
+
 type Step = "upload" | "processing" | "result" | "not_official";
 
 interface Props {
@@ -156,14 +162,17 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     if (!result?.documentIntakeId) return;
     setLoadingRouting(true);
     try {
-      // First create a case from the intake, then get routing suggestion
-      const caseRes = await apiFetch<{ caseId: number }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" });
-      const routeRes = await apiFetch<RoutingSuggestion>(`/cases/${caseRes.caseId}/routing-suggestion`);
-      setRouting(routeRes);
+      const caseRes = await apiFetch<{ caseId: number; status: string }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" });
+      const routeRes = await apiFetch<RoutingResponse>(`/cases/${caseRes.caseId}/routing-suggestion`);
+      if (routeRes?.found && routeRes.suggestion) {
+        setRouting(routeRes.suggestion);
+      } else {
+        setRouting(null);
+        alert("ไม่พบกลุ่มงานที่ตรงกับหัวเรื่องเอกสาร กรุณามอบหมายงานด้วยตนเอง");
+      }
     } catch (err: any) {
-      // Routing might fail if no matching group found - that's ok
       setRouting(null);
-      alert("ไม่สามารถหาคำแนะนำการมอบหมายงานได้");
+      alert(err.message || "เกิดข้อผิดพลาดในการขอคำแนะนำ");
     } finally {
       setLoadingRouting(false);
     }

@@ -97,10 +97,12 @@ export class SmartRoutingService {
     const c = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(caseId) },
     });
-    if (!c) return null;
+    if (!c) return { found: false, suggestion: null };
 
     const suggestion = await this.suggest(Number(c.organizationId), c.title, c.description ?? '');
-    if (!suggestion || !suggestion.suggestedUsers.length) return null;
+    if (!suggestion || !suggestion.suggestedUsers.length) {
+      return { found: false, suggestion: null, reason: 'no_match' };
+    }
 
     // Set the top responsible user as default assignee (if not already assigned)
     if (!c.assignedToUserId) {
@@ -135,6 +137,6 @@ export class SmartRoutingService {
       }
     }
 
-    return suggestion;
+    return { found: true, suggestion };
   }
 }
