@@ -185,11 +185,11 @@ export default function VaultSettingsPage() {
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-outline-variant/10">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-2xl font-bold text-sm disabled:opacity-50 transition-transform active:scale-95"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-2xl font-bold text-sm disabled:opacity-50 hover:brightness-110 transition-all active:scale-95"
           >
             {saveSuccess ? <CheckCircle size={14} /> : <Save size={14} />}
             {saveSuccess ? "บันทึกแล้ว" : "บันทึกการตั้งค่า"}
@@ -197,7 +197,7 @@ export default function VaultSettingsPage() {
           <button
             onClick={handleSyncNow}
             disabled={syncing}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-secondary text-on-secondary rounded-2xl font-bold text-sm disabled:opacity-50 transition-transform active:scale-95"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-surface-bright border border-outline-variant/30 text-on-surface rounded-2xl font-bold text-sm disabled:opacity-50 hover:bg-surface-high transition-all active:scale-95"
           >
             <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
             {syncSuccess ? "ซิงค์สำเร็จ" : "ซิงค์เดี๋ยวนี้"}
