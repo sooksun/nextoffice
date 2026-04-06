@@ -105,13 +105,20 @@ export class IntakeService {
       },
     });
 
-    // 2. Store file in MinIO
-    const storagePath = this.storage.buildStoragePath('web_upload', file.mimetype, intake.id.toString());
-    await this.storage.saveBuffer(storagePath, file.buffer, file.mimetype);
-    await this.prisma.documentIntake.update({
-      where: { id: intake.id },
-      data: { storagePath, uploadStatus: 'stored' },
-    });
+    // 2. Store file in MinIO (non-blocking — continue even if storage fails)
+    try {
+      const storagePath = this.storage.buildStoragePath('web_upload', file.mimetype, intake.id.toString());
+      await this.storage.saveBuffer(storagePath, file.buffer, file.mimetype);
+      await this.prisma.documentIntake.update({
+        where: { id: intake.id },
+        data: { storagePath, uploadStatus: 'stored' },
+      });
+    } catch (storageErr) {
+      await this.prisma.documentIntake.update({
+        where: { id: intake.id },
+        data: { uploadStatus: 'storage_failed' },
+      });
+    }
 
     // 3. OCR - extract text
     await this.prisma.documentIntake.update({
