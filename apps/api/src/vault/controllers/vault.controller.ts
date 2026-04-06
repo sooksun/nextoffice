@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Query, Body, ParseIntPipe, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultSyncService } from '../services/vault-sync.service';
@@ -25,7 +25,9 @@ export class VaultController {
     const config = await this.prisma.knowledgeVaultConfig.findUnique({
       where: { organizationId: BigInt(organizationId) },
     });
-    if (!config) throw new NotFoundException(`Vault config for org #${organizationId} not found`);
+    if (!config) {
+      return { organizationId, vaultPath: '/vault', syncEnabled: false, autoGenerate: true, configJson: null, lastSyncAt: null };
+    }
     return this.serializeConfig(config);
   }
 
