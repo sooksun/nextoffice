@@ -19,6 +19,28 @@ export interface OfficialMetadata {
   meetingLocation: string;
 }
 
+/** Convert a date string from BE to CE if the year looks like Buddhist Era (> 2500).
+ *  Accepts YYYY-MM-DD or DD/MM/YYYY. Returns YYYY-MM-DD CE string or empty string. */
+function normalizeDateToCe(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const s = raw.trim();
+  // Match YYYY-MM-DD
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const ceYear = year > 2500 ? year - 543 : year;
+    return `${ceYear}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+  // Match DD/MM/YYYY
+  const dmyMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmyMatch) {
+    const year = parseInt(dmyMatch[3], 10);
+    const ceYear = year > 2500 ? year - 543 : year;
+    return `${ceYear}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+  }
+  return '';
+}
+
 @Injectable()
 export class ExtractionService {
   private readonly logger = new Logger(ExtractionService.name);
@@ -50,15 +72,15 @@ export class ExtractionService {
         issuingAuthority: parsed.issuing_authority || '',
         recipient: parsed.recipient || '',
         documentNo: parsed.document_no || '',
-        documentDate: parsed.document_date || '',
+        documentDate: normalizeDateToCe(parsed.document_date),
         subjectText: parsed.subject || '',
-        deadlineDate: parsed.deadline_date || '',
+        deadlineDate: normalizeDateToCe(parsed.deadline_date),
         summary: parsed.summary || '',
         intent: parsed.intent || '',
         urgency: parsed.urgency || 'กลาง',
         actions: parsed.actions || [],
         isMeeting: parsed.is_meeting === true || parsed.is_meeting === 'true',
-        meetingDate: parsed.meeting_date || '',
+        meetingDate: normalizeDateToCe(parsed.meeting_date),
         meetingTime: parsed.meeting_time || '',
         meetingLocation: parsed.meeting_location || '',
       };
