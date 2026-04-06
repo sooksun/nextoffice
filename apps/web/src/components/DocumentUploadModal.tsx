@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastError, toastWarning } from "@/lib/toast";
 import {
   X, Upload, FileText, CheckCircle, XCircle, Loader2,
   Building2, Calendar, Hash, AlertTriangle, Sparkles, UserPlus,
@@ -110,7 +111,7 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
   const handleFileChange = (f: File | null) => {
     if (!f) return;
     if (f.size > MAX_SIZE) {
-      alert("ไฟล์ใหญ่เกิน 10MB");
+      toastWarning("ไฟล์ใหญ่เกิน 10MB");
       return;
     }
     setFile(f);
@@ -157,7 +158,7 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
         setStep("not_official");
       }
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
+      toastError(err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
       setStep("upload");
     }
   };
@@ -177,7 +178,7 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
       }
     } catch (err: any) {
       setRouting(null);
-      alert(err.message || "เกิดข้อผิดพลาดในการขอคำแนะนำ");
+      toastError(err.message || "เกิดข้อผิดพลาดในการขอคำแนะนำ");
     } finally {
       setLoadingRouting(false);
     }

@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
+import { formatThaiDateTime } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
             <Row label="ช่องทาง" value={intake.sourceChannel} />
             <Row label="ประเภทไฟล์" value={intake.mimeType ?? "—"} />
             <Row label="นามสกุล" value={intake.fileExtension ?? "—"} />
-            <Row label="วันที่" value={new Date(intake.createdAt).toLocaleString("th-TH")} />
+            <Row label="วันที่" value={formatThaiDateTime(intake.createdAt)} />
           </dl>
         </section>
 

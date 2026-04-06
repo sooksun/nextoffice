@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, FileText, Clock, User } from "lucide-react";
+import { formatThaiDate, formatThaiDateShort, formatThaiDateTime } from "@/lib/thai-date";
 import RegisterButton from "@/components/actions/RegisterButton";
 import AssignButton from "@/components/actions/AssignButton";
 import AcknowledgeButton from "@/components/actions/AcknowledgeButton";
@@ -158,11 +159,11 @@ export default async function InboxDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant">วันที่รับ:</span>
-              <p className="font-medium">{new Date(caseData.receivedAt).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })}</p>
+              <p className="font-medium">{formatThaiDate(caseData.receivedAt)}</p>
             </div>
             <div>
               <span className="text-on-surface-variant">กำหนดเสร็จ:</span>
-              <p className="font-medium">{caseData.dueDate ? new Date(caseData.dueDate).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—"}</p>
+              <p className="font-medium">{caseData.dueDate ? formatThaiDate(caseData.dueDate) : "—"}</p>
             </div>
             <div>
               <span className="text-on-surface-variant">ประเภทเอกสาร:</span>
@@ -216,7 +217,7 @@ export default async function InboxDetailPage({
                     </span>
                     {a.dueDate && (
                       <p className="text-xs text-on-surface-variant mt-1">
-                        กำหนด: {new Date(a.dueDate).toLocaleDateString("th-TH")}
+                        กำหนด: {formatThaiDateShort(a.dueDate)}
                       </p>
                     )}
                   </div>
@@ -251,7 +252,7 @@ export default async function InboxDetailPage({
                       <p className="text-xs text-on-surface-variant">{a.detail.from} &rarr; {a.detail.to}</p>
                     )}
                     <p className="text-xs text-on-surface-variant">
-                      {new Date(a.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      {formatThaiDateTime(a.createdAt)}
                     </p>
                   </div>
                 </div>

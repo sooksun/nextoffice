@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { Inbox, Plus } from "lucide-react";
+import { formatThaiDateTime } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +147,7 @@ export default async function InboxPage({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
-                  {new Date(c.receivedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  {formatThaiDateTime(c.receivedAt)}
                 </td>
               </tr>
             ))}

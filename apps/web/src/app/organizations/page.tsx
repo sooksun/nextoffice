@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
+import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function OrganizationsPage() {
               <p className="text-sm text-on-surface-variant mt-1">{org.orgType ?? "ไม่ระบุประเภท"}</p>
               {org.province && <p className="text-xs text-outline mt-0.5">{org.province}</p>}
               <p className="text-[10px] text-outline-variant mt-3 font-medium">
-                สร้าง {new Date(org.createdAt).toLocaleDateString("th-TH")}
+                สร้าง {formatThaiDateShort(org.createdAt)}
               </p>
             </Link>
           ))}

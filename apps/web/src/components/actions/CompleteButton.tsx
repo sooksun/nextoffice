@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastError, confirmToast } from "@/lib/toast";
 import { CheckCheck } from "lucide-react";
 
 interface Assignment {
@@ -40,7 +41,7 @@ export default function CompleteButton({ caseId, assignments }: Props) {
 
   const handleComplete = async () => {
     if (loading) return;
-    if (!confirm("ยืนยันว่างานเสร็จสิ้นแล้ว?")) return;
+    if (!(await confirmToast("ยืนยันว่างานเสร็จสิ้นแล้ว?"))) return;
     setLoading(true);
     try {
       await apiFetch(`/cases/assignments/${myActive.id}/status`, {
@@ -49,7 +50,7 @@ export default function CompleteButton({ caseId, assignments }: Props) {
       });
       router.refresh();
     } catch (err: any) {
-      alert(err.message || "ดำเนินการไม่สำเร็จ");
+      toastError(err.message || "ดำเนินการไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

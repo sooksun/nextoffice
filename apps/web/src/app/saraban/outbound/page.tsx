@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { Send, Plus } from "lucide-react";
+import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -125,7 +126,7 @@ export default async function OutboundRegistryPage({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
-                  {d.sentAt ? new Date(d.sentAt).toLocaleDateString("th-TH") : "—"}
+                  {d.sentAt ? formatThaiDateShort(d.sentAt) : "—"}
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant">{d.createdBy?.fullName ?? "—"}</td>
               </tr>

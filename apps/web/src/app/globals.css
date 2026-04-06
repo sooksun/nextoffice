@@ -96,3 +96,30 @@ h1, h2, h3, h4, .font-headline {
 .btn-ghost {
   @apply rounded-xl border border-outline-variant/30 px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-bright transition-colors;
 }
+
+/* ── react-datepicker overrides ───────────────────────────────────────── */
+.react-datepicker-wrapper { width: 100%; }
+.react-datepicker__input-container { width: 100%; }
+.react-datepicker {
+  @apply font-sans border border-outline-variant/20 rounded-2xl shadow-xl overflow-hidden text-sm;
+}
+.react-datepicker__header {
+  @apply bg-surface-bright border-b border-outline-variant/20 rounded-t-2xl pt-2;
+}
+.react-datepicker__day-names { @apply px-1; }
+.react-datepicker__day-name {
+  @apply text-on-surface-variant text-xs font-semibold w-8 leading-8;
+}
+.react-datepicker__day {
+  @apply w-8 leading-8 rounded-lg text-on-surface hover:bg-primary/10 hover:text-primary transition-colors;
+}
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  @apply bg-primary text-on-primary hover:bg-primary hover:text-on-primary font-bold;
+}
+.react-datepicker__day--outside-month { @apply text-outline/40; }
+.react-datepicker__day--today { @apply font-bold underline; }
+.react-datepicker__close-icon::after {
+  @apply bg-outline text-white text-xs w-4 h-4 rounded-full flex items-center justify-center;
+}
+.react-datepicker__navigation { @apply hidden; }

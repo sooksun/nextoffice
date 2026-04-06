@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
+import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,7 @@ export default async function DocumentsPage() {
                     }
                   </td>
                   <td className="px-4 py-3 text-outline text-xs">
-                    {new Date(doc.createdAt).toLocaleDateString("th-TH")}
+                    {formatThaiDateShort(doc.createdAt)}
                   </td>
                 </tr>
               ))}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastSuccess, toastError, toastWarning } from "@/lib/toast";
 import { UserPlus, X } from "lucide-react";
 
 interface Props {
@@ -51,7 +52,7 @@ export default function AssignButton({ caseId, status }: Props) {
   };
 
   const handleAssign = async () => {
-    if (selected.size === 0) return alert("กรุณาเลือกผู้รับผิดชอบ");
+    if (selected.size === 0) { toastWarning("กรุณาเลือกผู้รับผิดชอบ"); return; }
     setLoading(true);
     try {
       const assignments = Array.from(selected).map((userId) => ({
@@ -62,10 +63,11 @@ export default function AssignButton({ caseId, status }: Props) {
         method: "POST",
         body: JSON.stringify({ assignments, directorNote: directorNote || undefined }),
       });
+      toastSuccess("มอบหมายงานสำเร็จ");
       setOpen(false);
       router.refresh();
     } catch (err: any) {
-      alert(err.message || "มอบหมายไม่สำเร็จ");
+      toastError(err.message || "มอบหมายไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

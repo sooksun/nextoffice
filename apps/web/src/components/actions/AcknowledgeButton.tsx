@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastSuccess, toastError } from "@/lib/toast";
 import { CheckCircle } from "lucide-react";
 
 interface Assignment {
@@ -46,9 +47,10 @@ export default function AcknowledgeButton({ caseId, assignments }: Props) {
         method: "PATCH",
         body: JSON.stringify({ status: "accepted" }),
       });
+      toastSuccess("รับทราบสำเร็จ");
       router.refresh();
     } catch (err: any) {
-      alert(err.message || "รับทราบไม่สำเร็จ");
+      toastError(err.message || "รับทราบไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

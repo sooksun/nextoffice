@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import { FileText } from "lucide-react";
+import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -149,7 +150,7 @@ export default async function InboundRegistryPage({
                     <span className="text-xs text-on-surface-variant">{STATUS_LABEL[c.status] ?? c.status}</span>
                   </td>
                   <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
-                    {new Date(c.receivedAt).toLocaleDateString("th-TH")}
+                    {formatThaiDateShort(c.receivedAt)}
                   </td>
                   <td className="px-4 py-3 text-xs text-on-surface-variant">{c.assignedTo?.fullName ?? "—"}</td>
                 </tr>

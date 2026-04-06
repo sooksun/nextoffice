@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, Send } from "lucide-react";
 import OutboundActions from "./OutboundActions";
+import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +96,7 @@ export default async function OutboundDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant">วันที่หนังสือ:</span>
-              <p className="font-medium">{doc.documentDate ? new Date(doc.documentDate).toLocaleDateString("th-TH") : "—"}</p>
+              <p className="font-medium">{doc.documentDate ? formatThaiDateShort(doc.documentDate) : "—"}</p>
             </div>
             <div>
               <span className="text-on-surface-variant">ถึง:</span>
@@ -122,7 +123,7 @@ export default async function OutboundDetailPage({
             {doc.sentAt && (
               <div>
                 <span className="text-on-surface-variant">วันที่ส่ง:</span>
-                <p className="font-medium">{new Date(doc.sentAt).toLocaleDateString("th-TH")}</p>
+                <p className="font-medium">{formatThaiDateShort(doc.sentAt)}</p>
               </div>
             )}
           </div>

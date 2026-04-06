@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { ChevronRight } from "lucide-react";
+import { formatThaiDateTime } from "@/lib/thai-date";
 
 interface AuditItem {
   id: number;
@@ -88,7 +89,7 @@ export default function AuditTrailPage() {
                 )}
               </div>
               <time className="text-xs text-outline flex-shrink-0">
-                {new Date(item.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}
+                {formatThaiDateTime(item.createdAt)}
               </time>
             </div>
           ))}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastError } from "@/lib/toast";
 import { FilePlus, Loader2 } from "lucide-react";
 
 interface Props {
@@ -22,7 +23,7 @@ export default function CreateCaseButton({ documentIntakeId }: Props) {
       );
       router.push(`/inbox/${res.caseId}`);
     } catch (err: any) {
-      alert(err.message || "สร้างเคสไม่สำเร็จ");
+      toastError(err.message || "สร้างเคสไม่สำเร็จ");
       setLoading(false);
     }
   };

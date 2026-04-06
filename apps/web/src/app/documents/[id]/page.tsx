@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, FolderOpen, FileText, Tag } from "lucide-react";
+import { formatThaiDateTime } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,7 @@ export default async function DocumentDetailPage({
           <div>
             <span className="text-outline text-xs font-bold uppercase tracking-wider">สร้างเมื่อ</span>
             <p className="text-on-surface mt-0.5">
-              {new Date(doc.createdAt).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })}
+              {formatThaiDateTime(doc.createdAt)}
             </p>
           </div>
           {doc.fileUrl && (

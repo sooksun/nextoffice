@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { toastSuccess, toastError, confirmToast } from "@/lib/toast";
 import {
   ChevronDown, ChevronRight, Save, RotateCcw, Check, Loader2,
   Thermometer, Hash, Info, Settings2,
@@ -78,7 +79,7 @@ export default function PromptsSettingsPage() {
       groups.forEach((g) => (exp[g] = true));
       setExpandedGroups(exp);
     } catch (err: any) {
-      alert(err.message || "โหลด prompts ไม่สำเร็จ");
+      toastError(err.message || "โหลด prompts ไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -104,15 +105,16 @@ export default function PromptsSettingsPage() {
         }),
       });
       setEdit(promptKey, { saving: false, dirty: false, saved: true });
+      toastSuccess("บันทึกสำเร็จ");
       setTimeout(() => setEdit(promptKey, { saved: false }), 2500);
     } catch (err: any) {
       setEdit(promptKey, { saving: false });
-      alert(err.message || "บันทึกไม่สำเร็จ");
+      toastError(err.message || "บันทึกไม่สำเร็จ");
     }
   };
 
   const handleReset = async (promptKey: string) => {
-    if (!confirm("รีเซ็ต prompt นี้กลับเป็นค่าเริ่มต้นหรือไม่?")) return;
+    if (!(await confirmToast("รีเซ็ต prompt นี้กลับเป็นค่าเริ่มต้นหรือไม่?"))) return;
     setEdit(promptKey, { resetting: true });
     try {
       const updated = await apiFetch<SystemPrompt>(`/system-prompts/${encodeURIComponent(promptKey)}/reset`, { method: "POST" });
@@ -124,10 +126,11 @@ export default function PromptsSettingsPage() {
         resetting: false,
         saved: true,
       });
+      toastSuccess("รีเซ็ตสำเร็จ");
       setTimeout(() => setEdit(promptKey, { saved: false }), 2500);
     } catch (err: any) {
       setEdit(promptKey, { resetting: false });
-      alert(err.message || "รีเซ็ตไม่สำเร็จ");
+      toastError(err.message || "รีเซ็ตไม่สำเร็จ");
     }
   };
 

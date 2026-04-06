@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastError, toastWarning } from "@/lib/toast";
 import Link from "next/link";
 import {
   ArrowLeft, FilePlus, FileText, Paperclip, CheckCircle, Loader2,
 } from "lucide-react";
+import ThaiDatePicker from "@/components/ui/ThaiDatePicker";
 
 interface IntakeData {
   id: number;
@@ -109,7 +111,7 @@ function NewInboxForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim()) return alert("กรุณากรอกชื่อเรื่อง");
+    if (!form.title.trim()) { toastWarning("กรุณากรอกชื่อเรื่อง"); return; }
     setLoading(true);
     try {
       const res = await apiFetch<{ caseId: number }>("/cases/manual", {
@@ -128,7 +130,7 @@ function NewInboxForm() {
       });
       router.push(`/inbox/${res.caseId}`);
     } catch (err: any) {
-      alert(err.message || "สร้างเอกสารไม่สำเร็จ");
+      toastError(err.message || "สร้างเอกสารไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -227,12 +229,7 @@ function NewInboxForm() {
           </div>
           <div>
             <label className="label-sm">หนังสือลงวันที่</label>
-            <input
-              type="date"
-              value={form.documentDate}
-              onChange={(e) => update("documentDate", e.target.value)}
-              className="input-date w-full"
-            />
+            <ThaiDatePicker value={form.documentDate} onChange={(v) => update("documentDate", v)} />
           </div>
         </div>
 
@@ -278,12 +275,7 @@ function NewInboxForm() {
         {/* กำหนดเสร็จ */}
         <div>
           <label className="label-sm">กำหนดเสร็จ / วันครบกำหนด</label>
-          <input
-            type="date"
-            value={form.dueDate}
-            onChange={(e) => update("dueDate", e.target.value)}
-            className="input-date w-full"
-          />
+          <ThaiDatePicker value={form.dueDate} onChange={(v) => update("dueDate", v)} />
         </div>
 
         {/* หมายเหตุ / สรุป */}

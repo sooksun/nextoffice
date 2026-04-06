@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastError, toastWarning } from "@/lib/toast";
 import Link from "next/link";
 import { ArrowLeft, SendHorizontal } from "lucide-react";
 
@@ -24,7 +25,7 @@ export default function NewOutboundPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.subject.trim()) return alert("กรุณากรอกชื่อเรื่อง");
+    if (!form.subject.trim()) { toastWarning("กรุณากรอกชื่อเรื่อง"); return; }
     setLoading(true);
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -42,7 +43,7 @@ export default function NewOutboundPage() {
       });
       router.push(`/outbound/${res.id}`);
     } catch (err: any) {
-      alert(err.message || "สร้างเอกสารไม่สำเร็จ");
+      toastError(err.message || "สร้างเอกสารไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

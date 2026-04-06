@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
+import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export default async function CasesPage() {
                   <td className="px-4 py-3 text-on-surface-variant">{c.priorityScore ?? "—"}</td>
                   <td className="px-4 py-3 text-on-surface-variant text-xs max-w-xs truncate">{c.ragSummary ?? "—"}</td>
                   <td className="px-4 py-3 text-outline text-xs">
-                    {new Date(c.createdAt).toLocaleDateString("th-TH")}
+                    {formatThaiDateShort(c.createdAt)}
                   </td>
                 </tr>
               ))}

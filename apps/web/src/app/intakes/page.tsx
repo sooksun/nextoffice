@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import CreateCaseButton from "@/components/CreateCaseButton";
 import Link from "next/link";
+import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -109,7 +110,7 @@ export default async function IntakesPage() {
                     <td className="px-4 py-3"><StatusBadge status={intake.classifierStatus} /></td>
                     <td className="px-4 py-3"><StatusBadge status={intake.aiStatus} /></td>
                     <td className="px-4 py-3 text-outline text-xs whitespace-nowrap">
-                      {new Date(intake.createdAt).toLocaleDateString("th-TH")}
+                      {formatThaiDateShort(intake.createdAt)}
                     </td>
                     <td className="px-4 py-3">
                       {isOfficialDone ? (

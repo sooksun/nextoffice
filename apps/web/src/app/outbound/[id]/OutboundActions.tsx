@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastSuccess, toastError, confirmToast } from "@/lib/toast";
 import { CheckCircle, Send } from "lucide-react";
 
 interface Props {
@@ -23,9 +24,10 @@ export default function OutboundActions({ docId, status }: Props) {
         method: "POST",
         body: JSON.stringify({ approvedByUserId: user.id }),
       });
+      toastSuccess("อนุมัติสำเร็จ");
       router.refresh();
     } catch (err: any) {
-      alert(err.message || "อนุมัติไม่สำเร็จ");
+      toastError(err.message || "อนุมัติไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -33,13 +35,13 @@ export default function OutboundActions({ docId, status }: Props) {
 
   const handleSend = async () => {
     if (loading) return;
-    if (!confirm("ยืนยันการส่งเอกสาร?")) return;
+    if (!(await confirmToast("ยืนยันการส่งเอกสาร?"))) return;
     setLoading(true);
     try {
       await apiFetch(`/outbound/documents/${docId}/send`, { method: "POST" });
       router.refresh();
     } catch (err: any) {
-      alert(err.message || "ส่งไม่สำเร็จ");
+      toastError(err.message || "ส่งไม่สำเร็จ");
     } finally {
       setLoading(false);
     }

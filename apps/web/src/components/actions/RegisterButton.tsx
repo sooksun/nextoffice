@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { toastSuccess, toastError } from "@/lib/toast";
 import { ClipboardCheck } from "lucide-react";
 
 interface Props {
@@ -23,9 +24,10 @@ export default function RegisterButton({ caseId, status }: Props) {
     try {
       const res = await apiFetch<{ registrationNo: string }>(`/cases/${caseId}/register`, { method: "POST" });
       setRegNo(res.registrationNo);
+      toastSuccess("ลงรับเอกสารสำเร็จ");
       router.refresh();
     } catch (err: any) {
-      alert(err.message || "ลงรับไม่สำเร็จ");
+      toastError(err.message || "ลงรับไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
