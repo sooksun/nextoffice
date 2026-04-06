@@ -312,3 +312,100 @@ docker compose up -d --build api
 | `POST /cases/:id/register` | ADMIN, DIRECTOR, VICE_DIRECTOR, HEAD_TEACHER, CLERK |
 | `POST /cases/:id/assign` | ADMIN, DIRECTOR, VICE_DIRECTOR, **CLERK** |
 | `PATCH /cases/assignments/:id/status` | ผู้ถูกมอบหมายเท่านั้น (self) |
+
+---
+
+## ปัญหา Deploy ที่พบบ่อย (NestJS Module Errors)
+
+### 1. Circular Dependency — `forwardRef()` ขาด
+
+**Symptom:** `The module at index [N] is of type "undefined"`
+
+**สาเหตุ:** module chain วนกลับ เช่น `AiModule → LineModule → CasesModule → AiModule`
+
+**Fix:** ใช้ `forwardRef()` ฝั่งที่ import ทีหลัง
+```typescript
+// apps/api/src/ai/ai.module.ts
+import { Module, forwardRef } from '@nestjs/common';
+imports: [forwardRef(() => LineModule), ...]
+```
+
+**Chain ปัจจุบันที่ต้อง forwardRef:**
+- `AiModule` → `forwardRef(() => LineModule)`
+- `LineModule` → `forwardRef(() => CasesModule)`
+- `CasesModule` → `forwardRef(() => AiModule)`
+
+---
+
+### 2. Module ไม่ Export Services ที่ Processor ต้องการ
+
+**Symptom:** `Nest can't resolve dependencies of the XxxProcessor (?, ...)`
+
+**สาเหตุ:** `HorizonModule` / `VaultModule` export เฉพาะบาง services แต่ `ProcessorModule` import module แล้ว Processor inject service ที่ไม่ได้ export
+
+**Fix:** export ทุก service ที่ Processor ใช้
+```typescript
+// apps/api/src/horizon/horizon.module.ts
+exports: [
+  HorizonSourceService, HorizonFetchService, HorizonNormalizeService,
+  HorizonClassifyService, HorizonSignalService, HorizonEmbedService, HorizonPipelineService,
+],
+```
+
+---
+
+### 3. Controller Module ไม่ import AuthModule
+
+**Symptom:** `Nest can't resolve dependencies of the JwtAuthGuard (?). AuthService at index [0] is not available in XxxModule`
+
+**สาเหตุ:** module ที่มี controller ใช้ `@UseGuards(JwtAuthGuard)` แต่ไม่ได้ import `AuthModule`
+
+**Fix:** เพิ่ม `AuthModule` ใน imports ทุก module ที่มี controller พร้อม auth guard
+```typescript
+import { AuthModule } from '../auth/auth.module';
+@Module({ imports: [ConfigModule, AuthModule], ... })
+```
+
+**Modules ที่ต้องมี AuthModule:** `HorizonModule`, `ProjectsModule`, `VaultModule` และทุก module ใหม่ที่มี controller
+
+---
+
+### 4. TypeScript Strict Mode — `unknown` ใช้เป็น ReactNode ไม่ได้
+
+**Symptom (Docker build):** `Type 'unknown' is not assignable to type 'ReactNode'`
+
+**สาเหตุ:** JSX condition `{a.detail?.someField && <p>...</p>}` — `someField` มีชนิด `unknown` ซึ่ง strict mode ไม่ยอมให้เป็น boolean condition ใน JSX
+
+**Fix:** เพิ่ม `!!` เพื่อ coerce เป็น boolean
+```tsx
+// ❌ ผิด
+{a.detail?.registrationNo && <p>...</p>}
+
+// ✅ ถูก
+{!!a.detail?.registrationNo && <p>...</p>}
+```
+
+> หมายเหตุ: local `tsc --noEmit` อาจผ่านได้ แต่ Docker build ล้มเหลว เพราะ Next.js strict mode บังคับใช้เต็มรูปแบบ
+
+---
+
+### 5. Production Deploy Checklist
+
+```bash
+# บน server: /DATA/AppData/www/nextoffice
+git pull
+docker compose up -d --build api   # rebuild api เท่านั้น (ถ้า web ไม่เปลี่ยน)
+docker compose logs --tail=30 api  # ตรวจสอบว่า start สำเร็จ
+
+# API start สำเร็จ = log บรรทัดสุดท้ายต้องเป็น:
+# 🚀 NextOffice API running on http://localhost:3000
+# 📚 Swagger docs at http://localhost:3000/api/docs
+```
+
+**env ที่สำคัญใน `.env.production`:**
+| Key | ค่าที่ต้องมี |
+|-----|------------|
+| `DATABASE_URL` | `mysql://root:***@192.168.1.4:3306/nextoffice_db` |
+| `JWT_SECRET` | random 64-char string |
+| `PUBLIC_API_URL` | `https://noapi.cnppai.com` (bake เข้า web ตอน build) |
+| `WEB_URL` | ไม่จำเป็น — default ใช้ `https://nextoffice.cnppai.com` สำหรับ CORS |
