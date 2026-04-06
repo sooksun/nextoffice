@@ -143,13 +143,13 @@ export default function VaultSettingsPage() {
           </div>
           <button
             onClick={() => setConfig({ ...config, syncEnabled: !config.syncEnabled })}
-            className={`w-12 h-7 rounded-full transition-colors relative ${
+            className={`w-11 h-6 rounded-full transition-colors relative ${
               config.syncEnabled ? "bg-primary" : "bg-outline/30"
             }`}
           >
             <span
-              className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
-                config.syncEnabled ? "translate-x-5" : "translate-x-0.5"
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                config.syncEnabled ? "translate-x-5" : "translate-x-0"
               }`}
             />
           </button>
@@ -163,13 +163,13 @@ export default function VaultSettingsPage() {
           </div>
           <button
             onClick={() => setConfig({ ...config, autoGenerate: !config.autoGenerate })}
-            className={`w-12 h-7 rounded-full transition-colors relative ${
+            className={`w-11 h-6 rounded-full transition-colors relative ${
               config.autoGenerate ? "bg-primary" : "bg-outline/30"
             }`}
           >
             <span
-              className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
-                config.autoGenerate ? "translate-x-5" : "translate-x-0.5"
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                config.autoGenerate ? "translate-x-5" : "translate-x-0"
               }`}
             />
           </button>
