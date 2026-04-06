@@ -28,19 +28,20 @@ npx prisma studio                   # visual DB browser
 cd apps/web && npm run lint
 
 # Spin up local infrastructure
-docker compose up -d                # starts MariaDB, Redis, MinIO
+docker compose up -d                # starts Redis and MinIO (MariaDB comes from Laragon)
 ```
 
 There is no test runner configured. No `npm test` exists.
 
 ## Infrastructure Requirements
 
-The API depends on three local services (all default ports):
+The API depends on four local services:
 - **MariaDB** on `3306`, database `nextoffice_db` — provided by Laragon locally (not in docker-compose)
 - **Redis** on `6379` (Bull queues)
-- **MinIO** on `9000` (file storage, bucket `nextoffice`)
+- **MinIO** on `9000` (file storage, bucket `nextoffice`; console at `9001`)
+- **Qdrant** on `6333` (vector DB — used by RAG services)
 
-`docker compose up -d` starts Redis and MinIO only. MariaDB is expected from Laragon. For production, docker-compose also builds and runs the API (port 9911) and Web (port 9910) containers.
+`docker compose up -d` starts Redis, MinIO, and Qdrant. MariaDB is expected from Laragon. For production, docker-compose also builds and runs the API (port 9911) and Web (port 9910) containers.
 
 Environment variables live in `apps/api/.env`. Copy from `.env.production.example` and fill in:
 - `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_ID`
@@ -48,7 +49,7 @@ Environment variables live in `apps/api/.env`. Copy from `.env.production.exampl
 - `CLAUDE_MODEL` (default `claude-sonnet-4-6`)
 - `JWT_SECRET` (random 64-char string), `JWT_EXPIRES_IN` (default `7d`)
 
-For LINE webhook testing locally, use ngrok: `ngrok http 3000` → set Webhook URL to `https://<id>.ngrok.io/line/webhook` in LINE Developers Console.
+For LINE webhook testing locally, use ngrok: `ngrok http 9911` → set Webhook URL to `https://<id>.ngrok.io/line/webhook` in LINE Developers Console.
 
 ## Architecture Overview
 
@@ -57,8 +58,8 @@ This is an AI-powered Thai government document management system (e-office) for 
 ### Monorepo Layout
 
 ```
-apps/api/     NestJS API (port 3000) — all business logic, AI, LINE
-apps/web/     Next.js 16 frontend (port 3001) — dashboard only
+apps/api/     NestJS API (port 9911) — all business logic, AI, LINE
+apps/web/     Next.js 16 frontend (port 9910) — dashboard only
 packages/     shared-dto, shared-types (currently empty placeholders)
 ```
 
@@ -164,7 +165,7 @@ Prisma v7 with MariaDB driver adapter: `apps/api/prisma.config.js` configures `@
 
 `apps/web/src/lib/api.ts` exports `apiFetch<T>()` — a thin wrapper around `fetch`. Uses `INTERNAL_API_URL` for server-side rendering (Docker: `http://api:3000`) and `NEXT_PUBLIC_API_URL` for client-side (browser: public URL). All frontend API calls go through this helper.
 
-Swagger docs for the API are available at `http://localhost:3000/api/docs` when running locally.
+Swagger docs for the API are available at `http://localhost:9911/api/docs` when running locally.
 
 ### Document Workflow
 
