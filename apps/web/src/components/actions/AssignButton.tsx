@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError, toastWarning } from "@/lib/toast";
-import { UserPlus, X, Calendar, CalendarOff, CalendarCheck } from "lucide-react";
+import { UserPlus, X, Calendar, CalendarOff, CalendarCheck, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Props {
   caseId: number;
@@ -187,6 +187,12 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
     isoToThaiDate(caseDueDate ?? undefined)
   );
 
+  // AI recommendation state
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
+  const [aiRagHits, setAiRagHits] = useState(0);
+  const [aiExpanded, setAiExpanded] = useState(true);
+
   if (!["registered", "assigned"].includes(status)) return null;
 
   const loadStaff = async () => {
@@ -204,7 +210,36 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
     setDirectorNote("");
     setDueDateMode(caseDueDate ? "from_doc" : "none");
     setCustomThaiDate(isoToThaiDate(caseDueDate ?? undefined));
+    setAiRecommendation(null);
+    setAiRagHits(0);
+    setAiExpanded(true);
     loadStaff();
+  };
+
+  const handleAiRecommend = async () => {
+    setAiLoading(true);
+    setAiRecommendation(null);
+    try {
+      const res = await apiFetch<{ recommendation: string; ragHits: number }>(
+        `/cases/${caseId}/assign-recommend`,
+        { method: "POST" }
+      );
+      setAiRecommendation(res.recommendation);
+      setAiRagHits(res.ragHits);
+      setAiExpanded(true);
+    } catch (err: unknown) {
+      setAiRecommendation("ไม่สามารถเรียก AI ได้: " + (err as Error).message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const applyAiToDirectorNote = () => {
+    if (!aiRecommendation) return;
+    // ดึงเฉพาะส่วน "คำแนะนำการมอบหมาย" มาใส่ directorNote
+    const match = aiRecommendation.match(/(?:3\.|คำแนะนำการมอบหมาย)[^\n]*\n([\s\S]+?)(?:\n\n|$)/i);
+    const extracted = match ? match[1].trim() : aiRecommendation;
+    setDirectorNote(extracted.substring(0, 300));
   };
 
   const toggleUser = (id: number) => {
@@ -331,6 +366,65 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
                     </label>
                   ))}
                 </div>
+              </div>
+
+              {/* AI Recommend */}
+              <div className="rounded-xl border border-purple-200 bg-purple-50/60 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={15} className="text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-800">คำแนะนำจาก AI</span>
+                    {aiRagHits > 0 && (
+                      <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+                        RAG {aiRagHits} แหล่ง
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {aiRecommendation && (
+                      <button
+                        type="button"
+                        onClick={() => setAiExpanded((v) => !v)}
+                        className="p-1 hover:bg-purple-100 rounded-lg text-purple-600"
+                      >
+                        {aiExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleAiRecommend}
+                      disabled={aiLoading}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-60 transition-colors"
+                    >
+                      {aiLoading ? (
+                        <><Loader2 size={12} className="animate-spin" /> กำลังวิเคราะห์...</>
+                      ) : (
+                        <><Sparkles size={12} /> ขอคำแนะนำจาก AI</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {aiRecommendation && aiExpanded && (
+                  <div className="px-4 pb-4 space-y-2">
+                    <div className="bg-white rounded-lg p-3 border border-purple-100 text-sm text-on-surface whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                      {aiRecommendation}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={applyAiToDirectorNote}
+                      className="text-xs text-purple-700 hover:text-purple-900 font-medium underline underline-offset-2"
+                    >
+                      ใช้คำแนะนำนี้เป็นคำสั่งผู้บริหาร
+                    </button>
+                  </div>
+                )}
+
+                {!aiRecommendation && !aiLoading && (
+                  <p className="px-4 pb-3 text-xs text-purple-600/70">
+                    AI จะวิเคราะห์เนื้อหาหนังสือ + ค้นหาข้อมูลจากฐานนโยบาย สพฐ. แล้วแนะนำแนวทางการดำเนินการ
+                  </p>
+                )}
               </div>
 
               {/* Due date mode */}

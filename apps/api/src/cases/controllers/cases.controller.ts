@@ -197,6 +197,12 @@ export class CasesController {
     return this.workflow.getActivities(id);
   }
 
+  @Post(':id/assign-recommend')
+  @ApiOperation({ summary: 'AI แนะนำการมอบหมายงาน + คำสั่งผู้บริหาร (RAG + Gemini)' })
+  recommendAssignment(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.recommendAssignment(id);
+  }
+
   @Get(':id/routing-suggestion')
   @ApiOperation({ summary: 'AI แนะนำกลุ่มงาน + ผู้รับผิดชอบจากหัวเรื่องหนังสือ' })
   getRoutingSuggestion(@Param('id', ParseIntPipe) id: number) {

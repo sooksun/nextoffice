@@ -9,9 +9,10 @@ import { AiModule } from '../ai/ai.module';
 import { RagModule } from '../rag/rag.module';
 import { QueueModule } from '../queue/queue.module';
 import { ProjectsModule } from '../projects/projects.module';
+import { GeminiModule } from '../gemini/gemini.module';
 
 @Module({
-  imports: [AuthModule, CalendarModule, NotificationsModule, forwardRef(() => AiModule), RagModule, QueueModule, ProjectsModule],
+  imports: [AuthModule, CalendarModule, NotificationsModule, forwardRef(() => AiModule), RagModule, QueueModule, ProjectsModule, GeminiModule],
   controllers: [CasesController],
   providers: [CasesService, CaseWorkflowService],
   exports: [CasesService, CaseWorkflowService],
