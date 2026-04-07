@@ -50,6 +50,22 @@ export class OutboundController {
     return this.svc.approve(id, body.approvedByUserId);
   }
 
+  @Post('documents/:id/reject')
+  @ApiOperation({ summary: 'Reject (return to draft) outbound document' })
+  reject(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { note?: string },
+  ) {
+    return this.svc.reject(id, body.note);
+  }
+
+  @Get('documents/pending-approval')
+  @ApiOperation({ summary: 'List documents pending approval for an organization' })
+  @ApiQuery({ name: 'organizationId', required: true, type: Number })
+  listPendingApproval(@Query('organizationId') organizationId: string) {
+    return this.svc.findAll(parseInt(organizationId, 10), 'pending_approval');
+  }
+
   @Post('documents/:id/send')
   @ApiOperation({ summary: 'Mark document as sent and create registry entry' })
   send(@Param('id', ParseIntPipe) id: number) {

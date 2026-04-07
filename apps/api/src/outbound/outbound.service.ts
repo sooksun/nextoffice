@@ -280,6 +280,14 @@ ${additionalContext ? `บริบทเพิ่มเติม: ${additionalC
     }
   }
 
+  async reject(id: number, note?: string) {
+    const updated = await this.prisma.outboundDocument.update({
+      where: { id: BigInt(id) },
+      data: { status: 'draft', bodyText: note ? `[ส่งกลับแก้ไข]: ${note}` : undefined },
+    });
+    return { id: Number(updated.id), status: 'draft' };
+  }
+
   private async generateDocumentNo(organizationId: bigint, orgCode?: string): Promise<string> {
     const now = new Date();
     const buddhistYear = now.getFullYear() + 543;

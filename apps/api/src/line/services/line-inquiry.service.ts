@@ -231,6 +231,108 @@ export class LineInquiryService {
     await this.messaging.reply(replyToken, messages);
   }
 
+  // ─── อนุมัติส่ง (DIRECTOR) ─────────────────────────────
+
+  async handleOutboundApprove(lineUserId: string, docId: number, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    const allowedRoles = ['DIRECTOR', 'VICE_DIRECTOR', 'ADMIN'];
+    if (!allowedRoles.includes(user.roleCode)) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage('⛔ คำสั่งนี้สำหรับผู้อำนวยการและรองผู้อำนวยการเท่านั้น'),
+      ]);
+      return;
+    }
+
+    const doc = await this.prisma.outboundDocument.findUnique({
+      where: { id: BigInt(docId) },
+      include: { organization: { select: { orgCode: true } } },
+    });
+
+    if (!doc) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(`ไม่พบหนังสือออก #${docId}`),
+      ]);
+      return;
+    }
+
+    if (doc.status !== 'draft' && doc.status !== 'pending_approval') {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(`หนังสือออก #${docId} มีสถานะ "${doc.status}" ไม่สามารถอนุมัติได้`),
+      ]);
+      return;
+    }
+
+    // Generate document number
+    const now = new Date();
+    const buddhistYear = now.getFullYear() + 543;
+    const orgCode = doc.organization?.orgCode ?? 'ORG';
+    const count = await this.prisma.outboundDocument.count({
+      where: { organizationId: doc.organizationId, documentNo: { not: null } },
+    });
+    const documentNo = `${orgCode} ${String(count + 1).padStart(4, '0')}/${buddhistYear}`;
+
+    await this.prisma.outboundDocument.update({
+      where: { id: BigInt(docId) },
+      data: {
+        status: 'approved',
+        documentNo,
+        approvedByUserId: user.id,
+        approvedAt: new Date(),
+        documentDate: new Date(),
+      },
+    });
+
+    this.logger.log(`Director ${user.fullName} approved outbound doc #${docId} as ${documentNo}`);
+
+    await this.messaging.reply(replyToken, [
+      this.messaging.buildTextMessage(
+        `✅ อนุมัติหนังสือออกสำเร็จ\n\nเลขที่หนังสือ: ${documentNo}\nเรื่อง: ${doc.subject}\n\nพิมพ์ "ทะเบียนส่ง" เพื่อดูรายการทั้งหมด`,
+      ),
+    ]);
+  }
+
+  // ─── รายการหนังสือออกรออนุมัติ (DIRECTOR) ─────────────
+
+  async handlePendingOutbound(lineUserId: string, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    const where: any = { status: { in: ['draft', 'pending_approval'] } };
+    if (user.organizationId) where.organizationId = user.organizationId;
+
+    const docs = await this.prisma.outboundDocument.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { createdBy: { select: { fullName: true } } },
+    });
+
+    if (docs.length === 0) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage('ไม่มีหนังสือออกรออนุมัติในขณะนี้ ✅'),
+      ]);
+      return;
+    }
+
+    const URGENCY_ICON: Record<string, string> = {
+      most_urgent: '🔴', very_urgent: '🟠', urgent: '🟡', normal: '🔵',
+    };
+
+    const lines = docs.map((d, i) => {
+      const icon = URGENCY_ICON[d.urgencyLevel] ?? '⚪';
+      const by = (d as any).createdBy?.fullName ? ` (โดย ${(d as any).createdBy.fullName})` : '';
+      return `${i + 1}. ${icon} #${Number(d.id)} ${d.subject}${by}\n   พิมพ์: อนุมัติส่ง #${Number(d.id)}`;
+    });
+
+    await this.messaging.reply(replyToken, [
+      this.messaging.buildTextMessage(
+        `📋 หนังสือออกรออนุมัติ (${docs.length} รายการ)\n\n${lines.join('\n\n')}`,
+      ),
+    ]);
+  }
+
   // ─── Helpers ────────────────────────────────────────────
 
   private async findLinkedUser(lineUserId: string) {

@@ -39,14 +39,19 @@ import {
 } from "lucide-react";
 
 const documentFlowLinks = [
-  { href: "/inbox", label: "เอกสารเข้า", icon: Inbox },
-  { href: "/outbound/new", label: "ส่งเอกสาร", icon: SendHorizontal },
+  { href: "/inbox", label: "หนังสือเข้า", icon: Inbox },
+  { href: "/outbound", label: "หนังสือออก", icon: SendHorizontal },
+  { href: "/outbound/new", label: "สร้างหนังสือออก", icon: Send },
   { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: ClipboardList },
-  { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: Send },
+  { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: ScrollText },
+];
+
+const directorLinks = [
+  { href: "/director", label: "แดชบอร์ดผู้อำนวยการ", icon: LayoutDashboard },
 ];
 
 const toolLinks = [
-  { href: "/", label: "ภาพรวม", icon: LayoutDashboard },
+  { href: "/", label: "ภาพรวมระบบ", icon: LayoutDashboard },
   { href: "/notifications", label: "การแจ้งเตือนงาน", icon: BellRing },
   { href: "/chat", label: "AI สารบรรณ", icon: MessageSquareText },
   { href: "/intakes", label: "AI ประมวลผลเอกสาร", icon: FileText },
@@ -122,6 +127,19 @@ export default function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         <div className="px-4 pt-1 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">ผู้อำนวยการ</p>
+        </div>
+        {directorLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href;
+          return (
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-4 pt-3 pb-1">
           <p className="text-[10px] uppercase tracking-widest text-outline font-bold">รับ-ส่งเอกสาร</p>
         </div>
         {documentFlowLinks.map(({ href, label, icon: Icon }) => {
