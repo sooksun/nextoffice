@@ -191,6 +191,7 @@ export class IntakeService {
           meetingTime: metadata?.meetingTime || null,
           meetingLocation: metadata?.meetingLocation || null,
           nextActionJson: metadata?.actions ? JSON.stringify(metadata.actions) : null,
+          structuredSummaryJson: metadata?.structuredSummary ? JSON.stringify(metadata.structuredSummary) : null,
         },
       });
     } catch (e: any) {
@@ -210,6 +211,7 @@ export class IntakeService {
             summaryText: metadata?.summary || null,
             deadlineDate: metadata?.deadlineDate ? new Date(metadata.deadlineDate) : null,
             nextActionJson: metadata?.actions ? JSON.stringify(metadata.actions) : null,
+            structuredSummaryJson: metadata?.structuredSummary ? JSON.stringify(metadata.structuredSummary) : null,
           },
         });
       } else {
@@ -277,6 +279,7 @@ export class IntakeService {
         subjectText: metadata.subjectText,
         deadlineDate: metadata.deadlineDate,
         summary: metadata.summary,
+        structuredSummary: metadata.structuredSummary,
         intent: metadata.intent,
         urgency: metadata.urgency,
         actions: metadata.actions,

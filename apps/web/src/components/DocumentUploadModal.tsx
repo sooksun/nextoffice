@@ -36,6 +36,13 @@ interface UploadResult {
     subjectText: string;
     deadlineDate: string;
     summary: string;
+    structuredSummary?: {
+      sender: string;
+      request: string;
+      location: string | null;
+      deadline: string | null;
+      summarizedBy: string;
+    } | null;
     intent: string;
     urgency: string;
     actions: string[];
@@ -350,12 +357,69 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
 
               {/* AI Summary */}
               <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest p-4">
-                <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-2">สรุปโดย AI</h3>
-                <p className="text-sm text-on-surface leading-relaxed">{result.metadata.summary}</p>
-                {result.metadata.intent && (
-                  <p className="text-xs text-on-surface-variant mt-2">
-                    <span className="font-semibold">วัตถุประสงค์:</span> {result.metadata.intent}
-                  </p>
+                <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-3">สรุปโดย AI</h3>
+
+                {result.metadata.structuredSummary ? (
+                  <div className="space-y-3">
+                    {/* 5-point structured summary */}
+                    {[
+                      {
+                        no: 1,
+                        label: "ผู้ส่ง/หน่วยงานที่ส่ง",
+                        value: result.metadata.structuredSummary.sender,
+                        color: "bg-blue-50 border-blue-200",
+                        textColor: "text-blue-800",
+                        badge: "bg-blue-100 text-blue-700",
+                      },
+                      {
+                        no: 2,
+                        label: "สิ่งที่ขอให้ดำเนินการ",
+                        value: result.metadata.structuredSummary.request,
+                        color: "bg-amber-50 border-amber-200",
+                        textColor: "text-amber-900",
+                        badge: "bg-amber-100 text-amber-700",
+                      },
+                      {
+                        no: 3,
+                        label: "สถานที่",
+                        value: result.metadata.structuredSummary.location ?? "—",
+                        color: "bg-green-50 border-green-200",
+                        textColor: "text-green-800",
+                        badge: "bg-green-100 text-green-700",
+                      },
+                      {
+                        no: 4,
+                        label: "กำหนดวันดำเนินการ",
+                        value: result.metadata.structuredSummary.deadline ?? "—",
+                        color: result.metadata.structuredSummary.deadline ? "bg-red-50 border-red-200" : "bg-surface-bright border-outline-variant/20",
+                        textColor: result.metadata.structuredSummary.deadline ? "text-red-800 font-semibold" : "text-on-surface-variant",
+                        badge: result.metadata.structuredSummary.deadline ? "bg-red-100 text-red-700" : "bg-surface-mid text-on-surface-variant",
+                      },
+                    ].map((item) => (
+                      <div key={item.no} className={`flex items-start gap-3 p-3 rounded-xl border ${item.color}`}>
+                        <span className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 ${item.badge}`}>
+                          {item.no}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] text-on-surface-variant font-medium mb-0.5">{item.label}</p>
+                          <p className={`text-sm leading-relaxed ${item.textColor}`}>{item.value}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {/* Signature */}
+                    <p className="text-right text-xs text-on-surface-variant pt-1 border-t border-outline-variant/10">
+                      ผู้สรุป: <span className="font-medium">{result.metadata.structuredSummary.summarizedBy}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm text-on-surface leading-relaxed">{result.metadata.summary}</p>
+                    {result.metadata.intent && (
+                      <p className="text-xs text-on-surface-variant mt-2">
+                        <span className="font-semibold">วัตถุประสงค์:</span> {result.metadata.intent}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
 

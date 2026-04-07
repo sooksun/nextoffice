@@ -2,6 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
 import { SystemPromptsService } from '../../system-prompts/system-prompts.service';
 
+export interface StructuredSummary {
+  sender: string;       // ใคร/หน่วยงานใดส่งมา
+  request: string;      // ขอให้ทำอะไร / ประชาสัมพันธ์
+  location: string | null;   // สถานที่ (null ถ้าไม่มี)
+  deadline: string | null;   // กำหนดวันที่ (null ถ้าไม่มี)
+  summarizedBy: string; // ชื่อผู้สรุป
+}
+
 export interface OfficialMetadata {
   issuingAuthority: string;
   recipient: string;
@@ -10,6 +18,7 @@ export interface OfficialMetadata {
   subjectText: string;
   deadlineDate: string;
   summary: string;
+  structuredSummary: StructuredSummary | null;
   intent: string;
   urgency: string;
   actions: string[];
@@ -68,6 +77,19 @@ export class ExtractionService {
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch?.[0] || '{}');
 
+      // Parse structured_summary ถ้ามี
+      let structuredSummary: StructuredSummary | null = null;
+      if (parsed.structured_summary && typeof parsed.structured_summary === 'object') {
+        const ss = parsed.structured_summary;
+        structuredSummary = {
+          sender: ss.sender || parsed.issuing_authority || '',
+          request: ss.request || '',
+          location: ss.location && ss.location !== 'null' ? ss.location : null,
+          deadline: ss.deadline && ss.deadline !== 'null' ? ss.deadline : null,
+          summarizedBy: ss.summarized_by || 'NextOffice AI',
+        };
+      }
+
       return {
         issuingAuthority: parsed.issuing_authority || '',
         recipient: parsed.recipient || '',
@@ -76,6 +98,7 @@ export class ExtractionService {
         subjectText: parsed.subject || '',
         deadlineDate: normalizeDateToCe(parsed.deadline_date),
         summary: parsed.summary || '',
+        structuredSummary,
         intent: parsed.intent || '',
         urgency: parsed.urgency || 'กลาง',
         actions: parsed.actions || [],
@@ -102,6 +125,7 @@ export class ExtractionService {
       subjectText: subjectMatch?.[1] || '',
       deadlineDate: '',
       summary: text.substring(0, 200),
+      structuredSummary: null,
       intent: '',
       urgency: 'กลาง',
       actions: [],

@@ -573,6 +573,7 @@ model DocumentAiResult {
   meetingTime              String?   @map("meeting_time") @db.VarChar(20)
   meetingLocation          String?   @map("meeting_location") @db.VarChar(500)
   nextActionJson           String?   @map("next_action_json") @db.LongText
+  structuredSummaryJson    String?   @map("structured_summary_json") @db.LongText
   createdAt                DateTime  @map("created_at") @default(now())
   updatedAt                DateTime  @map("updated_at") @updatedAt
 

@@ -28,6 +28,7 @@ export class SystemPromptsService implements OnModuleInit {
       const FORCE_UPDATE_KEYS: Record<string, number> = {
         'ocr.pdf': 8192,
         'ocr.image': 8192,
+        'extract.metadata': 1536,
       };
 
       for (const d of DEFAULT_PROMPTS) {

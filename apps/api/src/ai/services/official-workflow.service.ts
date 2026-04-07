@@ -60,6 +60,7 @@ export class OfficialWorkflowService {
         deadlineDate: metadata.deadlineDate ? new Date(metadata.deadlineDate) : null,
         summaryText: metadata.summary,
         nextActionJson: JSON.stringify(metadata.actions),
+        structuredSummaryJson: metadata.structuredSummary ? JSON.stringify(metadata.structuredSummary) : null,
         isMeeting: metadata.isMeeting,
         meetingDate: metadata.meetingDate ? new Date(metadata.meetingDate) : null,
         meetingTime: metadata.meetingTime || null,
