@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError, toastWarning } from "@/lib/toast";
@@ -21,29 +21,156 @@ interface StaffMember {
 
 type DueDateMode = "none" | "from_doc" | "custom";
 
-/** แปลง ISO string → "YYYY-MM-DDThh:mm" สำหรับ datetime-local input */
-function toLocalDatetimeValue(iso: string | null | undefined): string {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  } catch {
-    return "";
-  }
+// ---- Thai Buddhist Era helpers ----
+
+const THAI_MONTHS = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
+  "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
+  "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+
+interface ThaiDate {
+  day: number;      // 1–31
+  month: number;    // 1–12
+  yearBE: number;   // พ.ศ. e.g. 2568
+  hour: number;     // 0–23
+  minute: number;   // 0–59
 }
 
-/** แสดงวันที่แบบไทย */
-function formatDateThai(iso: string | null | undefined): string {
+function isoToThaiDate(iso: string | null | undefined): ThaiDate {
+  const d = iso ? new Date(iso) : new Date();
+  return {
+    day: d.getDate(),
+    month: d.getMonth() + 1,
+    yearBE: d.getFullYear() + 543,
+    hour: d.getHours(),
+    minute: d.getMinutes(),
+  };
+}
+
+function thaiDateToIso(td: ThaiDate): string {
+  const yearCE = td.yearBE - 543;
+  const d = new Date(yearCE, td.month - 1, td.day, td.hour, td.minute, 0);
+  return d.toISOString();
+}
+
+function formatThaiDateDisplay(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleDateString("th-TH", {
-      year: "numeric", month: "long", day: "numeric",
-    });
+    const d = new Date(iso);
+    const yearBE = d.getFullYear() + 543;
+    const day = d.getDate();
+    const month = THAI_MONTHS[d.getMonth()];
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const timeStr = (d.getHours() !== 0 || d.getMinutes() !== 0) ? ` เวลา ${h}:${m} น.` : "";
+    return `${day} ${month} ${yearBE}${timeStr}`;
   } catch {
     return iso;
   }
 }
+
+// ---- Thai Date Picker component ----
+
+function ThaiDateTimePicker({
+  value,
+  onChange,
+}: {
+  value: ThaiDate;
+  onChange: (v: ThaiDate) => void;
+}) {
+  const daysInMonth = useMemo(() => {
+    const yearCE = value.yearBE - 543;
+    return new Date(yearCE, value.month, 0).getDate();
+  }, [value.month, value.yearBE]);
+
+  const set = (patch: Partial<ThaiDate>) => {
+    const next = { ...value, ...patch };
+    // clamp day to valid range
+    const yearCE = next.yearBE - 543;
+    const max = new Date(yearCE, next.month, 0).getDate();
+    if (next.day > max) next.day = max;
+    onChange(next);
+  };
+
+  const selectCls =
+    "border border-outline-variant/30 rounded-lg bg-surface-bright text-sm px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/30";
+
+  return (
+    <div className="mt-3 space-y-3 p-3 bg-primary/5 rounded-xl border border-primary/20">
+      {/* Row 1: Day Month Year */}
+      <div className="flex gap-2 items-center flex-wrap">
+        {/* Day */}
+        <select
+          value={value.day}
+          onChange={(e) => set({ day: +e.target.value })}
+          className={selectCls}
+        >
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+
+        {/* Month */}
+        <select
+          value={value.month}
+          onChange={(e) => set({ month: +e.target.value })}
+          className={`${selectCls} flex-1 min-w-[130px]`}
+        >
+          {THAI_MONTHS.map((name, i) => (
+            <option key={i + 1} value={i + 1}>{name}</option>
+          ))}
+        </select>
+
+        {/* Year พ.ศ. */}
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            value={value.yearBE}
+            onChange={(e) => set({ yearBE: +e.target.value })}
+            min={2500}
+            max={2600}
+            className={`${selectCls} w-20 text-center`}
+          />
+          <span className="text-xs text-on-surface-variant">พ.ศ.</span>
+        </div>
+      </div>
+
+      {/* Row 2: Time */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-on-surface-variant">เวลา</span>
+        <select
+          value={value.hour}
+          onChange={(e) => set({ hour: +e.target.value })}
+          className={selectCls}
+        >
+          {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+            <option key={h} value={h}>{String(h).padStart(2, "0")}</option>
+          ))}
+        </select>
+        <span className="text-on-surface-variant">:</span>
+        <select
+          value={value.minute}
+          onChange={(e) => set({ minute: +e.target.value })}
+          className={selectCls}
+        >
+          {[0, 15, 30, 45].map((m) => (
+            <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+          ))}
+        </select>
+        <span className="text-xs text-on-surface-variant">น.</span>
+      </div>
+
+      {/* Preview */}
+      <p className="text-xs text-primary font-medium flex items-center gap-1">
+        <Calendar size={11} />
+        {formatThaiDateDisplay(thaiDateToIso(value))}
+      </p>
+    </div>
+  );
+}
+
+// ---- Main component ----
 
 export default function AssignButton({ caseId, status, caseDueDate }: Props) {
   const router = useRouter();
@@ -52,8 +179,13 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [directorNote, setDirectorNote] = useState("");
-  const [dueDateMode, setDueDateMode] = useState<DueDateMode>("none");
-  const [customDueDate, setCustomDueDate] = useState(toLocalDatetimeValue(caseDueDate));
+
+  // Default: "from_doc" ถ้ามีวันที่จากหนังสือ, ไม่งั้น "none"
+  const defaultMode: DueDateMode = caseDueDate ? "from_doc" : "none";
+  const [dueDateMode, setDueDateMode] = useState<DueDateMode>(defaultMode);
+  const [customThaiDate, setCustomThaiDate] = useState<ThaiDate>(
+    isoToThaiDate(caseDueDate ?? undefined)
+  );
 
   if (!["registered", "assigned"].includes(status)) return null;
 
@@ -70,8 +202,8 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
     setOpen(true);
     setSelected(new Set());
     setDirectorNote("");
-    setDueDateMode("none");
-    setCustomDueDate(toLocalDatetimeValue(caseDueDate));
+    setDueDateMode(caseDueDate ? "from_doc" : "none");
+    setCustomThaiDate(isoToThaiDate(caseDueDate ?? undefined));
     loadStaff();
   };
 
@@ -84,19 +216,14 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
     });
   };
 
-  /** คำนวณ dueDate ที่จะส่ง API */
   const resolvedDueDate = (): string | undefined => {
-    if (dueDateMode === "none") return undefined;
     if (dueDateMode === "from_doc") return caseDueDate ?? undefined;
-    if (dueDateMode === "custom" && customDueDate) return new Date(customDueDate).toISOString();
+    if (dueDateMode === "custom") return thaiDateToIso(customThaiDate);
     return undefined;
   };
 
   const handleAssign = async () => {
     if (selected.size === 0) { toastWarning("กรุณาเลือกผู้รับผิดชอบ"); return; }
-    if (dueDateMode === "custom" && !customDueDate) {
-      toastWarning("กรุณาเลือกวันที่ดำเนินการ"); return;
-    }
     setLoading(true);
     try {
       const dueDate = resolvedDueDate();
@@ -119,23 +246,30 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
     }
   };
 
-  const dueDateModeOptions: { value: DueDateMode; label: string; icon: React.ReactNode; desc?: string }[] = [
-    {
-      value: "none",
-      label: "ไม่กำหนด",
-      icon: <CalendarOff size={15} />,
-      desc: "ไม่เพิ่มเข้า Google Calendar",
-    },
+  const dueDateModeOptions: {
+    value: DueDateMode;
+    label: string;
+    icon: React.ReactNode;
+    desc?: string;
+    disabled?: boolean;
+  }[] = [
     {
       value: "from_doc",
       label: "ใช้วันที่จากหนังสือ",
       icon: <CalendarCheck size={15} />,
-      desc: caseDueDate ? formatDateThai(caseDueDate) : "ไม่พบวันที่ในหนังสือ",
+      desc: caseDueDate ? formatThaiDateDisplay(caseDueDate) : "ไม่พบวันที่ในหนังสือ",
+      disabled: !caseDueDate,
     },
     {
       value: "custom",
       label: "เลือกวันที่เอง",
       icon: <Calendar size={15} />,
+    },
+    {
+      value: "none",
+      label: "ไม่กำหนด",
+      icon: <CalendarOff size={15} />,
+      desc: "ไม่เพิ่มเข้า Google Calendar",
     },
   ];
 
@@ -201,11 +335,11 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
 
               {/* Due date mode */}
               <div>
-                <label className="text-sm font-semibold text-on-surface-variant mb-2 block flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-on-surface-variant mb-2 flex items-center gap-1.5">
                   <Calendar size={14} />
                   วันที่ดำเนินการ
                   <span className="text-[11px] font-normal text-outline">(บันทึก Google Calendar)</span>
-                </label>
+                </p>
                 <div className="space-y-2">
                   {dueDateModeOptions.map((opt) => (
                     <label
@@ -214,15 +348,15 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
                         dueDateMode === opt.value
                           ? "border-primary/40 bg-primary/5"
                           : "border-outline-variant/20 hover:bg-surface-bright"
-                      } ${opt.value === "from_doc" && !caseDueDate ? "opacity-50 cursor-not-allowed" : ""}`}
+                      } ${opt.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
                     >
                       <input
                         type="radio"
                         name="dueDateMode"
                         value={opt.value}
                         checked={dueDateMode === opt.value}
-                        onChange={() => setDueDateMode(opt.value)}
-                        disabled={opt.value === "from_doc" && !caseDueDate}
+                        onChange={() => !opt.disabled && setDueDateMode(opt.value)}
+                        disabled={opt.disabled}
                         className="mt-0.5 accent-primary"
                       />
                       <div className="flex-1 min-w-0">
@@ -233,29 +367,21 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
                           {opt.label}
                         </div>
                         {opt.desc && (
-                          <p className="text-xs text-on-surface-variant mt-0.5">{opt.desc}</p>
+                          <p className={`text-xs mt-0.5 ${dueDateMode === opt.value && opt.value === "from_doc" ? "text-primary font-medium" : "text-on-surface-variant"}`}>
+                            {opt.desc}
+                          </p>
                         )}
                       </div>
                     </label>
                   ))}
                 </div>
 
-                {/* Custom datetime picker */}
+                {/* Thai date picker — แสดงเฉพาะ custom mode */}
                 {dueDateMode === "custom" && (
-                  <div className="mt-3">
-                    <input
-                      type="datetime-local"
-                      value={customDueDate}
-                      onChange={(e) => setCustomDueDate(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl border border-outline-variant/30 bg-surface-bright text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                    {customDueDate && (
-                      <p className="text-xs text-primary mt-1.5 flex items-center gap-1">
-                        <Calendar size={11} />
-                        {formatDateThai(new Date(customDueDate).toISOString())}
-                      </p>
-                    )}
-                  </div>
+                  <ThaiDateTimePicker
+                    value={customThaiDate}
+                    onChange={setCustomThaiDate}
+                  />
                 )}
               </div>
 
