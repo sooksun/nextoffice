@@ -268,7 +268,7 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
 
   const toggleAssignee = (userId: number) => {
     setSelectedAssigneeIds((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [userId],
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
     );
   };
 
