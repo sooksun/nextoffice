@@ -164,7 +164,7 @@ export default async function InboxDetailPage({
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-3 mb-6 p-4 bg-surface-bright rounded-2xl border border-outline-variant/20">
         <RegisterButton caseId={caseData.id} status={caseData.status} />
-        <AssignButton caseId={caseData.id} status={caseData.status} />
+        <AssignButton caseId={caseData.id} status={caseData.status} caseDueDate={caseData.dueDate} />
         <AcknowledgeButton caseId={caseData.id} assignments={assignments} />
         <CompleteButton caseId={caseData.id} assignments={assignments} />
       </div>
