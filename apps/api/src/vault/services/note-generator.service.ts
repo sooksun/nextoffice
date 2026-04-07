@@ -288,7 +288,8 @@ ${reportsText || 'ไม่มี'}
       );
       return response.data?.content?.[0]?.text ?? '';
     } catch (err) {
-      this.logger.error(`Claude API error: ${err.message}`);
+      const body = err.response?.data ? JSON.stringify(err.response.data) : '(no body)';
+      this.logger.error(`Claude API error: ${err.message} — ${body}`);
       throw err;
     }
   }
