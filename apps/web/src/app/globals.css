@@ -56,7 +56,7 @@
   --color-inverse-primary: #b6c4ff;
 
   /* ─── Fonts ─── */
-  --font-headline: var(--font-be-vietnam-pro);
+  --font-headline: var(--font-sarabun);
   --font-body: var(--font-sarabun);
   --font-sans: var(--font-sarabun);
 }
@@ -64,13 +64,13 @@
 body {
   background-color: var(--color-surface);
   color: var(--color-on-surface);
-  font-family: var(--font-sarabun), 'Sarabun', var(--font-inter), 'Inter', system-ui, sans-serif;
+  font-family: var(--font-sarabun), 'Sarabun', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, .font-headline {
-  font-family: var(--font-be-vietnam-pro), 'Be Vietnam Pro', var(--font-sarabun), 'Sarabun', system-ui, sans-serif;
+  font-family: var(--font-sarabun), 'Sarabun', system-ui, sans-serif;
 }
 
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
