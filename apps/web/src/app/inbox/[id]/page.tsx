@@ -94,10 +94,9 @@ async function getActivities(id: string) {
   try { return await apiFetch<Activity[]>(`/cases/${id}/activities`); } catch { return []; }
 }
 
-/** URL ไฟล์ต้นฉบับ — ชี้ผ่าน API (proxy MinIO) เพื่อให้ browser เข้าถึงได้ */
+/** URL ไฟล์ต้นฉบับ — ผ่าน Next.js proxy route (ไม่ต้องพึ่ง external API domain) */
 function buildFileUrl(intakeId: number): string {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
-  return `${base}/intake/${intakeId}/file`;
+  return `/api/files/intake/${intakeId}`;
 }
 
 export default async function InboxDetailPage({
