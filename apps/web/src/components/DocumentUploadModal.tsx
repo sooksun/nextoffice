@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { toastError, toastWarning } from "@/lib/toast";
 import {
   X, Upload, FileText, CheckCircle, XCircle, Loader2,
-  Building2, Calendar, Hash, AlertTriangle, Sparkles, UserPlus,
+  Building2, Calendar, Hash, AlertTriangle, Sparkles, UserPlus, Users,
 } from "lucide-react";
 
 
@@ -168,6 +168,8 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
   const [result, setResult] = useState<UploadResult | null>(null);
   const [routing, setRouting] = useState<RoutingSuggestion | null>(null);
   const [loadingRouting, setLoadingRouting] = useState(false);
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]);
+  const [resolvedCaseId, setResolvedCaseId] = useState<number | null>(null);
 
   if (!isOpen) return null;
 
@@ -179,6 +181,8 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     setFile(null);
     setResult(null);
     setRouting(null);
+    setSelectedAssigneeIds([]);
+    setResolvedCaseId(null);
   };
 
   const handleClose = () => {
@@ -245,9 +249,9 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     if (!result?.documentIntakeId) return;
     setLoadingRouting(true);
     try {
-      // Use caseId returned from web-upload if available, otherwise create from intake
       const caseId = result.caseId
         ?? (await apiFetch<{ caseId: number; status: string }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" })).caseId;
+      setResolvedCaseId(caseId);
       const routeRes = await apiFetch<RoutingResponse>(`/cases/${caseId}/routing-suggestion`);
       if (routeRes?.found && routeRes.suggestion) {
         setRouting(routeRes.suggestion);
@@ -262,10 +266,35 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     }
   };
 
-  const handleSaveAndGo = () => {
+  const toggleAssignee = (userId: number) => {
+    setSelectedAssigneeIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [userId],
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (!routing?.suggestedUsers?.length) return;
+    const allIds = routing.suggestedUsers.map((u) => u.userId);
+    const allSelected = allIds.every((id) => selectedAssigneeIds.includes(id));
+    setSelectedAssigneeIds(allSelected ? [] : allIds);
+  };
+
+  const handleSaveAndGo = async () => {
     if (!result?.documentIntakeId) return;
+    const caseId = resolvedCaseId ?? result.caseId;
+    if (caseId && selectedAssigneeIds.length > 0) {
+      try {
+        await apiFetch(`/cases/${caseId}/assign`, {
+          method: "POST",
+          body: JSON.stringify({
+            assignments: selectedAssigneeIds.map((userId) => ({ userId })),
+          }),
+        });
+      } catch {
+        // non-blocking — ยังคงไปหน้า register ได้ แก้ไขภายหลังได้
+      }
+    }
     handleClose();
-    // Go to registration form pre-filled with AI-extracted data
     router.push(`/inbox/new?intakeId=${result.documentIntakeId}`);
   };
 
@@ -407,7 +436,9 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
                     <Calendar size={14} className="text-on-surface-variant mt-0.5 shrink-0" />
                     <div>
                       <p className="text-xs text-on-surface-variant">ลงวันที่</p>
-                      <p className="font-medium">{result.metadata.documentDate || "—"}</p>
+                      <p className="font-medium">
+                        {result.metadata.documentDate ? formatThaiDate(result.metadata.documentDate) : "—"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2 col-span-2">
@@ -425,7 +456,7 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
                     <div className="col-span-2 flex items-center gap-2 p-2 bg-yellow-50 rounded-xl">
                       <AlertTriangle size={14} className="text-yellow-600 shrink-0" />
                       <p className="text-sm text-yellow-800 font-medium">
-                        กำหนดเสร็จ: {result.metadata.deadlineDate}
+                        กำหนดเสร็จ: {formatThaiDate(result.metadata.deadlineDate)}
                       </p>
                     </div>
                   )}
@@ -523,23 +554,69 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
                       <div>
                         <p className="text-xs text-purple-600 font-semibold mb-1.5">
                           {routing.isDefault ? "ผู้รับผิดชอบดูแล:" : "ครูที่แนะนำให้รับผิดชอบ:"}
+                          <span className="ml-1 font-normal text-purple-500">(คลิกเพื่อเลือกมอบหมาย)</span>
                         </p>
                         <div className="space-y-1.5">
-                          {routing.suggestedUsers.map((u) => (
-                            <div key={u.userId} className="flex items-center gap-2 p-2 bg-white/60 rounded-lg">
-                              <UserPlus size={14} className="text-purple-500 shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-purple-900">{u.fullName}</p>
-                                <p className="text-xs text-purple-600">
-                                  {u.workFunctionName}
-                                  {u.matchReason && (
-                                    <span className="ml-1.5 text-green-600 font-medium">· {u.matchReason}</span>
-                                  )}
-                                </p>
+                          {/* ทุกคน — option แรก */}
+                          {(() => {
+                            const allIds = routing.suggestedUsers.map((u) => u.userId);
+                            const allSelected = allIds.length > 0 && allIds.every((id) => selectedAssigneeIds.includes(id));
+                            return (
+                              <div
+                                key="all"
+                                onClick={toggleSelectAll}
+                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors border ${
+                                  allSelected
+                                    ? "bg-purple-100 border-purple-400"
+                                    : "bg-white/60 border-transparent hover:bg-purple-50"
+                                }`}
+                              >
+                                <Users size={14} className="text-purple-500 shrink-0" />
+                                <p className="text-sm font-semibold text-purple-900 flex-1">ทุกคน</p>
+                                {allSelected && <CheckCircle size={14} className="text-purple-600 shrink-0" />}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })()}
+                          {routing.suggestedUsers.map((u) => {
+                            const selected = selectedAssigneeIds.includes(u.userId);
+                            return (
+                              <div
+                                key={u.userId}
+                                onClick={() => toggleAssignee(u.userId)}
+                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors border ${
+                                  selected
+                                    ? "bg-purple-100 border-purple-400"
+                                    : "bg-white/60 border-transparent hover:bg-purple-50"
+                                }`}
+                              >
+                                <UserPlus size={14} className="text-purple-500 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-purple-900">{u.fullName}</p>
+                                  <p className="text-xs text-purple-600">
+                                    {u.workFunctionName}
+                                    {u.matchReason && (
+                                      <span className="ml-1.5 text-green-600 font-medium">· {u.matchReason}</span>
+                                    )}
+                                  </p>
+                                </div>
+                                {selected && <CheckCircle size={14} className="text-purple-600 shrink-0" />}
+                              </div>
+                            );
+                          })}
                         </div>
+                        {selectedAssigneeIds.length > 0 && (
+                          <div className="mt-2 flex items-center justify-between">
+                            <p className="text-xs text-purple-600">
+                              เลือก {selectedAssigneeIds.length} คน · จะมอบหมายพร้อมลงทะเบียน
+                            </p>
+                            <button
+                              onClick={() => setSelectedAssigneeIds([])}
+                              className="text-xs text-purple-400 hover:text-purple-600 underline"
+                            >
+                              ยกเลิก
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
