@@ -245,6 +245,10 @@ export default async function InboxDetailPage({
         <div className="p-5">
           <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-4">ข้อมูลหนังสือ</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="col-span-2">
+              <span className="text-on-surface-variant text-xs">ชื่อเรื่อง:</span>
+              <p className="font-semibold text-on-surface mt-0.5">{caseData.title || "—"}</p>
+            </div>
             <div>
               <span className="text-on-surface-variant text-xs">หน่วยงานที่ส่ง:</span>
               <p className="font-medium">{issuingAuthority || "—"}</p>
