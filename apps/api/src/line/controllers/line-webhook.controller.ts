@@ -17,6 +17,7 @@ import { LinePairingService } from '../services/line-pairing.service';
 import { LineWorkflowService } from '../services/line-workflow.service';
 import { LineMessagingService } from '../services/line-messaging.service';
 import { LineInquiryService } from '../services/line-inquiry.service';
+import { LineAttendanceService } from '../services/line-attendance.service';
 import { IntentClassifierService } from '../../ai/services/intent-classifier.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 
@@ -33,6 +34,7 @@ export class LineWebhookController {
     private readonly workflowSvc: LineWorkflowService,
     private readonly messagingSvc: LineMessagingService,
     private readonly inquirySvc: LineInquiryService,
+    private readonly attendanceSvc: LineAttendanceService,
     private readonly intentSvc: IntentClassifierService,
     private readonly dispatcher: QueueDispatcherService,
   ) {}
@@ -114,6 +116,13 @@ export class LineWebhookController {
             const overdueMatch = /^(งานเกินกำหนด|งานค้าง|เกินกำหนด)$/.test(text);
             const mainMenuMatch = /^(เมนู|menu)$/i.test(text);
 
+            // V3: Attendance & Leave commands
+            const checkInMatch = /^(ลงเวลา|เช็คอิน)$/.test(text);
+            const attendanceStatusMatch = /^(สถานะลงเวลา|เวลาวันนี้)$/.test(text);
+            const leaveStatusMatch = /^(สถานะการลา|ลาเหลือ|วันลา)$/.test(text);
+            const leavePromptMatch = /^(ขอลา|ส่งใบลา)$/.test(text);
+            const travelPromptMatch = /^(ขอไปราชการ|ไปราชการ)$/.test(text);
+
             if (pairingMatch && uid) {
               await this.pairingSvc.handlePairingMessage(uid, pairingMatch[1], rt);
             } else if (pairingHelpMatch && uid) {
@@ -163,6 +172,17 @@ export class LineWebhookController {
               await this.inquirySvc.handleOverdue(uid, rt);
             } else if (mainMenuMatch && rt) {
               await this.inquirySvc.handleMainMenu(rt);
+            // V3: Attendance & Leave
+            } else if (checkInMatch && uid && rt) {
+              await this.attendanceSvc.handleCheckInPrompt(uid, rt);
+            } else if (attendanceStatusMatch && uid && rt) {
+              await this.attendanceSvc.handleAttendanceStatus(uid, rt);
+            } else if (leaveStatusMatch && uid && rt) {
+              await this.attendanceSvc.handleLeaveStatus(uid, rt);
+            } else if (leavePromptMatch && uid && rt) {
+              await this.attendanceSvc.handleLeavePrompt(uid, rt);
+            } else if (travelPromptMatch && uid && rt) {
+              await this.attendanceSvc.handleTravelPrompt(uid, rt);
             } else {
               // V2: Try NLU intent classification before RAG fallback
               let handledByNlu = false;

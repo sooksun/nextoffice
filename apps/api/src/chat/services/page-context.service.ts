@@ -63,6 +63,18 @@ export class PageContextService {
         case '/horizon/agendas':
         case '/horizon/signals':
           return this.resolveHorizon(route);
+        case '/attendance':
+        case '/attendance/check-in':
+        case '/attendance/face':
+        case '/attendance/history':
+        case '/attendance/report':
+          return this.resolveAttendancePage(route, userId);
+        case '/leave':
+        case '/leave/new':
+        case '/leave/approvals':
+        case '/leave/travel':
+        case '/leave/travel/new':
+          return this.resolveLeavePage(route, userId);
         case '/':
           return this.resolveDashboard(userId);
         default:
@@ -298,6 +310,60 @@ export class PageContextService {
       pageName: 'แดชบอร์ด',
       summary: `หน้าแรก — เคสทั้งหมด ${caseCount}, เอกสารที่อัปโหลด ${intakeCount}`,
       details: '',
+    };
+  }
+
+  private async resolveAttendancePage(route: string, userId?: number): Promise<ResolvedPageContext> {
+    const subpage =
+      route === '/attendance/check-in' ? 'ลงเวลาเข้า/ออก'
+      : route === '/attendance/face' ? 'ลงทะเบียนใบหน้า'
+      : route === '/attendance/history' ? 'ประวัติลงเวลา'
+      : route === '/attendance/report' ? 'รายงานลงเวลา'
+      : 'ลงเวลาปฏิบัติราชการ';
+
+    let details = '';
+    if (userId) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayRecord = await this.prisma.attendanceRecord.findFirst({
+        where: { userId: BigInt(userId), attendanceDate: today },
+      });
+      if (todayRecord) {
+        details = `สถานะวันนี้: ${todayRecord.status}` +
+          (todayRecord.checkInAt ? ` เข้า: ${todayRecord.checkInAt.toLocaleTimeString('th-TH')}` : '') +
+          (todayRecord.checkOutAt ? ` ออก: ${todayRecord.checkOutAt.toLocaleTimeString('th-TH')}` : '');
+      } else {
+        details = 'สถานะวันนี้: ยังไม่ได้ลงเวลา';
+      }
+    }
+
+    return {
+      pageName: subpage,
+      summary: `ผู้ใช้อยู่ที่หน้า ${subpage} — ระบบลงเวลาด้วยใบหน้า + GPS`,
+      details,
+    };
+  }
+
+  private async resolveLeavePage(route: string, userId?: number): Promise<ResolvedPageContext> {
+    const subpage =
+      route === '/leave/new' ? 'ส่งใบลา'
+      : route === '/leave/approvals' ? 'รออนุมัติ'
+      : route === '/leave/travel' ? 'ไปราชการ'
+      : route === '/leave/travel/new' ? 'ขอไปราชการ'
+      : 'ระบบลาหยุด';
+
+    let details = '';
+    if (userId) {
+      const pending = await this.prisma.leaveRequest.count({
+        where: { userId: BigInt(userId), status: 'pending' },
+      });
+      details = pending > 0 ? `ใบลารออนุมัติ: ${pending} รายการ` : '';
+    }
+
+    return {
+      pageName: subpage,
+      summary: `ผู้ใช้อยู่ที่หน้า ${subpage} — ระบบลา/ไปราชการ`,
+      details,
     };
   }
 

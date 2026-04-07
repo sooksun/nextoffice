@@ -9,6 +9,7 @@ import { LineSessionService } from './services/line-session.service';
 import { LinePairingService } from './services/line-pairing.service';
 import { LineWorkflowService } from './services/line-workflow.service';
 import { LineInquiryService } from './services/line-inquiry.service';
+import { LineAttendanceService } from './services/line-attendance.service';
 import { IntentClassifierService } from '../ai/services/intent-classifier.service';
 import { QueueModule } from '../queue/queue.module';
 import { AuthModule } from '../auth/auth.module';
@@ -27,8 +28,9 @@ import { GeminiModule } from '../gemini/gemini.module';
     LinePairingService,
     LineWorkflowService,
     LineInquiryService,
+    LineAttendanceService,
     IntentClassifierService,
   ],
-  exports: [LineMessagingService, LineUsersService, LineSessionService],
+  exports: [LineMessagingService, LineUsersService, LineSessionService, LineAttendanceService],
 })
 export class LineModule {}
