@@ -21,6 +21,9 @@ model Organization {
   province              String?  @db.VarChar(100)
   district              String?  @db.VarChar(100)
   parentOrganizationId  BigInt?  @map("parent_organization_id")
+  refLatitude           Float?   @map("ref_latitude")
+  refLongitude          Float?   @map("ref_longitude")
+  geofenceRadius        Int      @map("geofence_radius") @default(200) // meters
   isActive              Boolean  @map("is_active") @default(true)
   createdAt             DateTime @map("created_at") @default(now())
   updatedAt             DateTime @map("updated_at") @updatedAt
@@ -41,6 +44,11 @@ model Organization {
   outboundDocuments    OutboundDocument[]
   documentRegistries   DocumentRegistry[]
   projects             Project[]
+  faceRegistrations    FaceRegistration[]
+  attendanceRecords    AttendanceRecord[]
+  leaveRequests        LeaveRequest[]
+  travelRequests       TravelRequest[]
+  approvalChains       ApprovalChainConfig[]
 
   @@index([parentOrganizationId])
   @@map("organizations")
@@ -650,6 +658,15 @@ model User {
   outboundApprovals     OutboundDocument[] @relation("OutboundApprovedBy")
   outboundCreated       OutboundDocument[] @relation("OutboundCreatedBy")
   projectsResponsible   Project[]          @relation("ProjectResponsible")
+  faceRegistrations     FaceRegistration[]
+  attendanceRecords     AttendanceRecord[]
+  leaveRequestsMade     LeaveRequest[]     @relation("LeaveRequestUser")
+  leaveRequestsApproved LeaveRequest[]     @relation("LeaveApprovedBy")
+  leaveCurrentApprovals LeaveRequest[]     @relation("LeaveCurrentApprover")
+  leaveStepApprovals    LeaveApprovalStep[] @relation("LeaveStepApprover")
+  travelRequestsMade    TravelRequest[]    @relation("TravelRequestUser")
+  travelRequestsApproved TravelRequest[]   @relation("TravelApprovedBy")
+  leaveBalances         LeaveBalance[]
 
   @@index([email])
   @@index([roleCode])
@@ -691,6 +708,7 @@ model AcademicYear {
   budgets            Budget[]
   staffAssignments   StaffAssignment[]
   documentRegistries DocumentRegistry[]
+  leaveBalances      LeaveBalance[]
 
   @@map("academic_years")
 }
@@ -1248,4 +1266,170 @@ model KnowledgeVaultConfig {
   updatedAt       DateTime  @map("updated_at") @updatedAt
 
   @@map("knowledge_vault_configs")
+}
+
+// ─────────────────────────────────────────────
+// PHASE 4: Attendance / Leave / Travel
+// ─────────────────────────────────────────────
+
+model FaceRegistration {
+  id              BigInt    @id @default(autoincrement())
+  userId          BigInt    @map("user_id")
+  organizationId  BigInt    @map("organization_id")
+  faceImagePath   String    @map("face_image_path") @db.VarChar(500) // MinIO path
+  faceEncodingId  String?   @map("face_encoding_id") @db.VarChar(100) // ID in Python Face Service
+  status          String    @db.VarChar(30) @default("pending") // pending | active | revoked
+  registeredAt    DateTime  @map("registered_at") @default(now())
+  revokedAt       DateTime? @map("revoked_at")
+  createdAt       DateTime  @map("created_at") @default(now())
+  updatedAt       DateTime  @map("updated_at") @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([userId])
+  @@index([organizationId])
+  @@map("face_registrations")
+}
+
+model AttendanceRecord {
+  id                BigInt    @id @default(autoincrement())
+  userId            BigInt    @map("user_id")
+  organizationId    BigInt    @map("organization_id")
+  attendanceDate    DateTime  @map("attendance_date") @db.Date
+  checkInAt         DateTime? @map("check_in_at")
+  checkOutAt        DateTime? @map("check_out_at")
+  checkInLatitude   Float?    @map("check_in_latitude")
+  checkInLongitude  Float?    @map("check_in_longitude")
+  checkOutLatitude  Float?    @map("check_out_latitude")
+  checkOutLongitude Float?    @map("check_out_longitude")
+  checkInImagePath  String?   @map("check_in_image_path") @db.VarChar(500)
+  checkOutImagePath String?   @map("check_out_image_path") @db.VarChar(500)
+  faceMatchScore    Float?    @map("face_match_score")
+  geofenceValid     Boolean   @map("geofence_valid") @default(true)
+  status            String    @db.VarChar(30) @default("checked_in")
+  // status: checked_in | checked_out | absent | leave | travel | late
+  remark            String?   @db.Text
+  createdAt         DateTime  @map("created_at") @default(now())
+  updatedAt         DateTime  @map("updated_at") @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, attendanceDate])
+  @@index([organizationId, attendanceDate])
+  @@map("attendance_records")
+}
+
+model LeaveRequest {
+  id                    BigInt    @id @default(autoincrement())
+  userId                BigInt    @map("user_id")
+  organizationId        BigInt    @map("organization_id")
+  leaveType             String    @map("leave_type") @db.VarChar(30)
+  // leaveType: sick | personal | vacation | maternity | ordination | training
+  startDate             DateTime  @map("start_date") @db.Date
+  endDate               DateTime  @map("end_date") @db.Date
+  totalDays             Decimal   @map("total_days") @db.Decimal(5, 1)
+  reason                String?   @db.Text
+  contactPhone          String?   @map("contact_phone") @db.VarChar(20)
+  attachmentPath        String?   @map("attachment_path") @db.VarChar(500)
+  status                String    @db.VarChar(30) @default("draft")
+  // status: draft | pending | approved | rejected | cancelled
+  currentApproverUserId BigInt?   @map("current_approver_user_id")
+  approvedByUserId      BigInt?   @map("approved_by_user_id")
+  approvedAt            DateTime? @map("approved_at")
+  rejectedReason        String?   @map("rejected_reason") @db.Text
+  submittedAt           DateTime? @map("submitted_at")
+  createdAt             DateTime  @map("created_at") @default(now())
+  updatedAt             DateTime  @map("updated_at") @updatedAt
+
+  user            User               @relation("LeaveRequestUser", fields: [userId], references: [id])
+  organization    Organization       @relation(fields: [organizationId], references: [id])
+  currentApprover User?              @relation("LeaveCurrentApprover", fields: [currentApproverUserId], references: [id])
+  approvedBy      User?              @relation("LeaveApprovedBy", fields: [approvedByUserId], references: [id])
+  approvalSteps   LeaveApprovalStep[]
+
+  @@index([userId, status])
+  @@index([organizationId, status])
+  @@map("leave_requests")
+}
+
+model LeaveApprovalStep {
+  id             BigInt    @id @default(autoincrement())
+  leaveRequestId BigInt    @map("leave_request_id")
+  stepOrder      Int       @map("step_order")
+  approverUserId BigInt    @map("approver_user_id")
+  approverRole   String    @map("approver_role") @db.VarChar(30)
+  status         String    @db.VarChar(30) @default("pending")
+  // status: pending | approved | rejected
+  comment        String?   @db.Text
+  actedAt        DateTime? @map("acted_at")
+  createdAt      DateTime  @map("created_at") @default(now())
+
+  leaveRequest LeaveRequest @relation(fields: [leaveRequestId], references: [id])
+  approver     User         @relation("LeaveStepApprover", fields: [approverUserId], references: [id])
+
+  @@index([leaveRequestId])
+  @@map("leave_approval_steps")
+}
+
+model TravelRequest {
+  id               BigInt    @id @default(autoincrement())
+  userId           BigInt    @map("user_id")
+  organizationId   BigInt    @map("organization_id")
+  travelDate       DateTime  @map("travel_date") @db.Date
+  destination      String    @db.VarChar(500)
+  purpose          String    @db.Text
+  departureTime    String?   @map("departure_time") @db.VarChar(10) // HH:mm
+  returnTime       String?   @map("return_time") @db.VarChar(10)
+  returnSameDay    Boolean   @map("return_same_day") @default(true)
+  status           String    @db.VarChar(30) @default("draft")
+  // status: draft | pending | approved | rejected | cancelled
+  approvedByUserId BigInt?   @map("approved_by_user_id")
+  approvedAt       DateTime? @map("approved_at")
+  rejectedReason   String?   @map("rejected_reason") @db.Text
+  submittedAt      DateTime? @map("submitted_at")
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  user         User         @relation("TravelRequestUser", fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  approvedBy   User?        @relation("TravelApprovedBy", fields: [approvedByUserId], references: [id])
+
+  @@index([userId, status])
+  @@index([organizationId, travelDate])
+  @@map("travel_requests")
+}
+
+model LeaveBalance {
+  id             BigInt   @id @default(autoincrement())
+  userId         BigInt   @map("user_id")
+  academicYearId BigInt   @map("academic_year_id")
+  leaveType      String   @map("leave_type") @db.VarChar(30) // sick | personal | vacation
+  totalAllowed   Decimal  @map("total_allowed") @db.Decimal(5, 1)
+  totalUsed      Decimal  @map("total_used") @db.Decimal(5, 1) @default(0)
+  createdAt      DateTime @map("created_at") @default(now())
+  updatedAt      DateTime @map("updated_at") @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  @@unique([userId, academicYearId, leaveType])
+  @@map("leave_balances")
+}
+
+model ApprovalChainConfig {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  requestType    String   @map("request_type") @db.VarChar(30) // leave | travel
+  requesterRole  String   @map("requester_role") @db.VarChar(30) // TEACHER, HEAD_TEACHER, etc.
+  stepOrder      Int      @map("step_order")
+  approverRole   String   @map("approver_role") @db.VarChar(30) // HEAD_TEACHER, VICE_DIRECTOR, DIRECTOR
+  isActive       Boolean  @map("is_active") @default(true)
+  createdAt      DateTime @map("created_at") @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, requestType, requesterRole, stepOrder])
+  @@map("approval_chain_configs")
 }

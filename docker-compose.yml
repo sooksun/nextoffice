@@ -50,6 +50,27 @@ services:
       retries: 5
       start_period: 20s
 
+  # ─── Face Recognition Service (Python/InsightFace) ───
+  face-service:
+    build:
+      context: ./services/face-recognition
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MODEL_NAME: buffalo_l
+      SIMILARITY_THRESHOLD: "0.45"
+      EMBEDDINGS_DIR: /app/data/embeddings
+    volumes:
+      - face_data:/app/data
+    networks:
+      - nextoffice
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
   # ─── NestJS API ───
   api:
     build:
@@ -67,6 +88,7 @@ services:
       MINIO_USE_SSL: "false"
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
+      FACE_SERVICE_URL: http://face-service:8500
     volumes:
       - vault_data:/app/vault
     ports:
@@ -78,6 +100,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+      face-service:
+        condition: service_healthy
     networks:
       - nextoffice
 
@@ -105,6 +129,7 @@ volumes:
   minio_data:
   qdrant_data:
   vault_data:
+  face_data:
 
 networks:
   nextoffice:
