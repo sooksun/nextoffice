@@ -84,12 +84,12 @@ export class OfficialWorkflowService {
       },
     });
 
-    // Create InboundCase
+    // Create InboundCase — แนบ intake:{id} ไว้ใน description เพื่อให้ระบบ find extractedText ได้ภายหลัง
     const inboundCase = await this.prisma.inboundCase.create({
       data: {
         organizationId: orgId,
         title: metadata.subjectText || 'กรณีใหม่จากหนังสือราชการ',
-        description: metadata.summary,
+        description: [metadata.summary, `intake:${documentIntakeId}`].filter(Boolean).join('\n'),
         sourceDocumentId: document.id,
         dueDate: metadata.deadlineDate ? new Date(metadata.deadlineDate) : null,
         urgencyLevel: mapUrgency(metadata.urgency),

@@ -338,8 +338,9 @@ export class CasesService {
     const c = await this.prisma.inboundCase.findUnique({ where: { id: BigInt(caseId) } });
     if (!c) throw new NotFoundException(`Case #${caseId} not found`);
 
-    // Load extracted text from DocumentAiResult via intake
+    // ค้นหา extractedText + summaryText จาก DocumentAiResult ผ่าน intake link
     let extractedText = '';
+    let summaryText = '';
     const intakeMatch = c.description?.match(/intake:(\d+)/);
     if (intakeMatch) {
       const intake = await this.prisma.documentIntake.findUnique({
@@ -347,13 +348,20 @@ export class CasesService {
         include: { aiResult: true },
       });
       extractedText = intake?.aiResult?.extractedText || '';
+      summaryText = intake?.aiResult?.summaryText || '';
     }
 
-    // RAG search
-    const query = c.title;
+    // fallback: ถ้าไม่มี intake link ให้ใช้ description ที่มี (ซึ่งคือ summary จาก LINE pipeline)
+    if (!summaryText && c.description) {
+      // ตัด intake:xxx ออก เหลือเฉพาะข้อความ
+      summaryText = c.description.replace(/\nintake:\d+/g, '').trim();
+    }
+
+    // RAG search ด้วยทั้ง title + summary เพื่อความแม่นยำ
+    const ragQuery = [c.title, summaryText].filter(Boolean).join(' — ').substring(0, 300);
     const [policyResults, horizonResults] = await Promise.all([
-      this.policyRag.search(query, 4),
-      this.horizonRag.search(query, 3),
+      this.policyRag.search(ragQuery, 5),
+      this.horizonRag.search(ragQuery, 3),
     ]);
 
     const ragContext = [
@@ -361,9 +369,13 @@ export class CasesService {
       ...horizonResults.map((h) => `[แนวโน้ม/Horizon] ${h.title}: ${h.summary || ''}`),
     ].filter(Boolean).join('\n');
 
-    const docSection = extractedText
-      ? `\n\n--- เนื้อหาหนังสือ (จาก OCR) ---\n${extractedText.substring(0, 2000)}\n---`
-      : '';
+    // สร้าง section เนื้อหาเอกสาร — ส่งทั้งหมด ไม่ตัด
+    const hasFullText = extractedText.length > 0;
+    const docSection = hasFullText
+      ? `\n\n--- เนื้อหาหนังสือ (ข้อความเต็มจาก OCR) ---\n${extractedText}\n---`
+      : summaryText
+        ? `\n\n--- สรุปเนื้อหาหนังสือ ---\n${summaryText}\n---`
+        : '';
 
     const ragSection = ragContext
       ? `\n\n--- ข้อมูลอ้างอิง (นโยบาย/RAG) ---\n${ragContext}\n---`
@@ -373,7 +385,7 @@ export class CasesService {
       most_urgent: 'ด่วนที่สุด', very_urgent: 'ด่วนมาก', urgent: 'ด่วน', normal: 'ทั่วไป',
     };
 
-    const prompt = `คุณเป็น AI ผู้ช่วยงานสารบรรณของโรงเรียน ช่วยแนะนำการมอบหมายงานสำหรับหนังสือราชการฉบับนี้
+    const prompt = `คุณเป็น AI ผู้ช่วยงานสารบรรณของโรงเรียน ช่วยวิเคราะห์หนังสือราชการและแนะนำการมอบหมายงาน
 
 หัวเรื่อง: ${c.title}
 ความเร่งด่วน: ${urgencyMap[c.urgencyLevel] || c.urgencyLevel}
@@ -381,19 +393,25 @@ export class CasesService {
 ${docSection}
 ${ragSection}
 
-กรุณาให้คำแนะนำสั้น กระชับ ครอบคลุม 3 ส่วน:
-1. **สรุปสาระหนังสือ** (2-3 บรรทัด — เฉพาะประเด็นหลัก ไม่รวมสิ่งที่ส่งมาด้วย)
-2. **แนวทางการดำเนินการ** (ควรดำเนินการอย่างไร อ้างอิงนโยบายถ้ามี)
-3. **คำแนะนำการมอบหมาย** (ควรมอบหมายให้ใคร/กลุ่มงานใด และมีคำสั่งผู้บริหารว่าอย่างไร)
+กรุณาให้คำแนะนำครอบคลุม 3 ส่วน:
 
-ตอบเป็นภาษาไทย กระชับ ไม่เกิน 200 คำ`;
+1. **สรุปสาระสำคัญของหนังสือ** (วัตถุประสงค์หลัก สิ่งที่ขอให้โรงเรียนดำเนินการ กำหนดเวลา — ไม่รวมสิ่งที่ส่งมาด้วย/เอกสารแนบ)
+
+2. **แนวทางการดำเนินการที่แนะนำ** (ควรดำเนินการอย่างไร ขั้นตอนใด อ้างอิงนโยบาย สพฐ./ระเบียบที่เกี่ยวข้องถ้ามี)
+
+3. **คำแนะนำการมอบหมายงาน** (ควรมอบหมายให้กลุ่มงาน/ผู้รับผิดชอบใด พร้อมร่างคำสั่งผู้บริหารที่เหมาะสม)
+
+ตอบเป็นภาษาไทย ชัดเจน กระชับ`;
 
     try {
       if (!this.gemini.getApiKey()) {
         return { recommendation: 'ไม่สามารถเชื่อมต่อ AI ได้ (ไม่พบ GEMINI_API_KEY)', ragHits: 0 };
       }
-      const text = await this.gemini.generateText({ user: prompt, maxOutputTokens: 800, temperature: 0.4 });
-      return { recommendation: text || 'AI ไม่สามารถสร้างคำแนะนำได้', ragHits: policyResults.length + horizonResults.length };
+      const text = await this.gemini.generateText({ user: prompt, maxOutputTokens: 1200, temperature: 0.3 });
+      return {
+        recommendation: text || 'AI ไม่สามารถสร้างคำแนะนำได้',
+        ragHits: policyResults.length + horizonResults.length,
+      };
     } catch (err) {
       this.logger.warn(`recommendAssignment AI failed: ${err.message}`);
       return { recommendation: `ไม่สามารถเรียก AI ได้: ${err.message}`, ragHits: 0 };

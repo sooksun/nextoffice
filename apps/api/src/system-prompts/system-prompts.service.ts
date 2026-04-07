@@ -24,6 +24,12 @@ export class SystemPromptsService implements OnModuleInit {
       return;
     }
     try {
+      // Keys ที่ต้อง force-update เมื่อ default เปลี่ยน (เช่น OCR maxTokens เพิ่มจาก 4096→8192)
+      const FORCE_UPDATE_KEYS: Record<string, number> = {
+        'ocr.pdf': 8192,
+        'ocr.image': 8192,
+      };
+
       for (const d of DEFAULT_PROMPTS) {
         const existing = await (this.prisma as any).systemPrompt.findUnique({
           where: { promptKey: d.promptKey },
@@ -41,6 +47,19 @@ export class SystemPromptsService implements OnModuleInit {
             },
           });
           this.logger.log(`Seeded default prompt: ${d.promptKey}`);
+        } else if (FORCE_UPDATE_KEYS[d.promptKey] && existing.maxTokens < FORCE_UPDATE_KEYS[d.promptKey]) {
+          // Force-update OCR prompts ที่ยังใช้ค่าเก่า
+          await (this.prisma as any).systemPrompt.update({
+            where: { promptKey: d.promptKey },
+            data: {
+              promptText: d.promptText,
+              temperature: d.temperature,
+              maxTokens: d.maxTokens,
+              updatedBy: 'system:auto-migrate',
+            },
+          });
+          this.cache.delete(d.promptKey);
+          this.logger.log(`Auto-migrated prompt: ${d.promptKey} (maxTokens ${existing.maxTokens} → ${d.maxTokens})`);
         }
       }
     } catch (err) {
