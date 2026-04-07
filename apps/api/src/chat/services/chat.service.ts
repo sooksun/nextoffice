@@ -3,6 +3,7 @@ import axios from 'axios';
 import { PolicyRagService } from '../../rag/services/policy-rag.service';
 import { HorizonRagService } from '../../rag/services/horizon-rag.service';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
+import { PageContextService, PageContext } from './page-context.service';
 
 export interface ChatSource {
   type: 'policy' | 'horizon';
@@ -15,6 +16,7 @@ export interface ChatResponse {
   answer: string;
   sources: ChatSource[];
   queryId: string;
+  pageContext?: { pageName: string };
 }
 
 @Injectable()
@@ -25,14 +27,17 @@ export class ChatService {
     private readonly gemini: GeminiApiService,
     private readonly policyRag: PolicyRagService,
     private readonly horizonRag: HorizonRagService,
+    private readonly pageCtxService: PageContextService,
   ) {}
 
-  async chat(query: string): Promise<ChatResponse> {
+  async chat(query: string, pageContext?: PageContext, userId?: number): Promise<ChatResponse> {
     const queryId = `chat-${Date.now()}`;
 
-    const [policyResults, horizonResults] = await Promise.all([
+    // Resolve page context in parallel with RAG searches
+    const [policyResults, horizonResults, resolvedCtx] = await Promise.all([
       this.policyRag.search(query, 4),
       this.horizonRag.search(query, 3),
+      pageContext ? this.pageCtxService.resolve(pageContext, userId) : Promise.resolve(null),
     ]);
 
     const sources: ChatSource[] = [
@@ -57,23 +62,51 @@ export class ChatService {
       .filter(Boolean)
       .join('\n\n');
 
-    const answer = await this.callGemini(query, ragContext);
-    return { answer, sources, queryId };
+    const answer = await this.callGemini(query, ragContext, resolvedCtx);
+
+    return {
+      answer,
+      sources,
+      queryId,
+      ...(resolvedCtx ? { pageContext: { pageName: resolvedCtx.pageName } } : {}),
+    };
   }
 
-  private async callGemini(query: string, ragContext: string): Promise<string> {
+  private async callGemini(
+    query: string,
+    ragContext: string,
+    pageCtx?: { pageName: string; summary: string; details: string } | null,
+  ): Promise<string> {
     if (!this.gemini.getApiKey()) {
       return 'ขออภัย ระบบ AI ยังไม่ได้รับการกำหนดค่า GEMINI_API_KEY';
     }
 
+    // Build page-aware system prompt
+    let pageSection = '';
+    if (pageCtx) {
+      pageSection =
+        `\n\n== บริบทหน้าปัจจุบัน ==\n` +
+        `ผู้ใช้กำลังอยู่ที่หน้า: ${pageCtx.pageName}\n` +
+        `${pageCtx.summary}\n` +
+        (pageCtx.details ? `\nข้อมูลในหน้า:\n${pageCtx.details}\n` : '');
+    }
+
     const systemPrompt =
-      `คุณเป็นผู้เชี่ยวชาญด้านระเบียบงานสารบรรณไทยและการจัดการเอกสารราชการสำหรับสถาบันการศึกษา ` +
-      `ตอบคำถามด้วยภาษาไทยที่ชัดเจน ถูกต้องตามระเบียบ และเป็นประโยชน์ ` +
-      `ครอบคลุมเรื่อง: ระเบียบงานสารบรรณ พ.ศ. 2526 และที่แก้ไขเพิ่มเติม, หนังสือราชการ 6 ประเภท, ` +
-      `การรับ-ส่ง-เก็บรักษาหนังสือ, การร่างและจัดทำหนังสือราชการ, ตราชื่อส่วนราชการ, ` +
-      `ทะเบียนหนังสือ, และขั้นตอนการปฏิบัติงานสารบรรณ ` +
-      `หากมีข้อมูลอ้างอิงจากฐานข้อมูล RAG ให้นำมาใช้ประกอบการตอบ` +
-      (ragContext ? `\n\nข้อมูลอ้างอิงจากฐานข้อมูล:\n${ragContext}` : '');
+      `คุณเป็นผู้ช่วย AI ประจำระบบ NextOffice (ระบบงานสารบรรณอิเล็กทรอนิกส์) สำหรับสถาบันการศึกษา ` +
+      `คุณมีความเชี่ยวชาญทั้งด้านระเบียบงานสารบรรณไทยและการใช้งานระบบ NextOffice ` +
+      `ตอบคำถามด้วยภาษาไทยที่ชัดเจน ถูกต้อง และเป็นประโยชน์\n\n` +
+      `ความสามารถของคุณ:\n` +
+      `1. ตอบคำถามเกี่ยวกับระเบียบงานสารบรรณ พ.ศ. 2526 และที่แก้ไขเพิ่มเติม\n` +
+      `2. อธิบายหนังสือราชการ 6 ประเภท, การรับ-ส่ง-เก็บรักษาหนังสือ\n` +
+      `3. ช่วยเหลือเรื่องข้อมูลในหน้าปัจจุบันที่ผู้ใช้กำลังดูอยู่ — ตอบคำถามเกี่ยวกับเอกสาร เคส หรือข้อมูลที่แสดงบนหน้าจอ\n` +
+      `4. แนะนำขั้นตอนการทำงานในระบบ NextOffice\n\n` +
+      `หลักการตอบ:\n` +
+      `- ถ้าผู้ใช้ถามเกี่ยวกับข้อมูลในหน้าปัจจุบัน ให้อ้างอิงจากบริบทหน้าเว็บที่ให้มา\n` +
+      `- ถ้าถามเรื่องระเบียบหรือแนวปฏิบัติ ให้อ้างอิงจากฐานข้อมูล RAG\n` +
+      `- ถ้าเกี่ยวข้องทั้งสองอย่าง ให้ผสมผสานข้อมูลจากทั้งสองแหล่ง\n` +
+      `- ตอบกระชับ ตรงประเด็น ใช้ภาษาราชการอย่างเหมาะสม` +
+      pageSection +
+      (ragContext ? `\n\n== ข้อมูลอ้างอิงจากฐานความรู้ RAG ==\n${ragContext}` : '');
 
     try {
       const text = await this.gemini.generateText({
