@@ -1,7 +1,13 @@
-import { Controller, Get, Post, Param, Body, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import {
+  Controller, Get, Post, Patch, Param, Body,
+  ParseIntPipe, UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrganizationsService } from './organizations.service';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { CreateOrganizationDto, UpdateOrganizationDto } from './dto/create-organization.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('organizations')
 @Controller('organizations')
@@ -9,9 +15,15 @@ export class OrganizationsController {
   constructor(private readonly svc: OrganizationsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all organizations' })
+  @ApiOperation({ summary: 'List all organizations (incl. parent org + active year)' })
   findAll() {
     return this.svc.findAll();
+  }
+
+  @Get('tree')
+  @ApiOperation({ summary: 'โครงสร้างลำดับชั้น: เขตพื้นที่ → โรงเรียน' })
+  getTree() {
+    return this.svc.getTree();
   }
 
   @Get(':id')
@@ -26,21 +38,42 @@ export class OrganizationsController {
     return this.svc.getContext(id);
   }
 
-  @Get('tree')
-  @ApiOperation({ summary: 'โครงสร้างลำดับชั้นหน่วยงานทั้งหมด (สพฐ. → เขต → โรงเรียน)' })
-  getTree() {
-    return this.svc.getTree();
-  }
-
   @Get(':id/children')
-  @ApiOperation({ summary: 'ดูหน่วยงานย่อย (เช่น โรงเรียนในเขต)' })
+  @ApiOperation({ summary: 'ดูหน่วยงานย่อย (โรงเรียนในเขต)' })
   getChildren(@Param('id', ParseIntPipe) id: number) {
     return this.svc.getChildren(id);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create organization' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create organization (ADMIN only)' })
   create(@Body() dto: CreateOrganizationDto) {
     return this.svc.create(dto);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update organization (ADMIN only)' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrganizationDto,
+  ) {
+    return this.svc.update(id, dto);
+  }
+
+  @Post(':id/active-year')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'กำหนดปีสารบรรณที่ใช้งานอยู่สำหรับหน่วยงาน (ADMIN only)' })
+  setActiveYear(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('academicYearId', ParseIntPipe) academicYearId: number,
+  ) {
+    return this.svc.setActiveYear(id, academicYearId);
   }
 }

@@ -16,11 +16,16 @@ model Organization {
   name                  String   @db.VarChar(255)
   shortName             String?  @map("short_name") @db.VarChar(100)
   orgCode               String?  @map("org_code") @db.VarChar(50)
-  orgType               String   @map("org_type") @db.VarChar(50) @default("school")
+  orgType               String   @map("org_type") @db.VarChar(50) @default("school") // school | area_office | central_office
   address               String?  @db.Text
   province              String?  @db.VarChar(100)
-  district              String?  @db.VarChar(100)
-  parentOrganizationId  BigInt?  @map("parent_organization_id")
+  district              String?  @db.VarChar(100)          // อำเภอ/เขต (geography)
+  areaCode              String?  @map("area_code") @db.VarChar(100)  // เขตพื้นที่การศึกษา เช่น "สพป.เชียงราย เขต 3"
+  phone                 String?  @db.VarChar(20)
+  email                 String?  @db.VarChar(255)
+  website               String?  @db.VarChar(255)
+  parentOrganizationId  BigInt?  @map("parent_organization_id") // สำหรับ school → area_office hierarchy
+  activeAcademicYearId  BigInt?  @map("active_academic_year_id") // ปีสารบรรณที่ใช้งานอยู่
   refLatitude           Float?   @map("ref_latitude")
   refLongitude          Float?   @map("ref_longitude")
   geofenceRadius        Int      @map("geofence_radius") @default(200) // meters
@@ -30,6 +35,7 @@ model Organization {
 
   parentOrganization   Organization?  @relation("OrgHierarchy", fields: [parentOrganizationId], references: [id])
   childOrganizations   Organization[] @relation("OrgHierarchy")
+  activeAcademicYear   AcademicYear?  @relation("OrgActiveYear", fields: [activeAcademicYearId], references: [id])
   profiles             OrganizationProfile[]
   contextScores        OrganizationContextScore[]
   lineUsers            LineUser[]
@@ -710,6 +716,7 @@ model AcademicYear {
   staffAssignments   StaffAssignment[]
   documentRegistries DocumentRegistry[]
   leaveBalances      LeaveBalance[]
+  activeOrganizations Organization[] @relation("OrgActiveYear")
 
   @@map("academic_years")
 }

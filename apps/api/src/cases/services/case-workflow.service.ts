@@ -379,14 +379,27 @@ export class CaseWorkflowService {
   }
 
   private async generateRegistrationNo(organizationId: bigint): Promise<string> {
-    const gregorianYear = new Date().getFullYear();
-    const buddhistYear = gregorianYear + 543; // พ.ศ.
+    // Resolve Buddhist year: org's active academic year → global current → calculated
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      include: { activeAcademicYear: { select: { year: true } } },
+    });
 
-    // Atomic upsert — MariaDB executes this as INSERT ... ON DUPLICATE KEY UPDATE
-    // which is a single atomic statement; no race condition between web and LINE.
+    let buddhistYear: number;
+    if (org?.activeAcademicYear?.year) {
+      buddhistYear = org.activeAcademicYear.year;
+    } else {
+      const globalYear = await this.prisma.academicYear.findFirst({
+        where: { isCurrent: true },
+        select: { year: true },
+      });
+      buddhistYear = globalYear?.year ?? (new Date().getFullYear() + 543);
+    }
+
+    // Atomic upsert keyed by Buddhist year (พ.ศ.) — shared by web and LINE
     const counter = await this.prisma.registrationCounter.upsert({
-      where: { organizationId_year: { organizationId, year: gregorianYear } },
-      create: { organizationId, year: gregorianYear, lastSeq: 1 },
+      where: { organizationId_year: { organizationId, year: buddhistYear } },
+      create: { organizationId, year: buddhistYear, lastSeq: 1 },
       update: { lastSeq: { increment: 1 } },
     });
 

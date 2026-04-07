@@ -94,7 +94,14 @@ export class AuthService {
   async getMe(userId: bigint) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { organization: true },
+      include: {
+        organization: {
+          include: {
+            parentOrganization: { select: { id: true, name: true, areaCode: true, orgType: true } },
+            activeAcademicYear: { select: { id: true, year: true, name: true } },
+          },
+        },
+      },
     });
     if (!user) throw new UnauthorizedException('ผู้ใช้ไม่พบ');
     return this.serializeUser(user);
@@ -226,15 +233,24 @@ export class AuthService {
   }
 
   private serializeUser(user: any) {
+    const org = user.organization;
     return {
       id: Number(user.id),
       email: user.email,
       fullName: user.fullName,
       roleCode: user.roleCode,
-      organizationId: user.organizationId
-        ? Number(user.organizationId)
+      organizationId: user.organizationId ? Number(user.organizationId) : null,
+      organizationName: org?.name ?? null,
+      organizationPhone: org?.phone ?? null,
+      organizationEmail: org?.email ?? null,
+      // เขตพื้นที่การศึกษา: stored in areaCode field or derived from parent org
+      educationArea: org?.areaCode ?? org?.parentOrganization?.areaCode ?? null,
+      educationAreaId: org?.parentOrganizationId ? Number(org.parentOrganizationId) : null,
+      educationAreaName: org?.parentOrganization?.name ?? null,
+      // ปีสารบรรณที่ใช้งาน: org's active year → fallback handled at call site
+      activeAcademicYear: org?.activeAcademicYear
+        ? { id: Number(org.activeAcademicYear.id), year: org.activeAcademicYear.year, name: org.activeAcademicYear.name }
         : null,
-      organizationName: user.organization?.name ?? null,
       positionTitle: user.positionTitle,
       department: user.department,
       responsibilities: user.responsibilities,

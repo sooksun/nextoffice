@@ -7,7 +7,15 @@ export interface AuthUser {
   roleCode: string;
   organizationId: number | null;
   organizationName: string | null;
-  _adminId?: number; // set when this is an impersonation session
+  organizationPhone: string | null;
+  organizationEmail: string | null;
+  // เขตพื้นที่การศึกษา
+  educationArea: string | null;       // areaCode เช่น "สพป.เชียงราย เขต 3"
+  educationAreaId: number | null;
+  educationAreaName: string | null;   // ชื่อเต็มของ org ระดับเขต
+  // ปีสารบรรณที่ใช้งาน
+  activeAcademicYear: { id: number; year: number; name: string } | null;
+  _adminId?: number;
 }
 
 interface LoginResponse {
