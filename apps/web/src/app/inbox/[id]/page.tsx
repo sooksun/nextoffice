@@ -9,6 +9,12 @@ import CompleteButton from "@/components/actions/CompleteButton";
 
 export const dynamic = "force-dynamic";
 
+/** แปลงเลขไทย ๐-๙ เป็นเลขอารบิค 0-9 */
+function thaiToArabic(str: string | null | undefined): string {
+  if (!str) return str ?? "";
+  return str.replace(/[๐-๙]/g, (c) => String(c.charCodeAt(0) - 0x0E50));
+}
+
 const URGENCY_LABEL: Record<string, string> = {
   normal: "ทั่วไป", urgent: "ด่วน", very_urgent: "ด่วนมาก", most_urgent: "ด่วนที่สุด",
 };
@@ -259,7 +265,7 @@ export default async function InboxDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">ที่หนังสือ (เลขที่จากหน่วยส่ง):</span>
-              <p className="font-medium">{documentCode || "—"}</p>
+              <p className="font-medium">{thaiToArabic(documentCode) || "—"}</p>
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">เลขทะเบียนรับ (ลำดับโรงเรียน):</span>
