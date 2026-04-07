@@ -412,6 +412,558 @@ export class LineMessagingService {
     ];
   }
 
+  // ─── V2: Saraban Inbound Carousel ───────────────────
+
+  buildSarabanInboundCarousel(
+    cases: any[],
+    total: number,
+    filter?: string,
+  ): any[] {
+    const filterLabel = filter === 'urgent' ? ' (ด่วน)'
+      : filter === 'pending' ? ' (รอดำเนินการ)'
+      : filter === 'today' ? ' (วันนี้)'
+      : '';
+
+    if (cases.length === 0) {
+      return [
+        this.buildQuickReply(`ไม่พบรายการในทะเบียนรับ${filterLabel}`, [
+          { label: '📋 ทะเบียนรับทั้งหมด', text: 'ทะเบียนรับ' },
+          { label: '📊 ภาพรวม', text: 'ภาพรวม' },
+        ]),
+      ];
+    }
+
+    const bubbles = cases.slice(0, 10).map((c) => {
+      const urgencyColor = c.urgencyLevel === 'most_urgent' ? '#D32F2F'
+        : c.urgencyLevel === 'very_urgent' ? '#E64A19'
+        : c.urgencyLevel === 'urgent' ? '#F9A825'
+        : '#43A047';
+      const urgencyLabel = c.urgencyLevel === 'most_urgent' ? 'ด่วนที่สุด'
+        : c.urgencyLevel === 'very_urgent' ? 'ด่วนมาก'
+        : c.urgencyLevel === 'urgent' ? 'ด่วน'
+        : 'ปกติ';
+      const statusLabel = this.statusToThai(c.status);
+      const caseId = Number(c.id);
+
+      return {
+        type: 'bubble',
+        size: 'kilo',
+        header: {
+          type: 'box',
+          layout: 'horizontal',
+          backgroundColor: urgencyColor,
+          paddingAll: '10px',
+          contents: [
+            { type: 'text', text: c.registrationNo || `#${caseId}`, color: '#FFFFFF', size: 'xs', weight: 'bold', flex: 0 },
+            { type: 'text', text: urgencyLabel, color: '#FFFFFF', size: 'xxs', align: 'end' },
+          ],
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          paddingAll: '12px',
+          contents: [
+            { type: 'text', text: c.title, size: 'sm', weight: 'bold', wrap: true, maxLines: 2 },
+            { type: 'text', text: `ผู้ส่ง: ${c.sourceDocument?.issuingAuthority || '-'}`, size: 'xs', color: '#888888', wrap: true, maxLines: 1 },
+            { type: 'text', text: `สถานะ: ${statusLabel}`, size: 'xs', color: '#888888' },
+            ...(c.assignedTo ? [{ type: 'text', text: `ผู้รับผิดชอบ: ${c.assignedTo.fullName}`, size: 'xs', color: '#888888' } as any] : []),
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'horizontal',
+          spacing: 'sm',
+          paddingAll: '10px',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              height: 'sm',
+              color: '#1565C0',
+              action: { type: 'message', label: 'ดูรายละเอียด', text: `ดูเรื่อง #${caseId}` },
+              flex: 1,
+            },
+            {
+              type: 'button',
+              style: 'secondary',
+              height: 'sm',
+              action: { type: 'message', label: 'ลงรับ', text: `ลงรับ #${caseId}` },
+              flex: 1,
+            },
+          ],
+        },
+      };
+    });
+
+    return [
+      {
+        type: 'flex',
+        altText: `ทะเบียนรับ${filterLabel} (${total} รายการ)`,
+        contents: { type: 'carousel', contents: bubbles },
+      },
+      this.buildQuickReply(`ทะเบียนรับ${filterLabel}: ${total} รายการ`, [
+        { label: '🔴 เฉพาะด่วน', text: 'ทะเบียนรับด่วน' },
+        { label: '⏳ รอดำเนินการ', text: 'ทะเบียนรับรอดำเนินการ' },
+        { label: '📅 วันนี้', text: 'ทะเบียนรับวันนี้' },
+        { label: '📊 ภาพรวม', text: 'ภาพรวม' },
+      ]),
+    ];
+  }
+
+  // ─── V2: Saraban Outbound Carousel ─────────────────
+
+  buildSarabanOutboundCarousel(docs: any[], total: number): any[] {
+    if (docs.length === 0) {
+      return [this.buildTextMessage('ยังไม่มีหนังสือส่งออกในระบบ')];
+    }
+
+    const bubbles = docs.slice(0, 10).map((d) => {
+      const statusColor = d.status === 'sent' ? '#43A047'
+        : d.status === 'approved' ? '#1565C0'
+        : d.status === 'pending_approval' ? '#F9A825'
+        : '#757575';
+      const statusLabel = d.status === 'sent' ? 'ส่งแล้ว'
+        : d.status === 'approved' ? 'อนุมัติแล้ว'
+        : d.status === 'pending_approval' ? 'รออนุมัติ'
+        : d.status === 'draft' ? 'ร่าง'
+        : d.status;
+
+      return {
+        type: 'bubble',
+        size: 'kilo',
+        header: {
+          type: 'box',
+          layout: 'horizontal',
+          backgroundColor: statusColor,
+          paddingAll: '10px',
+          contents: [
+            { type: 'text', text: d.documentNo || `#${Number(d.id)}`, color: '#FFFFFF', size: 'xs', weight: 'bold', flex: 0 },
+            { type: 'text', text: statusLabel, color: '#FFFFFF', size: 'xxs', align: 'end' },
+          ],
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          paddingAll: '12px',
+          contents: [
+            { type: 'text', text: d.subject || '-', size: 'sm', weight: 'bold', wrap: true, maxLines: 2 },
+            { type: 'text', text: `ถึง: ${d.recipientOrg || '-'}`, size: 'xs', color: '#888888', wrap: true, maxLines: 1 },
+            { type: 'text', text: `วันที่: ${d.createdAt ? new Date(d.createdAt).toLocaleDateString('th-TH') : '-'}`, size: 'xs', color: '#888888' },
+          ],
+        },
+      };
+    });
+
+    return [
+      {
+        type: 'flex',
+        altText: `ทะเบียนส่ง (${total} รายการ)`,
+        contents: { type: 'carousel', contents: bubbles },
+      },
+      this.buildQuickReply(`ทะเบียนส่ง: ${total} รายการ`, [
+        { label: '📋 ทะเบียนรับ', text: 'ทะเบียนรับ' },
+        { label: '📊 ภาพรวม', text: 'ภาพรวม' },
+      ]),
+    ];
+  }
+
+  // ─── V2: Case Detail Flex ──────────────────────────
+
+  buildCaseDetailFlex(c: any): any[] {
+    const caseId = Number(c.id);
+    const urgencyLabel = c.urgencyLevel === 'most_urgent' ? 'ด่วนที่สุด'
+      : c.urgencyLevel === 'very_urgent' ? 'ด่วนมาก'
+      : c.urgencyLevel === 'urgent' ? 'ด่วน'
+      : 'ปกติ';
+    const urgencyColor = c.urgencyLevel === 'most_urgent' ? '#D32F2F'
+      : c.urgencyLevel === 'very_urgent' ? '#E64A19'
+      : c.urgencyLevel === 'urgent' ? '#F9A825'
+      : '#1B5E20';
+
+    const assignees = (c.assignments || [])
+      .map((a) => `${a.assignedTo?.fullName || '?'} (${this.assignmentStatusThai(a.status)})`)
+      .join('\n');
+
+    const activities = (c.activities || [])
+      .slice(0, 3)
+      .map((a) => `• ${this.activityToThai(a.action)}${a.user ? ` - ${a.user.fullName}` : ''}`)
+      .join('\n');
+
+    const bodyContents: any[] = [
+      this.flexRow('เลขรับ', c.registrationNo || 'ยังไม่ลงรับ'),
+      this.flexRow('สถานะ', this.statusToThai(c.status)),
+      this.flexRow('ความเร่งด่วน', urgencyLabel),
+      this.flexRow('หน่วยงาน', c.organization?.name || '-'),
+      this.flexRow('ผู้ส่ง', c.sourceDocument?.issuingAuthority || '-'),
+      this.flexRow('เลขที่หนังสือ', c.sourceDocument?.documentCode || '-'),
+      this.flexRow('วันที่รับ', c.receivedAt ? new Date(c.receivedAt).toLocaleDateString('th-TH') : '-'),
+      this.flexRow('กำหนดเสร็จ', c.dueDate ? new Date(c.dueDate).toLocaleDateString('th-TH') : '-'),
+    ];
+
+    if (c.assignedTo) {
+      bodyContents.push(this.flexRow('ผู้รับผิดชอบ', c.assignedTo.fullName));
+    }
+    if (c.directorNote) {
+      bodyContents.push(
+        { type: 'separator', margin: 'md' },
+        { type: 'text', text: 'คำสั่งผู้บริหาร', size: 'xs', color: '#888888', margin: 'md' },
+        { type: 'text', text: c.directorNote.substring(0, 300), size: 'sm', wrap: true, color: '#1565C0' },
+      );
+    }
+    if (assignees) {
+      bodyContents.push(
+        { type: 'separator', margin: 'md' },
+        { type: 'text', text: 'ผู้ได้รับมอบหมาย', size: 'xs', color: '#888888', margin: 'md' },
+        { type: 'text', text: assignees, size: 'xs', wrap: true },
+      );
+    }
+    if (activities) {
+      bodyContents.push(
+        { type: 'separator', margin: 'md' },
+        { type: 'text', text: 'กิจกรรมล่าสุด', size: 'xs', color: '#888888', margin: 'md' },
+        { type: 'text', text: activities, size: 'xs', wrap: true, color: '#666666' },
+      );
+    }
+
+    return [
+      {
+        type: 'flex',
+        altText: `เรื่อง #${caseId}: ${c.title}`,
+        contents: {
+          type: 'bubble',
+          size: 'giga',
+          header: {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: urgencyColor,
+            paddingAll: '16px',
+            contents: [
+              { type: 'text', text: `เรื่อง #${caseId}`, color: '#FFFFFF', size: 'xs', weight: 'bold' },
+              { type: 'text', text: c.title || '-', color: '#FFFFFF', size: 'md', weight: 'bold', wrap: true, maxLines: 3 },
+            ],
+          },
+          body: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'md',
+            paddingAll: '16px',
+            contents: bodyContents,
+          },
+          footer: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            paddingAll: '16px',
+            contents: [
+              {
+                type: 'box',
+                layout: 'horizontal',
+                spacing: 'sm',
+                contents: [
+                  {
+                    type: 'button',
+                    style: 'primary',
+                    height: 'sm',
+                    color: '#1B5E20',
+                    action: { type: 'message', label: 'ลงรับ', text: `ลงรับ #${caseId}` },
+                    flex: 1,
+                  },
+                  {
+                    type: 'button',
+                    style: 'primary',
+                    height: 'sm',
+                    color: '#1565C0',
+                    action: { type: 'message', label: 'มอบหมาย', text: `มอบหมาย #${caseId}` },
+                    flex: 1,
+                  },
+                ],
+              },
+              {
+                type: 'box',
+                layout: 'horizontal',
+                spacing: 'sm',
+                contents: [
+                  {
+                    type: 'button',
+                    style: 'secondary',
+                    height: 'sm',
+                    action: { type: 'message', label: 'สรุป', text: 'สรุปเอกสาร' },
+                    flex: 1,
+                  },
+                  {
+                    type: 'button',
+                    style: 'secondary',
+                    height: 'sm',
+                    action: { type: 'message', label: 'ร่างตอบ', text: 'ร่างตอบ' },
+                    flex: 1,
+                  },
+                  {
+                    type: 'button',
+                    style: 'secondary',
+                    height: 'sm',
+                    action: { type: 'message', label: 'รอพิจารณา', text: `รอพิจารณา #${caseId}` },
+                    flex: 1,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    ];
+  }
+
+  // ─── V2: Dashboard Flex ────────────────────────────
+
+  buildDashboardFlex(data: {
+    userName: string;
+    orgName: string;
+    totalCases: number;
+    todayInbound: number;
+    urgentCount: number;
+    pendingCount: number;
+    overdueCount: number;
+    myTaskCount: number;
+    recentCases: { id: number; title: string; urgency: string; status: string }[];
+  }): any[] {
+    const urgentIcon = data.urgentCount > 0 ? '🔴' : '🟢';
+    const overdueIcon = data.overdueCount > 0 ? '⚠️' : '✅';
+
+    const recentLines = data.recentCases
+      .slice(0, 5)
+      .map((c) => {
+        const icon = c.urgency !== 'normal' ? '🔴' : '📄';
+        return `${icon} ${c.title.substring(0, 35)}`;
+      })
+      .join('\n');
+
+    const summaryText = [
+      `📊 ภาพรวม NextOffice`,
+      `👤 ${data.userName} | ${data.orgName}`,
+      ``,
+      `📥 เอกสารเข้าวันนี้: ${data.todayInbound} ฉบับ`,
+      `📂 เคสทั้งหมด: ${data.totalCases} เรื่อง`,
+      `${urgentIcon} เรื่องด่วน: ${data.urgentCount} เรื่อง`,
+      `⏳ รอดำเนินการ: ${data.pendingCount} เรื่อง`,
+      `${overdueIcon} เกินกำหนด: ${data.overdueCount} เรื่อง`,
+      `📋 งานของฉัน: ${data.myTaskCount} รายการ`,
+      ``,
+      `📋 เรื่องล่าสุด:`,
+      recentLines || '(ไม่มี)',
+    ].join('\n');
+
+    return [
+      this.buildTextMessage(summaryText.substring(0, 5000)),
+      this.buildQuickReply('เลือกดูข้อมูลเพิ่มเติม:', [
+        { label: '📋 ทะเบียนรับ', text: 'ทะเบียนรับ' },
+        { label: '📤 ทะเบียนส่ง', text: 'ทะเบียนส่ง' },
+        { label: '🔴 เรื่องด่วน', text: 'ทะเบียนรับด่วน' },
+        { label: '⏰ งานเกินกำหนด', text: 'งานเกินกำหนด' },
+        { label: '📋 งานของฉัน', text: 'งานของฉัน' },
+        { label: '🔍 ค้นหาเรื่อง', text: 'ค้นหา ' },
+      ]),
+    ];
+  }
+
+  // ─── V2: Search Results Carousel ───────────────────
+
+  buildSearchResultsCarousel(cases: any[], keyword: string): any[] {
+    const bubbles = cases.slice(0, 10).map((c) => {
+      const caseId = Number(c.id);
+      return {
+        type: 'bubble',
+        size: 'kilo',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          paddingAll: '14px',
+          contents: [
+            {
+              type: 'box',
+              layout: 'horizontal',
+              contents: [
+                { type: 'text', text: c.registrationNo || `#${caseId}`, size: 'xs', color: '#888888', flex: 0 },
+                { type: 'text', text: this.statusToThai(c.status), size: 'xs', color: '#1565C0', align: 'end', weight: 'bold' },
+              ],
+            },
+            { type: 'text', text: c.title, size: 'sm', weight: 'bold', wrap: true, maxLines: 2, margin: 'sm' },
+            { type: 'text', text: `ผู้ส่ง: ${c.sourceDocument?.issuingAuthority || '-'}`, size: 'xs', color: '#888888', margin: 'sm' },
+          ],
+          action: { type: 'message', label: 'ดูเรื่อง', text: `ดูเรื่อง #${caseId}` },
+        },
+      };
+    });
+
+    return [
+      {
+        type: 'flex',
+        altText: `ผลการค้นหา "${keyword}" (${cases.length} รายการ)`,
+        contents: { type: 'carousel', contents: bubbles },
+      },
+    ];
+  }
+
+  // ─── V2: Overdue Carousel ──────────────────────────
+
+  buildOverdueCarousel(cases: any[]): any[] {
+    const bubbles = cases.slice(0, 10).map((c) => {
+      const caseId = Number(c.id);
+      const overdueDays = c.dueDate
+        ? Math.ceil((Date.now() - new Date(c.dueDate).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      return {
+        type: 'bubble',
+        size: 'kilo',
+        header: {
+          type: 'box',
+          layout: 'horizontal',
+          backgroundColor: '#D32F2F',
+          paddingAll: '10px',
+          contents: [
+            { type: 'text', text: c.registrationNo || `#${caseId}`, color: '#FFFFFF', size: 'xs', weight: 'bold', flex: 0 },
+            { type: 'text', text: `เกิน ${overdueDays} วัน`, color: '#FFFFFF', size: 'xxs', align: 'end' },
+          ],
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          paddingAll: '12px',
+          contents: [
+            { type: 'text', text: c.title, size: 'sm', weight: 'bold', wrap: true, maxLines: 2 },
+            { type: 'text', text: `ผู้รับผิดชอบ: ${c.assignedTo?.fullName || 'ยังไม่มอบหมาย'}`, size: 'xs', color: '#888888' },
+            { type: 'text', text: `กำหนด: ${c.dueDate ? new Date(c.dueDate).toLocaleDateString('th-TH') : '-'}`, size: 'xs', color: '#D32F2F' },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'horizontal',
+          spacing: 'sm',
+          paddingAll: '10px',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              height: 'sm',
+              color: '#1565C0',
+              action: { type: 'message', label: 'ดูรายละเอียด', text: `ดูเรื่อง #${caseId}` },
+              flex: 1,
+            },
+            {
+              type: 'button',
+              style: 'primary',
+              height: 'sm',
+              color: '#1B5E20',
+              action: { type: 'message', label: 'มอบหมาย', text: `มอบหมาย #${caseId}` },
+              flex: 1,
+            },
+          ],
+        },
+      };
+    });
+
+    return [
+      {
+        type: 'flex',
+        altText: `งานเกินกำหนด (${cases.length} เรื่อง)`,
+        contents: { type: 'carousel', contents: bubbles },
+      },
+      this.buildQuickReply(`⚠️ งานเกินกำหนด ${cases.length} เรื่อง`, [
+        { label: '📋 ทะเบียนรับ', text: 'ทะเบียนรับ' },
+        { label: '📊 ภาพรวม', text: 'ภาพรวม' },
+        { label: '📋 งานของฉัน', text: 'งานของฉัน' },
+      ]),
+    ];
+  }
+
+  // ─── V2: Main Menu ─────────────────────────────────
+
+  buildMainMenu(): any[] {
+    return [
+      {
+        type: 'flex',
+        altText: 'เมนูหลัก NextOffice',
+        contents: {
+          type: 'bubble',
+          size: 'giga',
+          header: {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#1B5E20',
+            paddingAll: '16px',
+            contents: [
+              { type: 'text', text: 'NextOffice', color: '#FFFFFF', size: 'lg', weight: 'bold' },
+              { type: 'text', text: 'ระบบงานสารบรรณอิเล็กทรอนิกส์', color: '#C8E6C9', size: 'xs' },
+            ],
+          },
+          body: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'md',
+            paddingAll: '16px',
+            contents: [
+              { type: 'text', text: '📊 ภาพรวมและรายงาน', size: 'xs', color: '#888888', weight: 'bold' },
+              this.menuButton('📊 ภาพรวมวันนี้', 'ภาพรวม'),
+              this.menuButton('📋 งานของฉัน', 'งานของฉัน'),
+              this.menuButton('⏰ งานเกินกำหนด', 'งานเกินกำหนด'),
+              { type: 'separator', margin: 'md' },
+              { type: 'text', text: '📥 ทะเบียนเอกสาร', size: 'xs', color: '#888888', weight: 'bold', margin: 'md' },
+              this.menuButton('📥 ทะเบียนรับ', 'ทะเบียนรับ'),
+              this.menuButton('📤 ทะเบียนส่ง', 'ทะเบียนส่ง'),
+              this.menuButton('🔴 เรื่องด่วน', 'ทะเบียนรับด่วน'),
+              this.menuButton('📅 เอกสารวันนี้', 'ทะเบียนรับวันนี้'),
+              { type: 'separator', margin: 'md' },
+              { type: 'text', text: '🔍 เครื่องมือ', size: 'xs', color: '#888888', weight: 'bold', margin: 'md' },
+              this.menuButton('🔍 ค้นหาเรื่อง', 'ค้นหา '),
+              this.menuButton('💬 ถาม AI สารบรรณ', 'วิธีการรับหนังสือราชการ?'),
+            ],
+          },
+        },
+      },
+    ];
+  }
+
+  private menuButton(label: string, text: string): any {
+    return {
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      action: { type: 'message', label: label.substring(0, 20), text },
+      margin: 'sm',
+    };
+  }
+
+  private statusToThai(status: string): string {
+    const map: Record<string, string> = {
+      new: 'ใหม่', analyzing: 'วิเคราะห์', proposed: 'เสนอ AI',
+      registered: 'ลงรับแล้ว', assigned: 'มอบหมายแล้ว',
+      in_progress: 'กำลังดำเนินการ', completed: 'เสร็จสิ้น', archived: 'เก็บถาวร',
+    };
+    return map[status] || status;
+  }
+
+  private assignmentStatusThai(status: string): string {
+    const map: Record<string, string> = {
+      pending: 'รอรับทราบ', accepted: 'รับทราบแล้ว',
+      in_progress: 'กำลังดำเนินการ', completed: 'เสร็จสิ้น',
+    };
+    return map[status] || status;
+  }
+
+  private activityToThai(action: string): string {
+    const map: Record<string, string> = {
+      register: 'ลงรับหนังสือ', assign: 'มอบหมายงาน',
+      comment: 'แสดงความเห็น', update_status: 'เปลี่ยนสถานะ',
+      select_option: 'เลือกแนวทาง', complete: 'เสร็จสิ้น',
+      close: 'ปิดเรื่อง', auto_complete: 'เสร็จอัตโนมัติ',
+    };
+    return map[action] || action;
+  }
+
   // ─── V2: Executive Snapshot ───────────────────────
 
   buildExecutiveSnapshotFlex(data: {

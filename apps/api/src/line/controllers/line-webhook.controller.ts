@@ -16,6 +16,7 @@ import { LineUsersService } from '../services/line-users.service';
 import { LinePairingService } from '../services/line-pairing.service';
 import { LineWorkflowService } from '../services/line-workflow.service';
 import { LineMessagingService } from '../services/line-messaging.service';
+import { LineInquiryService } from '../services/line-inquiry.service';
 import { IntentClassifierService } from '../../ai/services/intent-classifier.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 
@@ -31,6 +32,7 @@ export class LineWebhookController {
     private readonly pairingSvc: LinePairingService,
     private readonly workflowSvc: LineWorkflowService,
     private readonly messagingSvc: LineMessagingService,
+    private readonly inquirySvc: LineInquiryService,
     private readonly intentSvc: IntentClassifierService,
     private readonly dispatcher: QueueDispatcherService,
   ) {}
@@ -100,6 +102,18 @@ export class LineWebhookController {
             const holdMatch = text.match(/^รอพิจารณา\s*#(\d+)$/);
             const createCaseMatch = /^สร้างเรื่อง/.test(text);
 
+            // V2: Inquiry commands — saraban, case detail, search, dashboard
+            const sarabanInboundMatch = /^ทะเบียนรับ$/.test(text);
+            const sarabanInboundUrgentMatch = /^ทะเบียนรับด่วน$/.test(text);
+            const sarabanInboundPendingMatch = /^ทะเบียนรับรอดำเนินการ$/.test(text);
+            const sarabanInboundTodayMatch = /^ทะเบียนรับวันนี้$/.test(text);
+            const sarabanOutboundMatch = /^ทะเบียนส่ง$/.test(text);
+            const caseDetailMatch = text.match(/^ดูเรื่อง\s*#(\d+)$/);
+            const searchMatch = text.match(/^ค้นหา\s+(.+)$/);
+            const dashboardMatch = /^(ภาพรวม|แดชบอร์ด|สรุปวันนี้)$/.test(text);
+            const overdueMatch = /^(งานเกินกำหนด|งานค้าง|เกินกำหนด)$/.test(text);
+            const mainMenuMatch = /^(เมนู|menu)$/i.test(text);
+
             if (pairingMatch && uid) {
               await this.pairingSvc.handlePairingMessage(uid, pairingMatch[1], rt);
             } else if (pairingHelpMatch && uid) {
@@ -128,6 +142,27 @@ export class LineWebhookController {
                   { label: 'รายงานผล', text: 'สร้างรายงาน' },
                 ]),
               ]);
+            // V2: Inquiry commands
+            } else if (sarabanInboundMatch && uid && rt) {
+              await this.inquirySvc.handleSarabanInbound(uid, rt);
+            } else if (sarabanInboundUrgentMatch && uid && rt) {
+              await this.inquirySvc.handleSarabanInbound(uid, rt, 'urgent');
+            } else if (sarabanInboundPendingMatch && uid && rt) {
+              await this.inquirySvc.handleSarabanInbound(uid, rt, 'pending');
+            } else if (sarabanInboundTodayMatch && uid && rt) {
+              await this.inquirySvc.handleSarabanInbound(uid, rt, 'today');
+            } else if (sarabanOutboundMatch && uid && rt) {
+              await this.inquirySvc.handleSarabanOutbound(uid, rt);
+            } else if (caseDetailMatch && uid && rt) {
+              await this.inquirySvc.handleCaseDetail(uid, Number(caseDetailMatch[1]), rt);
+            } else if (searchMatch && uid && rt) {
+              await this.inquirySvc.handleSearchCases(uid, searchMatch[1].trim(), rt);
+            } else if (dashboardMatch && uid && rt) {
+              await this.inquirySvc.handleDashboard(uid, rt);
+            } else if (overdueMatch && uid && rt) {
+              await this.inquirySvc.handleOverdue(uid, rt);
+            } else if (mainMenuMatch && rt) {
+              await this.inquirySvc.handleMainMenu(rt);
             } else {
               // V2: Try NLU intent classification before RAG fallback
               let handledByNlu = false;
