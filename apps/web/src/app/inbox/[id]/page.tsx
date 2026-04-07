@@ -111,7 +111,9 @@ export default async function InboxDetailPage({
     getActivities(id),
   ]);
 
-  const intakeFileUrl = caseData?.intake?.id ? buildFileUrl(caseData.intake.id) : null;
+  // แสดงไฟล์เฉพาะเมื่อมี storagePath (ไฟล์ถูก save ลง MinIO สำเร็จ)
+  const hasFile = !!(caseData?.intake?.id && caseData?.intake?.storagePath);
+  const intakeFileUrl = hasFile ? buildFileUrl(caseData!.intake!.id) : null;
   const intakeMimeType = caseData?.intake?.mimeType ?? "";
   const intakeFileName = caseData?.intake?.originalFileName ?? null;
 
