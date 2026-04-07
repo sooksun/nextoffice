@@ -214,10 +214,12 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
 
   const handleOpen = async () => {
     setOpen(true);
-    // Auto-fill คำสั่งผู้บริหารจาก nextActions ที่ AI วิเคราะห์มาจากหนังสือ
     setDirectorNote(nextActions && nextActions.length > 0 ? buildDirectorNoteFromActions(nextActions) : "");
 
-    // 1. ตรวจ sessionStorage — มาจาก AI recommendation ใน upload modal (one-time)
+    // โหลด staff list เสมอ (ไม่ขึ้นกับ pre-selection)
+    loadStaff();
+
+    // ตัดสินใจ pre-selection: sessionStorage (จาก upload modal) → API (assignments เดิม)
     const preAssignStr = typeof window !== "undefined"
       ? sessionStorage.getItem("preAssignUserIds")
       : null;
@@ -227,14 +229,11 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
         const ids = JSON.parse(preAssignStr) as number[];
         setSelected(new Set(ids));
         return;
-      } catch { /* fall through */ }
+      } catch { /* fall through to API */ }
     }
-
-    // 2. โหลด assignments ที่มีอยู่แล้วใน case เพื่อ pre-select
     try {
       const existing = await apiFetch<{ assignedTo: { id: number } }[]>(`/cases/${caseId}/assignments`);
-      const preSelected = new Set((existing ?? []).map((a) => a.assignedTo.id));
-      setSelected(preSelected);
+      setSelected(new Set((existing ?? []).map((a) => a.assignedTo.id)));
     } catch {
       setSelected(new Set());
     }
