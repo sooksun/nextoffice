@@ -463,11 +463,7 @@ ${ragSection}
       selectedOptionId: c.selectedOptionId ? Number(c.selectedOptionId) : null,
     };
     if (c.organization) {
-      result.organization = {
-        ...c.organization,
-        id: Number(c.organization.id),
-        parentOrganizationId: c.organization.parentOrganizationId ? Number(c.organization.parentOrganizationId) : null,
-      };
+      result.organization = this.serializeOrg(c.organization);
     }
     if (c.sourceDocument) {
       result.sourceDocument = {
@@ -489,6 +485,16 @@ ${ragSection}
         topicId: Number(t.topicId),
         topic: t.topic ? { ...t.topic, id: Number(t.topic.id) } : null,
       }));
+    }
+    return result;
+  }
+
+  private serializeOrg(org: any): any {
+    if (!org) return null;
+    const result: any = {};
+    for (const key of Object.keys(org)) {
+      const val = org[key];
+      result[key] = typeof val === 'bigint' ? Number(val) : val;
     }
     return result;
   }

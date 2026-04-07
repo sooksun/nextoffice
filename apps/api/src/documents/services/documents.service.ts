@@ -6,7 +6,8 @@ export class DocumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listDocuments(filters: { sourceType?: string; status?: string; page?: number; limit?: number }) {
-    const { page = 1, limit = 20 } = filters;
+    const page = Number(filters.page) || 1;
+    const limit = Number(filters.limit) || 20;
     const where: any = {};
     if (filters.sourceType) where.sourceType = filters.sourceType;
     if (filters.status) where.status = filters.status;
