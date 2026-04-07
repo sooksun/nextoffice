@@ -1,7 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import axios from 'axios';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 
 @Injectable()
 export class NoteGeneratorService {
@@ -9,7 +8,7 @@ export class NoteGeneratorService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
+    private readonly gemini: GeminiApiService,
   ) {}
 
   async generateFromCase(caseId: number) {
@@ -271,25 +270,9 @@ ${reportsText || 'ไม่มี'}
 
   private async callClaude(prompt: string): Promise<string> {
     try {
-      const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.configService.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 4096,
-          messages: [{ role: 'user', content: prompt }],
-        },
-        {
-          headers: {
-            'x-api-key': this.configService.get('ANTHROPIC_API_KEY'),
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-        },
-      );
-      return response.data?.content?.[0]?.text ?? '';
+      return await this.gemini.generateText({ user: prompt, maxOutputTokens: 4096 });
     } catch (err) {
-      const body = err.response?.data ? JSON.stringify(err.response.data) : '(no body)';
-      this.logger.error(`Claude API error: ${err.message} — ${body}`);
+      this.gemini.logAxiosError('NoteGenerator Gemini error', err);
       throw err;
     }
   }

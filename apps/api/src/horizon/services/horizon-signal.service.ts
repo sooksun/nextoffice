@@ -1,7 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import axios from 'axios';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 
 @Injectable()
 export class HorizonSignalService {
@@ -9,7 +8,7 @@ export class HorizonSignalService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
+    private readonly gemini: GeminiApiService,
   ) {}
 
   async extractSignals(documentId: number) {
@@ -45,23 +44,7 @@ ${truncated}
 ถ้าไม่มีสัญญาณ ให้ตอบ []`;
 
     try {
-      const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.configService.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 2048,
-          messages: [{ role: 'user', content: prompt }],
-        },
-        {
-          headers: {
-            'x-api-key': this.configService.get('ANTHROPIC_API_KEY'),
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-        },
-      );
-
-      const rawContent = response.data.content?.[0]?.text || '[]';
+      const rawContent = await this.gemini.generateText({ user: prompt, maxOutputTokens: 2048 }) || '[]';
       const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
       const signals = JSON.parse(jsonMatch?.[0] || '[]');
 
