@@ -137,8 +137,8 @@ export class CasesController {
 
   @Post(':id/register')
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'CLERK', 'DIRECTOR', 'VICE_DIRECTOR')
-  @ApiOperation({ summary: 'ลงทะเบียนรับหนังสือ (ได้เลขรับอัตโนมัติ)' })
+  @Roles('CLERK', 'DIRECTOR', 'VICE_DIRECTOR')
+  @ApiOperation({ summary: 'ลงทะเบียนรับหนังสือ (ได้เลขรับอัตโนมัติ) — ADMIN ไม่สามารถลงรับได้' })
   register(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
     return this.workflow.register(id, Number(user.id));
   }

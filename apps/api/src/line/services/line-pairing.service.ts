@@ -86,7 +86,12 @@ export class LinePairingService {
       return true;
     }
 
-    // Session exists — expect email input
+    // ─── Step: awaiting_org ───────────────────────────────────────────────
+    if (session.currentStep === 'awaiting_org') {
+      return this.handleOrgSelection(lineUser, session, text.trim(), replyToken);
+    }
+
+    // ─── Step: awaiting_email ─────────────────────────────────────────────
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailPattern.test(text.trim())) {
       await this.messaging.reply(replyToken, [
@@ -138,30 +143,121 @@ export class LinePairingService {
       return true;
     }
 
-    // Link: set User.lineUserRef → LineUser.id
+    // If user has no org → ask them to select one
+    if (!user.organizationId) {
+      const orgs = await this.prisma.organization.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+
+      if (orgs.length === 0) {
+        await this.messaging.reply(replyToken, [
+          { type: 'text', text: 'ไม่พบข้อมูลหน่วยงานในระบบ กรุณาติดต่อ Admin' },
+        ]);
+        return true;
+      }
+
+      // Store userId + org list in session context, advance step
+      await this.prisma.lineConversationSession.update({
+        where: { id: session.id },
+        data: {
+          currentStep: 'awaiting_org',
+          contextJson: JSON.stringify({ userId: Number(user.id), orgs: orgs.map(o => ({ id: Number(o.id), name: o.name })) }),
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        },
+      });
+
+      const quickReplies = orgs.map((o, i) => ({
+        type: 'action',
+        action: { type: 'message', label: o.name.substring(0, 20), text: `org:${Number(o.id)}` },
+      }));
+
+      await this.messaging.reply(replyToken, [
+        {
+          type: 'text',
+          text: `พบบัญชี: ${user.fullName}\nกรุณาเลือกหน่วยงานที่สังกัด`,
+          quickReply: { items: quickReplies },
+        } as any,
+      ]);
+      return true;
+    }
+
+    // User has org — complete pairing immediately
+    await this.completePairing(lineUser, session, user, user.organizationId, replyToken);
+    return true;
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  private async handleOrgSelection(
+    lineUser: any,
+    session: any,
+    text: string,
+    replyToken: string,
+  ): Promise<boolean> {
+    // Expect text like "org:2"
+    const match = text.match(/^org:(\d+)$/);
+    if (!match) {
+      await this.messaging.reply(replyToken, [
+        { type: 'text', text: 'กรุณาเลือกหน่วยงานจากปุ่มด้านบน' },
+      ]);
+      return true;
+    }
+
+    const orgId = BigInt(match[1]);
+    const ctx = session.contextJson ? JSON.parse(session.contextJson) : null;
+    if (!ctx?.userId) {
+      await this.messaging.reply(replyToken, [
+        { type: 'text', text: 'Session หมดอายุ กรุณาเริ่มผูกบัญชีใหม่' },
+      ]);
+      await this.prisma.lineConversationSession.update({ where: { id: session.id }, data: { status: 'expired' } });
+      return true;
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: BigInt(ctx.userId) } });
+    if (!user) {
+      await this.messaging.reply(replyToken, [{ type: 'text', text: 'ไม่พบข้อมูลผู้ใช้ กรุณาลองใหม่' }]);
+      return true;
+    }
+
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) {
+      await this.messaging.reply(replyToken, [{ type: 'text', text: 'ไม่พบหน่วยงานนี้ กรุณาเลือกใหม่' }]);
+      return true;
+    }
+
+    // Assign org to user and complete pairing
+    await this.prisma.user.update({ where: { id: user.id }, data: { organizationId: orgId } });
+    await this.completePairing(lineUser, session, { ...user, organizationId: orgId }, orgId, replyToken);
+    return true;
+  }
+
+  private async completePairing(
+    lineUser: any,
+    session: any,
+    user: any,
+    organizationId: bigint,
+    replyToken: string,
+  ): Promise<void> {
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lineUserRef: lineUser.id },
     });
 
-    // Copy org info to LineUser if available
-    if (user.organizationId) {
-      await this.prisma.lineUser.update({
-        where: { id: lineUser.id },
-        data: {
-          organizationId: user.organizationId,
-          roleCode: user.roleCode,
-        },
-      });
-    }
+    await this.prisma.lineUser.update({
+      where: { id: lineUser.id },
+      data: { organizationId, roleCode: user.roleCode },
+    });
 
-    // Close pairing session
     await this.prisma.lineConversationSession.update({
       where: { id: session.id },
       data: { status: 'completed' },
     });
 
-    this.logger.log(`Auto-paired LINE ${lineUserId} → User #${user.id} (${user.email})`);
+    const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } });
+
+    this.logger.log(`Auto-paired LINE ${lineUser.lineUserId} → User #${user.id} (${user.email}) org #${organizationId}`);
 
     await this.messaging.reply(replyToken, [
       {
@@ -170,11 +266,11 @@ export class LinePairingService {
           `ผูกบัญชีสำเร็จ!\n\n` +
           `สวัสดีครับ คุณ${user.fullName}\n` +
           `ตำแหน่ง: ${user.positionTitle || user.roleCode}\n` +
+          `หน่วยงาน: ${org?.name || '-'}\n` +
           `บัญชี LINE ของคุณเชื่อมกับระบบ NextOffice แล้ว\n\n` +
           `คุณสามารถส่งรูปหนังสือราชการเข้ามาได้เลยครับ`,
       },
     ]);
-    return true;
   }
 
   async handlePairingMessage(

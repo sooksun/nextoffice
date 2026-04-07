@@ -20,6 +20,13 @@ export class LineWorkflowService {
       return;
     }
 
+    if (user.roleCode === 'ADMIN') {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage('บัญชีนี้เป็น Admin ของระบบ ไม่สามารถลงรับหนังสือได้\nกรุณาใช้บัญชีผู้ใช้งานปกติ (เจ้าหน้าที่/ผู้อำนวยการ)'),
+      ]);
+      return;
+    }
+
     try {
       const result = await this.workflow.register(caseId, Number(user.id));
       await this.messaging.reply(replyToken, [
