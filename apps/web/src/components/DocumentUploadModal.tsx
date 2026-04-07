@@ -279,20 +279,12 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     setSelectedAssigneeIds(allSelected ? [] : allIds);
   };
 
-  const handleSaveAndGo = async () => {
+  const handleSaveAndGo = () => {
     if (!result?.documentIntakeId) return;
-    const caseId = resolvedCaseId ?? result.caseId;
-    if (caseId && selectedAssigneeIds.length > 0) {
-      try {
-        await apiFetch(`/cases/${caseId}/assign`, {
-          method: "POST",
-          body: JSON.stringify({
-            assignments: selectedAssigneeIds.map((userId) => ({ userId })),
-          }),
-        });
-      } catch {
-        // non-blocking — ยังคงไปหน้า register ได้ แก้ไขภายหลังได้
-      }
+    // เก็บ pre-selection ไว้ใน sessionStorage — assign modal จะอ่านเมื่อเปิดครั้งแรก
+    // (case ยังมีสถานะ proposed ณ จุดนี้ ยังเรียก assign API ไม่ได้)
+    if (selectedAssigneeIds.length > 0) {
+      sessionStorage.setItem("preAssignUserIds", JSON.stringify(selectedAssigneeIds));
     }
     handleClose();
     router.push(`/inbox/new?intakeId=${result.documentIntakeId}`);
