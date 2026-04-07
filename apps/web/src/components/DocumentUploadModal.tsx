@@ -90,15 +90,39 @@ interface StructuredSummaryData {
   summarizedBy: string;
 }
 
+/** แปลงวันที่ ISO (ค.ศ.) เป็นข้อความภาษาไทย พ.ศ. เช่น "30 มีนาคม 2569" */
+function formatThaiDate(isoDate: string, time?: string | null): string {
+  const THAI_MONTHS = [
+    "มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน",
+    "กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม",
+  ];
+  try {
+    const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return isoDate;
+    const day = d.getUTCDate();
+    const month = THAI_MONTHS[d.getUTCMonth()];
+    const year = d.getUTCFullYear() + 543;
+    const dateStr = `${day} ${month} ${year}`;
+    if (time) return `${dateStr} เวลา ${time} น.`;
+    return dateStr;
+  } catch {
+    return isoDate;
+  }
+}
+
 /** แสดงสรุป AI เป็นความเรียง — ข้ามส่วนที่ว่าง */
 function AiSummaryParagraph({
   structured,
   fallbackSummary,
   fallbackIntent,
+  meetingDate,
+  meetingTime,
 }: {
   structured: StructuredSummaryData | null;
   fallbackSummary: string;
   fallbackIntent?: string;
+  meetingDate?: string | null;
+  meetingTime?: string | null;
 }) {
   if (!structured) {
     return (
@@ -111,12 +135,17 @@ function AiSummaryParagraph({
     );
   }
 
+  // หาวันที่สำคัญ: ใช้ deadline จาก structured ก่อน (AI แปลงเป็นภาษาไทยแล้ว)
+  // ถ้าไม่มี fallback ไปใช้ meetingDate (ISO) แปลงเป็นไทย
+  const dateLabel = structured.deadline
+    || (meetingDate ? formatThaiDate(meetingDate, meetingTime) : null);
+
   // สร้างประโยคความเรียงจาก field ที่มีค่าเท่านั้น
   const parts: string[] = [];
   if (structured.sender) parts.push(structured.sender);
   if (structured.request) parts.push(structured.request);
   if (structured.location) parts.push(`ณ ${structured.location}`);
-  if (structured.deadline) parts.push(`ภายในวันที่ ${structured.deadline}`);
+  if (dateLabel) parts.push(`ในวันที่ ${dateLabel}`);
 
   const paragraph = parts.join(" ");
 
@@ -241,7 +270,7 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={handleClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div
         className="bg-surface-lowest rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -410,6 +439,8 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
                   structured={result.metadata.structuredSummary ?? null}
                   fallbackSummary={result.metadata.summary}
                   fallbackIntent={result.metadata.intent}
+                  meetingDate={result.metadata.meetingDate ?? null}
+                  meetingTime={result.metadata.meetingTime ?? null}
                 />
               </div>
 
