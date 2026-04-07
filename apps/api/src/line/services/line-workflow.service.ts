@@ -29,13 +29,32 @@ export class LineWorkflowService {
 
     try {
       const result = await this.workflow.register(caseId, Number(user.id));
+
+      // ดึง "ที่หนังสือ" จาก DocumentAiResult ผ่าน intake link ใน description
+      let documentNo: string | null = null;
+      let issuingAuthority: string | null = null;
+      const intakeMatch = result.description?.match(/intake:(\d+)/);
+      if (intakeMatch) {
+        const aiResult = await this.prisma.documentAiResult.findUnique({
+          where: { documentIntakeId: BigInt(intakeMatch[1]) },
+          select: { documentNo: true, issuingAuthority: true },
+        });
+        documentNo = aiResult?.documentNo || null;
+        issuingAuthority = aiResult?.issuingAuthority || null;
+      }
+
+      const lines = [
+        `ลงรับหนังสือสำเร็จ ✓`,
+        ``,
+        `เลขรับ: ${result.registrationNo}`,
+      ];
+      if (documentNo) lines.push(`ที่: ${documentNo}`);
+      if (issuingAuthority) lines.push(`จาก: ${issuingAuthority}`);
+      lines.push(`เรื่อง: ${result.title}`);
+      lines.push(`โดย: ${user.fullName}`);
+
       await this.messaging.reply(replyToken, [
-        this.messaging.buildTextMessage(
-          `ลงรับหนังสือสำเร็จ\n\n` +
-          `เลขรับ: ${result.registrationNo}\n` +
-          `เรื่อง: ${result.title}\n` +
-          `โดย: ${user.fullName}`,
-        ),
+        this.messaging.buildTextMessage(lines.join('\n')),
       ]);
     } catch (err) {
       await this.messaging.reply(replyToken, [
