@@ -18,10 +18,28 @@ export class KnowledgeController {
     return this.service.findAll(type);
   }
 
+  @Get('stats')
+  @ApiOperation({ summary: 'สถิติฐานข้อมูลความรู้ สพฐ.' })
+  getStats() {
+    return this.service.getStats();
+  }
+
   @Post()
   @ApiOperation({ summary: 'เพิ่มข้อมูลความรู้ใหม่' })
   create(@Body() dto: CreateKnowledgeDto) {
     return this.service.create(dto);
+  }
+
+  @Post('seed-obec')
+  @ApiOperation({ summary: 'Seed ข้อมูลนโยบาย สพฐ. เริ่มต้น (8 นโยบายหลัก)' })
+  seedObec() {
+    return this.service.seedObec();
+  }
+
+  @Post('seed-horizon-sources')
+  @ApiOperation({ summary: 'Seed แหล่งข้อมูล Horizon สพฐ./ศธ. (5 แหล่ง)' })
+  seedHorizonSources() {
+    return this.service.seedHorizonSources();
   }
 
   @Delete(':type/:id')
