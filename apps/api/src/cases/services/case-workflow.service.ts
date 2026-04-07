@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleCalendarService } from '../../calendar/services/google-calendar.service';
 import { NotificationService } from '../../notifications/notification.service';
@@ -22,10 +23,42 @@ export class CaseWorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calendar: GoogleCalendarService,
+    private readonly config: ConfigService,
     @Optional() private readonly notifications: NotificationService,
     @Optional() private readonly dispatcher: QueueDispatcherService,
     @Optional() private readonly workflowLearning: WorkflowLearningService,
   ) {}
+
+  /** Parse intake ID จาก description field (format: "intake:{id}") */
+  private parseIntakeId(description: string | null): number | null {
+    if (!description) return null;
+    const m = description.match(/intake:(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  /** สร้าง description พร้อม link สำหรับ Google Calendar event */
+  private buildCalendarDescription(params: {
+    caseId: number;
+    description?: string | null;
+    directorNote?: string | null;
+    registrationNo?: string | null;
+    note?: string | null;
+    intakeId?: number | null;
+  }): string {
+    const base = this.config.get('PUBLIC_URL', 'https://nextoffice.cnppai.com');
+    const caseUrl = `${base}/inbox/${params.caseId}`;
+    const fileUrl = params.intakeId ? `${base}/api/files/intake/${params.intakeId}` : null;
+
+    const lines: string[] = [];
+    if (params.registrationNo) lines.push(`เลขทะเบียนรับ: ${params.registrationNo}`);
+    if (params.directorNote) lines.push(`คำสั่งผู้บริหาร: ${params.directorNote}`);
+    if (params.note) lines.push(`หมายเหตุ: ${params.note}`);
+    lines.push('');
+    lines.push(`🔗 ดูรายละเอียดหนังสือ: ${caseUrl}`);
+    if (fileUrl) lines.push(`📎 เอกสารไฟล์ต้นฉบับ: ${fileUrl}`);
+
+    return lines.join('\n');
+  }
 
   async register(caseId: number, userId: number): Promise<any> {
     const c = await this.findCaseOrThrow(caseId);
@@ -113,9 +146,16 @@ export class CaseWorkflowService {
           });
           const userEmail = user?.googleEmail || user?.email;
           if (userEmail) {
+            const intakeId = this.parseIntakeId(c.description);
             const reminderId = await this.calendar.createAssignmentReminderEvent({
               summary: `งาน: ${c.title}`,
-              description: `คำสั่ง: ${directorNote || '-'}\nเลขที่: ${c.registrationNo || '-'}${a.note ? `\nหมายเหตุ: ${a.note}` : ''}`,
+              description: this.buildCalendarDescription({
+                caseId,
+                registrationNo: c.registrationNo,
+                directorNote,
+                note: a.note,
+                intakeId,
+              }),
               dueDate: assignmentDue,
               attendeeEmail: userEmail,
               assignmentId: Number(assignment.id),
@@ -170,9 +210,15 @@ export class CaseWorkflowService {
           .map((u) => u.googleEmail || u.email)
           .filter(Boolean);
 
+        const intakeId = this.parseIntakeId(c.description);
         const eventId = await this.calendar.createDeadlineEvent({
           summary: `[${c.registrationNo || 'ไม่มีเลขรับ'}] ${c.title}`,
-          description: `${c.description || ''}\n\nคำสั่ง: ${directorNote || '-'}`,
+          description: this.buildCalendarDescription({
+            caseId,
+            registrationNo: c.registrationNo,
+            directorNote,
+            intakeId,
+          }),
           dueDate: c.dueDate,
           attendeeEmails: emails,
           caseId,
