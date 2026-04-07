@@ -236,11 +236,14 @@ export class SmartRoutingService {
     // ดึง extractedText จาก DocumentAiResult ถ้ามี เพื่อใช้ name matching
     let extractedText = c.description ?? '';
     try {
-      const aiResult = await this.prisma.documentAiResult.findFirst({
-        where: { documentIntake: { inboundCases: { some: { id: BigInt(caseId) } } } } as any,
-        select: { extractedText: true },
-      });
-      if (aiResult?.extractedText) extractedText += ' ' + aiResult.extractedText;
+      const intakeMatch = c.description?.match(/intake:(\d+)/);
+      if (intakeMatch) {
+        const aiResult = await this.prisma.documentAiResult.findUnique({
+          where: { documentIntakeId: BigInt(intakeMatch[1]) },
+          select: { extractedText: true },
+        });
+        if (aiResult?.extractedText) extractedText += ' ' + aiResult.extractedText;
+      }
     } catch { /* ถ้า query ซับซ้อนเกินไป ใช้แค่ description */ }
 
     const suggestion = await this.suggest(Number(c.organizationId), c.title, extractedText);

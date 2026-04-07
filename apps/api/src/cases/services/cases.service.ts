@@ -231,7 +231,38 @@ export class CasesService {
       }),
       this.prisma.inboundCase.count({ where }),
     ]);
-    return { total, data: cases.map((c) => this.serialize(c)) };
+
+    // Batch-fetch documentNo from DocumentAiResult for LINE-processed cases (intake:{id} pattern)
+    const intakePairs: { caseId: number; intakeId: bigint }[] = [];
+    for (const c of cases) {
+      const m = c.description?.match(/intake:(\d+)/);
+      if (m) intakePairs.push({ caseId: Number(c.id), intakeId: BigInt(m[1]) });
+    }
+    const documentNoMap: Record<number, string> = {};
+    if (intakePairs.length > 0) {
+      const aiResults = await this.prisma.documentAiResult.findMany({
+        where: { documentIntakeId: { in: intakePairs.map((p) => p.intakeId) } },
+        select: { documentIntakeId: true, documentNo: true },
+      });
+      const byIntakeId: Record<string, string> = {};
+      for (const ar of aiResults) {
+        if (ar.documentNo) byIntakeId[Number(ar.documentIntakeId)] = ar.documentNo;
+      }
+      for (const pair of intakePairs) {
+        if (byIntakeId[Number(pair.intakeId)]) {
+          documentNoMap[pair.caseId] = byIntakeId[Number(pair.intakeId)];
+        }
+      }
+    }
+
+    return {
+      total,
+      data: cases.map((c) => {
+        const s = this.serialize(c);
+        if (documentNoMap[s.id]) s.documentNo = documentNoMap[s.id];
+        return s;
+      }),
+    };
   }
 
   async getMyTasks(userId: number) {

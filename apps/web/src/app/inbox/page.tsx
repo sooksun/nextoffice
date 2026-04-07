@@ -34,6 +34,7 @@ interface InboxCase {
   id: number;
   title: string;
   registrationNo: string | null;
+  documentNo: string | null;
   status: string;
   urgencyLevel: string;
   receivedAt: string;
@@ -139,8 +140,8 @@ export default async function InboxPage({
                     {c.title}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
-                  {c.sourceDocument?.documentCode || "—"}
+                <td className="px-4 py-3 text-xs whitespace-nowrap font-mono text-on-surface-variant">
+                  {c.documentNo || c.sourceDocument?.documentCode || "—"}
                 </td>
                 <td className="px-4 py-3 text-xs whitespace-nowrap">
                   {c.registrationNo
