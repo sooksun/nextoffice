@@ -380,7 +380,8 @@ export class CaseWorkflowService {
 
   private async generateRegistrationNo(organizationId: bigint): Promise<string> {
     const year = new Date().getFullYear() + 543; // พ.ศ.
-    const count = await this.prisma.inboundCase.count({
+    const yearSuffix = `/${year}`;
+    const cases = await this.prisma.inboundCase.findMany({
       where: {
         organizationId,
         registrationNo: { not: null },
@@ -388,9 +389,16 @@ export class CaseWorkflowService {
           gte: new Date(`${new Date().getFullYear()}-01-01`),
         },
       },
+      select: { registrationNo: true },
     });
-    const seq = String(count + 1).padStart(3, '0');
-    return `${seq}/${year}`;
+    let maxSeq = 0;
+    for (const c of cases) {
+      if (c.registrationNo && c.registrationNo.endsWith(yearSuffix)) {
+        const seq = parseInt(c.registrationNo.split('/')[0], 10);
+        if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+      }
+    }
+    return `${String(maxSeq + 1).padStart(3, '0')}/${year}`;
   }
 
   private async logActivity(caseId: number, userId: number | undefined, action: string, detail: any) {
