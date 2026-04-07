@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { Search, Bell, Grid3x3, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getUser, getToken, logout } from "@/lib/auth";
+import { getUser, getToken, logout, isImpersonating } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import ImpersonateMenu from "./ImpersonateMenu";
 
 const NAV_TABS = [
   { label: "ภาพรวม", href: "/" },
@@ -18,6 +19,11 @@ export default function Header() {
   const router = useRouter();
   const user = getUser();
   const [pendingCount, setPendingCount] = useState(0);
+  const [impersonating, setImpersonating] = useState(false);
+
+  useEffect(() => {
+    setImpersonating(isImpersonating());
+  }, []);
 
   useEffect(() => {
     if (!getToken()) return;
@@ -71,6 +77,7 @@ export default function Header() {
 
       {/* Right: Actions + User */}
       <div className="flex items-center gap-2">
+        {user?.roleCode === "ADMIN" && !impersonating && <ImpersonateMenu />}
         <Link
           href="/notifications"
           className="p-2 text-on-surface-variant hover:bg-surface-high rounded-full transition-colors relative"

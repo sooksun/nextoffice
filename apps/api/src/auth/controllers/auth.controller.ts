@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Delete,
   Get,
   Body,
   Param,
@@ -9,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
@@ -71,5 +73,38 @@ export class AuthController {
   @ApiOperation({ summary: 'สร้างรหัสผูกบัญชี LINE (6 หลัก, หมดอายุ 24 ชม.)' })
   async generatePairingCode(@Param('userId', ParseIntPipe) userId: number) {
     return this.pairingService.generateCode(userId);
+  }
+
+  // ─── Impersonation (Admin only) ───────────────────────────────────────────
+
+  @Get('users/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'รายชื่อผู้ใช้ทั้งหมด (Admin เท่านั้น — ใช้สำหรับ impersonation)' })
+  async listAllUsers() {
+    return this.authService.listAllUsers();
+  }
+
+  @Post('impersonate/:userId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin ทดสอบในฐานะผู้ใช้อื่น — คืน token ใหม่' })
+  async impersonate(
+    @Param('userId', ParseIntPipe) userId: number,
+    @CurrentUser() user: any,
+  ) {
+    return this.authService.impersonate(user.id, userId);
+  }
+
+  @Delete('impersonate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'หยุดการทดสอบ — คืน Admin token เดิม' })
+  async stopImpersonate(@CurrentUser() user: any) {
+    const adminId = (user as any)._adminId;
+    if (!adminId) throw new BadRequestException('ไม่ได้อยู่ในโหมดทดสอบ');
+    return this.authService.stopImpersonate(adminId);
   }
 }

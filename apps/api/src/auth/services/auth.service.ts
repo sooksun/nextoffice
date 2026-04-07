@@ -2,6 +2,9 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -114,17 +117,60 @@ export class AuthService {
     }));
   }
 
+  // ─── Impersonation ──────────────────────────────────────────────────────────
+
+  async impersonate(adminId: bigint, targetUserId: number) {
+    const target = await this.prisma.user.findUnique({
+      where: { id: BigInt(targetUserId), isActive: true },
+      include: { organization: true },
+    });
+    if (!target) throw new NotFoundException('ไม่พบผู้ใช้ที่ต้องการทดสอบ');
+    if (target.roleCode === 'ADMIN') throw new BadRequestException('ไม่สามารถทดสอบในฐานะ Admin ได้');
+
+    const token = this.signToken(target, Number(adminId));
+    return { token, user: { ...this.serializeUser(target), _adminId: Number(adminId) } };
+  }
+
+  async stopImpersonate(adminId: number) {
+    const admin = await this.prisma.user.findUnique({
+      where: { id: BigInt(adminId) },
+      include: { organization: true },
+    });
+    if (!admin || !admin.isActive) throw new UnauthorizedException('ไม่พบบัญชี Admin');
+    if (admin.roleCode !== 'ADMIN') throw new ForbiddenException();
+    const token = this.signToken(admin);
+    return { token, user: this.serializeUser(admin) };
+  }
+
+  async listAllUsers() {
+    const users = await this.prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, fullName: true, roleCode: true, department: true, positionTitle: true, organizationId: true },
+      orderBy: [{ organizationId: 'asc' }, { fullName: 'asc' }],
+    });
+    return users.map((u) => ({
+      id: Number(u.id),
+      fullName: u.fullName,
+      roleCode: u.roleCode,
+      department: u.department,
+      positionTitle: u.positionTitle,
+      organizationId: u.organizationId ? Number(u.organizationId) : null,
+    }));
+  }
+
   // ─── Token validation (used by guard) ───────────────────────────────────────
 
   async validateToken(token: string) {
     try {
       const secret = this.config.get<string>('JWT_SECRET', 'nextoffice-dev-secret');
-      const payload = jwt.verify(token, secret) as { sub: string; role: string };
+      const payload = jwt.verify(token, secret) as { sub: string; role: string; _adminId?: string };
       const user = await this.prisma.user.findUnique({
         where: { id: BigInt(payload.sub) },
         include: { organization: true },
       });
       if (!user || !user.isActive) return null;
+      // Attach impersonation metadata so controllers can read it
+      if (payload._adminId) (user as any)._adminId = Number(payload._adminId);
       return user;
     } catch {
       return null;
@@ -133,14 +179,12 @@ export class AuthService {
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
-  private signToken(user: any): string {
+  private signToken(user: any, adminId?: number): string {
     const secret = this.config.get<string>('JWT_SECRET', 'nextoffice-dev-secret');
     const expiresIn = this.config.get<string>('JWT_EXPIRES_IN', '7d');
-    return jwt.sign(
-      { sub: user.id.toString(), role: user.roleCode },
-      secret,
-      { expiresIn: expiresIn as any },
-    );
+    const payload: any = { sub: user.id.toString(), role: user.roleCode };
+    if (adminId) payload._adminId = adminId.toString();
+    return jwt.sign(payload, secret, { expiresIn: expiresIn as any });
   }
 
   private async hashPassword(password: string): Promise<string> {

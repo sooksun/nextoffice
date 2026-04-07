@@ -7,6 +7,7 @@ export interface AuthUser {
   roleCode: string;
   organizationId: number | null;
   organizationName: string | null;
+  _adminId?: number; // set when this is an impersonation session
 }
 
 interface LoginResponse {
@@ -58,4 +59,50 @@ export function getUser(): AuthUser | null {
 
 export function isLoggedIn(): boolean {
   return !!getToken();
+}
+
+// ─── Impersonation ────────────────────────────────────────────────────────────
+
+export function isImpersonating(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!localStorage.getItem("adminToken");
+}
+
+export function getAdminUser(): AuthUser | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem("adminUser");
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export async function impersonate(targetUserId: number): Promise<void> {
+  const data = await apiFetch<{ token: string; user: AuthUser }>(
+    `/auth/impersonate/${targetUserId}`,
+    { method: "POST" },
+  );
+  // Preserve current admin session
+  const currentToken = getToken();
+  const currentUser = getUser();
+  localStorage.setItem("adminToken", currentToken!);
+  localStorage.setItem("adminUser", JSON.stringify(currentUser));
+  // Activate impersonation token
+  const maxAge = 7 * 24 * 3600;
+  localStorage.setItem("token", data.token.trim());
+  localStorage.setItem("user", JSON.stringify(data.user));
+  document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  window.location.assign("/");
+}
+
+export function stopImpersonate(): void {
+  const adminToken = localStorage.getItem("adminToken");
+  const adminUser = localStorage.getItem("adminUser");
+  if (adminToken) {
+    const maxAge = 7 * 24 * 3600;
+    localStorage.setItem("token", adminToken);
+    if (adminUser) localStorage.setItem("user", adminUser);
+    document.cookie = `token=${adminToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  }
+  localStorage.removeItem("adminToken");
+  localStorage.removeItem("adminUser");
+  window.location.assign("/");
 }
