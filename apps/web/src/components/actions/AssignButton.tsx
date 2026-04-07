@@ -10,6 +10,7 @@ interface Props {
   caseId: number;
   status: string;
   caseDueDate?: string | null;
+  nextActions?: string[];
 }
 
 interface StaffMember {
@@ -172,7 +173,14 @@ function ThaiDateTimePicker({
 
 // ---- Main component ----
 
-export default function AssignButton({ caseId, status, caseDueDate }: Props) {
+/** แปลง nextActions array → string คำสั่งผู้บริหาร */
+function buildDirectorNoteFromActions(actions: string[]): string {
+  if (!actions || actions.length === 0) return "";
+  if (actions.length === 1) return actions[0];
+  return actions.map((a, i) => `${i + 1}. ${a}`).join("\n");
+}
+
+export default function AssignButton({ caseId, status, caseDueDate, nextActions }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -207,7 +215,8 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
   const handleOpen = () => {
     setOpen(true);
     setSelected(new Set());
-    setDirectorNote("");
+    // Auto-fill คำสั่งผู้บริหารจาก nextActions ที่ AI วิเคราะห์มาจากหนังสือ
+    setDirectorNote(nextActions && nextActions.length > 0 ? buildDirectorNoteFromActions(nextActions) : "");
     setDueDateMode(caseDueDate ? "from_doc" : "none");
     setCustomThaiDate(isoToThaiDate(caseDueDate ?? undefined));
     setAiRecommendation(null);
@@ -481,8 +490,13 @@ export default function AssignButton({ caseId, status, caseDueDate }: Props) {
 
               {/* Director note */}
               <div>
-                <label className="text-sm font-semibold text-on-surface-variant mb-2 block">
+                <label className="text-sm font-semibold text-on-surface-variant mb-2 flex items-center gap-2">
                   คำสั่งผู้บริหาร
+                  {nextActions && nextActions.length > 0 && (
+                    <span className="text-[10px] font-normal bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                      จากการวิเคราะห์หนังสือ
+                    </span>
+                  )}
                 </label>
                 <textarea
                   value={directorNote}
