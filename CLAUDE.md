@@ -35,13 +35,14 @@ There is no test runner configured. No `npm test` exists.
 
 ## Infrastructure Requirements
 
-The API depends on four local services:
+The API depends on five local services:
 - **MariaDB** on `3306`, database `nextoffice_db` — provided by Laragon locally (not in docker-compose)
 - **Redis** on `6379` (Bull queues)
 - **MinIO** on `9000` (file storage, bucket `nextoffice`; console at `9001`)
 - **Qdrant** on `6333` (vector DB — used by RAG services)
+- **Face Recognition** on `8500` — Python FastAPI service (`services/face-recognition/`), runs via Docker
 
-`docker compose up -d` starts Redis, MinIO, and Qdrant. MariaDB is expected from Laragon. For production, docker-compose also builds and runs the API (port 9911) and Web (port 9910) containers.
+`docker compose up -d` starts Redis, MinIO, Qdrant, and Face Recognition. MariaDB is expected from Laragon. For production, docker-compose also builds and runs the API (port 9911→internal 3000) and Web (port 9910→internal 3001) containers.
 
 Environment variables live in `apps/api/.env`. Copy from `.env.production.example` and fill in:
 - `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_ID`
@@ -75,6 +76,7 @@ AppModule
 ├── IntakeModule (file upload + storage — imports QueueModule)
 ├── AiModule     (OCR, classify, extract, workflows — imports RagModule + LineModule)
 ├── RagModule    (HorizonRag, PolicyRag, Retrieval, Reasoning)
+├── AttendanceModule (check-in/out, leave, travel, geofence, face client)
 ├── ChatModule
 ├── CasesModule
 ├── DocumentsModule
@@ -98,7 +100,7 @@ LINE → POST /line/webhook
   → LineWebhookController: reply "กรุณารอสักครู่" → dispatchLineIntake(eventId)
   → IntakeProcessor [queue: line-events, job: line.intake.received]
     → creates DocumentIntake record
-  → dispatchOcr → OcrProcessor → OcrService (extracts text)
+  → dispatchOcr → OcrProcessor → OcrService (extracts text via Gemini API — not Anthropic)
   → dispatchClassify → ClassifierService
     → heuristic check first (Thai official doc patterns)
     → fallback to Claude LLM if heuristic score < 0.9
@@ -135,9 +137,11 @@ All dispatch calls go through `QueueDispatcherService`. Job names follow the pat
 
 `PolicyRagService` and `HorizonRagService` both use **keyword-based scoring** (not vector embeddings — noted in comments as a future upgrade). `RetrievalService` merges results from both and computes a weighted `finalScore = semantic×0.4 + trust×0.25 + freshness×0.15 + contextFit×0.2`. `ReasoningService` calls `RetrievalService` then Claude to generate 3 options (A=safe, B=balanced, C=innovative).
 
-### Anthropic API Pattern
+### LLM / AI API Patterns
 
-All LLM calls use `axios.post` directly to `https://api.anthropic.com/v1/messages` — **not** the Anthropic SDK. The pattern is consistent across `ClassifierService`, `ExtractionService`, `ReasoningService`, and `LineMenuActionProcessor`. Model is read from `config.get('CLAUDE_MODEL', 'claude-sonnet-4-6')`.
+**Anthropic (Claude):** All LLM calls use `axios.post` directly to `https://api.anthropic.com/v1/messages` — **not** the Anthropic SDK. The pattern is consistent across `ClassifierService`, `ExtractionService`, `ReasoningService`, and `LineMenuActionProcessor`. Model is read from `config.get('CLAUDE_MODEL', 'claude-sonnet-4-6')`.
+
+**Google Gemini (OCR):** `OcrService` uses `gemini-api.service.ts` — not Anthropic. OCR is the only part of the pipeline that calls Gemini.
 
 ### Critical: BigInt Serialization
 
@@ -189,6 +193,28 @@ new → analyzing → proposed (RAG done) → registered (ลงรับ) → a
 2. Regex command matching (ผูกบัญชี/ลงรับ/มอบหมาย/รับทราบ/เสร็จแล้ว/งานของฉัน)
 3. Text fallback → RAG pipeline via `dispatchLineMenuAction`
 4. Image/File → immediate "กรุณารอสักครู่" reply → `dispatchLineIntake`
+
+**LINE Commands Regex Reference:**
+
+| Command | Pattern | Handler |
+|---------|---------|---------|
+| ผูกบัญชี 123456 | `^ผูกบัญชี\s*(\d{6})$` | `pairingSvc.handlePairingMessage` |
+| ลงรับ #3 | `^ลงรับ\s*#(\d+)$` | `workflowSvc.handleRegister` |
+| มอบหมาย #3 | `^มอบหมาย\s*#(\d+)$` | `workflowSvc.handleShowStaffList` |
+| มอบหมายให้ #3 @5 | `^มอบหมายให้\s*#(\d+)\s*@(\d+)$` | `workflowSvc.handleAssignTo` |
+| รับทราบ #1 | `^รับทราบ\s*#(\d+)$` | `workflowSvc.handleAcceptAssignment` |
+| เสร็จแล้ว #1 | `^เสร็จแล้ว\s*#(\d+)$` | `workflowSvc.handleCompleteAssignment` |
+| งานของฉัน | `^(งานของฉัน\|สถานะงาน)$` | `workflowSvc.handleMyTasks` |
+
+### Face Recognition Service
+
+`services/face-recognition/` — Python FastAPI microservice, port **8500**, runs as a Docker container alongside the API.
+
+- **Stack**: FastAPI + InsightFace/ArcFace (buffalo_l model, CPU)
+- **Routes**: `POST /face/register`, `POST /face/verify`, `GET /health`
+- **Usage**: `AttendanceModule` calls it via `face-client.service.ts` for biometric check-in/out
+- The InsightFace model is pre-downloaded during Docker build (`buffalo_l` via `FaceAnalysis`)
+- To rebuild: `docker compose up -d --build face-recognition`
 
 ### Production Deployment
 

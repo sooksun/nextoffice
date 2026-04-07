@@ -8,12 +8,14 @@ alwaysApply: true
 > Full architecture details are in @CLAUDE.md — read it before making any change.
 
 ## Stack
-- **API**: NestJS (port 3000) — `apps/api/`
-- **Web**: Next.js 16 (port 3001) — `apps/web/`
+- **API**: NestJS (port 3000 internal / 9911 external) — `apps/api/`
+- **Web**: Next.js 16 (port 3001 internal / 9910 external) — `apps/web/`
 - **DB**: MariaDB via Prisma v7 + `@prisma/adapter-mariadb`
 - **Queue**: Bull/Redis — four queues: `line-events`, `file-intake`, `ai-processing`, `outbound-messages`
 - **Storage**: MinIO (bucket `nextoffice`)
 - **OCR**: Gemini API (ไม่ใช่ Anthropic) — `gemini-api.service.ts`
+- **Face Recognition**: FastAPI Python service (port 8500) — `services/face-recognition/`, InsightFace/ArcFace
+- **Attendance**: `apps/api/src/attendance/` — check-in/out, leave, travel, geofence, face-client
 
 ## Critical Rules
 
