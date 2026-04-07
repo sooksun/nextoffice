@@ -344,7 +344,8 @@ export class IntakeService {
     page?: number;
     limit?: number;
   }) {
-    const { page = 1, limit = 20 } = filters;
+    const page = Number(filters.page) || 1;
+    const limit = Number(filters.limit) || 20;
     const where: any = {};
     if (filters.status) where.aiStatus = filters.status;
     if (filters.sourceChannel) where.sourceChannel = filters.sourceChannel;
@@ -387,12 +388,21 @@ export class IntakeService {
       fileSize: intake.fileSize ? Number(intake.fileSize) : null,
     };
     if (intake.aiResult) {
-      result.aiResult = {
-        ...intake.aiResult,
-        id: Number(intake.aiResult.id),
-        documentIntakeId: Number(intake.aiResult.documentIntakeId),
-      };
+      result.aiResult = this.serializeBigInts(intake.aiResult);
     }
     return result;
+  }
+
+  private serializeBigInts(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'bigint') return Number(obj);
+    if (Array.isArray(obj)) return obj.map((v) => this.serializeBigInts(v));
+    if (obj instanceof Date) return obj;
+    if (typeof obj === 'object') {
+      const out: any = {};
+      for (const k of Object.keys(obj)) out[k] = this.serializeBigInts(obj[k]);
+      return out;
+    }
+    return obj;
   }
 }
