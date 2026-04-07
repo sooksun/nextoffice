@@ -212,11 +212,18 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
     }
   };
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
     setOpen(true);
-    setSelected(new Set());
     // Auto-fill คำสั่งผู้บริหารจาก nextActions ที่ AI วิเคราะห์มาจากหนังสือ
     setDirectorNote(nextActions && nextActions.length > 0 ? buildDirectorNoteFromActions(nextActions) : "");
+    // โหลด assignments ที่มีอยู่แล้ว (จาก AI recommendation หรือครั้งก่อน) เพื่อ pre-select
+    try {
+      const existing = await apiFetch<{ assignedTo: { id: number } }[]>(`/cases/${caseId}/assignments`);
+      const preSelected = new Set((existing ?? []).map((a) => a.assignedTo.id));
+      setSelected(preSelected);
+    } catch {
+      setSelected(new Set());
+    }
     setDueDateMode(caseDueDate ? "from_doc" : "none");
     setCustomThaiDate(isoToThaiDate(caseDueDate ?? undefined));
     setAiRecommendation(null);
