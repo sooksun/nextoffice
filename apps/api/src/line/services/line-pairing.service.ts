@@ -315,6 +315,64 @@ export class LinePairingService {
     }
   }
 
+  /**
+   * Re-pairing flow: unlink current account and restart email pairing.
+   * Triggered by keyword "เปลี่ยน user" (and variants).
+   */
+  async handleRelink(lineUserId: string, replyToken: string): Promise<void> {
+    const lineUser = await this.prisma.lineUser.findUnique({ where: { lineUserId } });
+    if (!lineUser) {
+      await this.messaging.reply(replyToken, [
+        { type: 'text', text: 'ไม่พบบัญชี LINE ในระบบ' },
+      ]);
+      return;
+    }
+
+    // Unlink current user if linked
+    const linkedUser = await this.prisma.user.findFirst({ where: { lineUserRef: lineUser.id } });
+    if (linkedUser) {
+      await this.prisma.user.update({
+        where: { id: linkedUser.id },
+        data: { lineUserRef: null },
+      });
+    }
+
+    // Reset LINE user metadata
+    await this.prisma.lineUser.update({
+      where: { id: lineUser.id },
+      data: { organizationId: null, roleCode: null },
+    });
+
+    // Close any open pairing sessions
+    await this.prisma.lineConversationSession.updateMany({
+      where: { lineUserIdRef: lineUser.id, status: 'open' },
+      data: { status: 'expired' },
+    });
+
+    // Create new pairing session
+    await this.prisma.lineConversationSession.create({
+      data: {
+        lineUserIdRef: lineUser.id,
+        sessionType: 'pairing',
+        currentStep: 'awaiting_email',
+        status: 'open',
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    this.logger.log(`Relink triggered for LINE ${lineUserId}${linkedUser ? ` — unlinked from User #${linkedUser.id}` : ''}`);
+
+    await this.messaging.reply(replyToken, [
+      {
+        type: 'text',
+        text:
+          (linkedUser ? `ยกเลิกการผูกบัญชี "${linkedUser.fullName}" แล้ว\n\n` : '') +
+          'กรุณาพิมพ์อีเมลที่ต้องการผูกบัญชีใหม่\n' +
+          'ตัวอย่าง: somchai@school.ac.th',
+      },
+    ]);
+  }
+
   async handlePairingHelp(replyToken: string): Promise<void> {
     await this.messaging.reply(replyToken, [
       {

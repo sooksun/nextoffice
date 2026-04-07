@@ -117,13 +117,16 @@ export class LineWebhookController {
             const mainMenuMatch = /^(เมนู|menu)$/i.test(text);
 
             // V3: Attendance & Leave commands
+            const relinkMatch = /^เปลี่ยน\s*(user|ยูสเซอร์|ผู้ใช้)$/i.test(text);
             const checkInMatch = /^(ลงเวลา|เช็คอิน)$/.test(text);
             const attendanceStatusMatch = /^(สถานะลงเวลา|เวลาวันนี้)$/.test(text);
             const leaveStatusMatch = /^(สถานะการลา|ลาเหลือ|วันลา)$/.test(text);
             const leavePromptMatch = /^(ขอลา|ส่งใบลา)$/.test(text);
             const travelPromptMatch = /^(ขอไปราชการ|ไปราชการ)$/.test(text);
 
-            if (pairingMatch && uid) {
+            if (relinkMatch && uid && rt) {
+              await this.pairingSvc.handleRelink(uid, rt);
+            } else if (pairingMatch && uid) {
               await this.pairingSvc.handlePairingMessage(uid, pairingMatch[1], rt);
             } else if (pairingHelpMatch && uid) {
               await this.pairingSvc.handlePairingHelp(rt);
