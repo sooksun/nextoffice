@@ -101,6 +101,7 @@ export class IntakeController {
       res.setHeader('Content-Type', mimeType);
       res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encoded}`);
       res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
       res.send(buffer);
     } catch (err: any) {
       throw new NotFoundException(err.message || 'ไม่พบไฟล์');

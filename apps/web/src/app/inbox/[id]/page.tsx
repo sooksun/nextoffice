@@ -84,12 +84,6 @@ function parseSenderFromDescription(desc: string | null) {
   return { documentCode: docNo, issuingAuthority: sender };
 }
 
-interface FileUrl {
-  url: string;
-  mimeType: string;
-  originalFileName: string | null;
-}
-
 async function getCase(id: string) {
   try { return await apiFetch<CaseDetail>(`/cases/${id}`); } catch { return null; }
 }
@@ -99,8 +93,11 @@ async function getAssignments(id: string) {
 async function getActivities(id: string) {
   try { return await apiFetch<Activity[]>(`/cases/${id}/activities`); } catch { return []; }
 }
-async function getFileUrl(intakeId: number) {
-  try { return await apiFetch<FileUrl>(`/intake/${intakeId}/file-url`); } catch { return null; }
+
+/** URL ไฟล์ต้นฉบับ — ชี้ผ่าน API (proxy MinIO) เพื่อให้ browser เข้าถึงได้ */
+function buildFileUrl(intakeId: number): string {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+  return `${base}/intake/${intakeId}/file`;
 }
 
 export default async function InboxDetailPage({
@@ -115,7 +112,9 @@ export default async function InboxDetailPage({
     getActivities(id),
   ]);
 
-  const fileUrl = caseData?.intake?.id ? await getFileUrl(caseData.intake.id) : null;
+  const intakeFileUrl = caseData?.intake?.id ? buildFileUrl(caseData.intake.id) : null;
+  const intakeMimeType = caseData?.intake?.mimeType ?? "";
+  const intakeFileName = caseData?.intake?.originalFileName ?? null;
 
   // Fallback: parse sender info from description for legacy manual cases (no sourceDocument)
   const senderFallback = parseSenderFromDescription(caseData?.description ?? null);
@@ -169,69 +168,64 @@ export default async function InboxDetailPage({
         <CompleteButton caseId={caseData.id} assignments={assignments} />
       </div>
 
-      {/* Original File */}
-      {fileUrl && (
+      {/* Original File — streamed via API proxy (GET /intake/:id/file) */}
+      {intakeFileUrl && (
         <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6 overflow-hidden">
-          <div className="px-5 pt-5 pb-3">
+          <div className="px-5 pt-5 pb-4">
             <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-3 flex items-center gap-2">
               <Paperclip size={14} />
               เอกสารไฟล์ต้นฉบับ
+              {intakeFileName && (
+                <span className="text-xs font-normal text-outline normal-case ml-1">({intakeFileName})</span>
+              )}
             </h2>
 
-            {/* PDF preview */}
-            {fileUrl.mimeType === "application/pdf" ? (
+            {intakeMimeType === "application/pdf" ? (
               <div className="space-y-3">
                 <iframe
-                  src={fileUrl.url}
+                  src={intakeFileUrl}
                   className="w-full rounded-xl border border-outline-variant/20"
-                  style={{ height: "600px" }}
+                  style={{ height: "640px" }}
                   title="เอกสารต้นฉบับ"
                 />
                 <a
-                  href={fileUrl.url}
+                  href={intakeFileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm text-primary font-medium hover:underline"
                 >
                   <ExternalLink size={14} />
-                  เปิดในแท็บใหม่
-                  {fileUrl.originalFileName && (
-                    <span className="text-on-surface-variant font-normal">({fileUrl.originalFileName})</span>
-                  )}
+                  เปิดใน PDF viewer
                 </a>
               </div>
-            ) : fileUrl.mimeType.startsWith("image/") ? (
+            ) : intakeMimeType.startsWith("image/") ? (
               <div className="space-y-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={fileUrl.url}
+                  src={intakeFileUrl}
                   alt="เอกสารต้นฉบับ"
-                  className="max-w-full rounded-xl border border-outline-variant/20 object-contain"
-                  style={{ maxHeight: "600px" }}
+                  className="max-w-full rounded-xl border border-outline-variant/20 object-contain bg-surface-bright"
+                  style={{ maxHeight: "640px" }}
                 />
                 <a
-                  href={fileUrl.url}
+                  href={intakeFileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm text-primary font-medium hover:underline"
                 >
                   <FileImage size={14} />
                   ดูภาพขนาดเต็ม
-                  {fileUrl.originalFileName && (
-                    <span className="text-on-surface-variant font-normal">({fileUrl.originalFileName})</span>
-                  )}
                 </a>
               </div>
             ) : (
               <a
-                href={fileUrl.url}
+                href={intakeFileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
               >
                 <ExternalLink size={14} />
                 ดาวน์โหลดไฟล์
-                {fileUrl.originalFileName && <span>({fileUrl.originalFileName})</span>}
               </a>
             )}
           </div>
