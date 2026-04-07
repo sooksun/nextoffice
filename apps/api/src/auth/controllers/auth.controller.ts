@@ -77,6 +77,18 @@ export class AuthController {
 
   // ─── Impersonation (Admin only) ───────────────────────────────────────────
 
+  @Post('switch-user')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin สลับ session เป็น user อื่น โดยกรอก email+password ของ user นั้น' })
+  async switchUser(
+    @Body() body: { email: string; password: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.authService.switchUser(user.id, body.email, body.password);
+  }
+
   @Get('users/all')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')

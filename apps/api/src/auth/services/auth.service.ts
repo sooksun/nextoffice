@@ -119,6 +119,21 @@ export class AuthService {
 
   // ─── Impersonation ──────────────────────────────────────────────────────────
 
+  async switchUser(adminId: bigint, email: string, password: string) {
+    const target = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      include: { organization: true },
+    });
+    if (!target || !target.isActive) throw new UnauthorizedException('ไม่พบบัญชีผู้ใช้นี้ในระบบ');
+    if (target.roleCode === 'ADMIN') throw new BadRequestException('ไม่สามารถสลับเป็นบัญชี Admin ได้');
+
+    const isValid = await this.verifyPassword(password, target.passwordHash);
+    if (!isValid) throw new UnauthorizedException('รหัสผ่านไม่ถูกต้อง');
+
+    const token = this.signToken(target, Number(adminId));
+    return { token, user: { ...this.serializeUser(target), _adminId: Number(adminId) } };
+  }
+
   async impersonate(adminId: bigint, targetUserId: number) {
     const target = await this.prisma.user.findUnique({
       where: { id: BigInt(targetUserId), isActive: true },
