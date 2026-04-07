@@ -8,7 +8,7 @@ import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
 export const dynamic = "force-dynamic";
 
 const URGENCY_LABEL: Record<string, string> = {
-  normal: "ทั่วไป",
+  normal: "ปกติ",
   urgent: "ด่วน",
   very_urgent: "ด่วนมาก",
   most_urgent: "ด่วนที่สุด",

@@ -16,7 +16,11 @@ function thaiToArabic(str: string | null | undefined): string {
 }
 
 const URGENCY_LABEL: Record<string, string> = {
-  normal: "ทั่วไป", urgent: "ด่วน", very_urgent: "ด่วนมาก", most_urgent: "ด่วนที่สุด",
+  normal: "ปกติ", urgent: "ด่วน", very_urgent: "ด่วนมาก", most_urgent: "ด่วนที่สุด",
+};
+
+const SECURITY_LABEL: Record<string, string> = {
+  normal: "ปกติ", confidential: "ปกปิด", secret: "ลับ", top_secret: "ลับมาก", most_secret: "ลับที่สุด",
 };
 const URGENCY_COLOR: Record<string, string> = {
   normal: "bg-blue-100 text-blue-800", urgent: "bg-yellow-100 text-yellow-800",
@@ -288,7 +292,7 @@ export default async function InboxDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">ชั้นความลับ:</span>
-              <p className="font-medium">{caseData.securityLevel || "ปกติ"}</p>
+              <p className="font-medium">{SECURITY_LABEL[caseData.securityLevel] || SECURITY_LABEL.normal}</p>
             </div>
           </div>
           {caseData.description && (
