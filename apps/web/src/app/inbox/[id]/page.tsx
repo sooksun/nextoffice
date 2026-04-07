@@ -42,6 +42,9 @@ interface IntakeFile {
   fileSize: number | null;
   nextActions?: string[];
   summaryText?: string | null;
+  documentNo?: string | null;
+  issuingAuthority?: string | null;
+  documentDate?: string | null;
 }
 
 interface CaseDetail {
@@ -131,8 +134,14 @@ export default async function InboxDetailPage({
 
   // Fallback: parse sender info from description for legacy manual cases (no sourceDocument)
   const senderFallback = parseSenderFromDescription(caseData?.description ?? null);
-  const issuingAuthority = caseData?.sourceDocument?.issuingAuthority ?? senderFallback.issuingAuthority;
-  const documentCode = caseData?.sourceDocument?.documentCode ?? senderFallback.documentCode;
+  // Priority: sourceDocument → intake aiResult → description fallback
+  const issuingAuthority = caseData?.sourceDocument?.issuingAuthority
+    ?? caseData?.intake?.issuingAuthority
+    ?? senderFallback.issuingAuthority;
+  const documentCode = caseData?.sourceDocument?.documentCode
+    ?? caseData?.intake?.documentNo
+    ?? senderFallback.documentCode;
+  const documentDate = caseData?.intake?.documentDate ?? null;
 
   if (!caseData) {
     return (
@@ -268,11 +277,15 @@ export default async function InboxDetailPage({
               <p className="font-medium">{caseData.organization?.name || "—"}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant text-xs">ที่หนังสือ (เลขที่จากหน่วยส่ง):</span>
-              <p className="font-medium">{thaiToArabic(documentCode) || "—"}</p>
+              <span className="text-on-surface-variant text-xs">ที่หนังสือ:</span>
+              <p className="font-medium font-mono">{thaiToArabic(documentCode) || "—"}</p>
             </div>
             <div>
-              <span className="text-on-surface-variant text-xs">เลขทะเบียนรับ (ลำดับโรงเรียน):</span>
+              <span className="text-on-surface-variant text-xs">วันที่หนังสือ:</span>
+              <p className="font-medium">{documentDate ? formatThaiDateShort(documentDate) : "—"}</p>
+            </div>
+            <div>
+              <span className="text-on-surface-variant text-xs">เลขทะเบียนรับ:</span>
               {caseData.registrationNo
                 ? <p className="font-bold font-mono text-primary text-base">{caseData.registrationNo}</p>
                 : <p className="text-on-surface-variant italic text-xs">ยังไม่ได้ลงรับ</p>

@@ -128,7 +128,7 @@ export class CasesService {
         where: { id: BigInt(intakeId) },
         select: {
           id: true, storagePath: true, mimeType: true, originalFileName: true, fileSize: true,
-          aiResult: { select: { nextActionJson: true, summaryText: true } },
+          aiResult: { select: { nextActionJson: true, summaryText: true, documentNo: true, issuingAuthority: true, documentDate: true } },
         },
       });
       if (intake) {
@@ -150,6 +150,9 @@ export class CasesService {
           fileSize: intake.fileSize ? Number(intake.fileSize) : null,
           nextActions,
           summaryText: intake.aiResult?.summaryText || null,
+          documentNo: intake.aiResult?.documentNo || null,
+          issuingAuthority: intake.aiResult?.issuingAuthority || null,
+          documentDate: intake.aiResult?.documentDate || null,
         };
       }
     }
