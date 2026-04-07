@@ -56,10 +56,126 @@ export class LineWorkflowService {
       await this.messaging.reply(replyToken, [
         this.messaging.buildTextMessage(lines.join('\n')),
       ]);
+
+      // แจ้ง ผอ./รองผอ. ให้มอบหมายงาน (fire-and-forget)
+      this.notifyDirectorsForAssignment(
+        result,
+        caseId,
+        documentNo,
+        issuingAuthority,
+        user.fullName,
+      ).catch((e) => this.logger.warn(`notifyDirectors failed: ${e.message}`));
+
     } catch (err) {
       await this.messaging.reply(replyToken, [
         this.messaging.buildTextMessage(err.message || 'เกิดข้อผิดพลาดในการลงรับ'),
       ]);
+    }
+  }
+
+  /** Push Flex message to DIRECTOR/VICE_DIRECTOR after registration */
+  private async notifyDirectorsForAssignment(
+    result: any,
+    caseId: number,
+    documentNo: string | null,
+    issuingAuthority: string | null,
+    registeredBy: string,
+  ): Promise<void> {
+    const caseData = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        organization: {
+          include: {
+            users: {
+              where: { roleCode: { in: ['DIRECTOR', 'VICE_DIRECTOR'] }, isActive: true },
+              include: { lineUser: { select: { lineUserId: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!caseData) return;
+
+    const directors = caseData.organization.users.filter(
+      (u) => u.lineUser?.lineUserId,
+    );
+    if (directors.length === 0) return;
+
+    const urgencyIcon: Record<string, string> = {
+      most_urgent: '🚨 ด่วนที่สุด',
+      very_urgent: '⚡ ด่วนมาก',
+      urgent: '⏰ ด่วน',
+      normal: '📋 ทั่วไป',
+    };
+    const urgencyLabel = urgencyIcon[caseData.urgencyLevel] ?? '📋 ทั่วไป';
+    const urgencyColor = caseData.urgencyLevel === 'most_urgent' ? '#dc2626'
+      : caseData.urgencyLevel === 'very_urgent' ? '#ea580c'
+      : caseData.urgencyLevel === 'urgent' ? '#ca8a04'
+      : '#1a73e8';
+
+    const bodyContents: any[] = [
+      { type: 'text', text: urgencyLabel, size: 'sm', color: urgencyColor, weight: 'bold' },
+      { type: 'separator', margin: 'sm' },
+      { type: 'box', layout: 'vertical', margin: 'sm', spacing: 'xs', contents: [
+        { type: 'box', layout: 'horizontal', contents: [
+          { type: 'text', text: 'เลขรับ', size: 'xs', color: '#888888', flex: 2 },
+          { type: 'text', text: result.registrationNo ?? '-', size: 'xs', color: '#333333', flex: 3, weight: 'bold' },
+        ]},
+        ...(documentNo ? [{ type: 'box', layout: 'horizontal', contents: [
+          { type: 'text', text: 'ที่หนังสือ', size: 'xs', color: '#888888', flex: 2 },
+          { type: 'text', text: documentNo, size: 'xs', color: '#333333', flex: 3 },
+        ]}] : []),
+        ...(issuingAuthority ? [{ type: 'box', layout: 'horizontal', contents: [
+          { type: 'text', text: 'จาก', size: 'xs', color: '#888888', flex: 2 },
+          { type: 'text', text: issuingAuthority.substring(0, 40), size: 'xs', color: '#333333', flex: 3, wrap: true },
+        ]}] : []),
+        { type: 'box', layout: 'horizontal', contents: [
+          { type: 'text', text: 'เรื่อง', size: 'xs', color: '#888888', flex: 2 },
+          { type: 'text', text: result.title.substring(0, 60), size: 'xs', color: '#333333', flex: 3, wrap: true },
+        ]},
+        { type: 'box', layout: 'horizontal', contents: [
+          { type: 'text', text: 'ลงรับโดย', size: 'xs', color: '#888888', flex: 2 },
+          { type: 'text', text: registeredBy, size: 'xs', color: '#333333', flex: 3 },
+        ]},
+      ]},
+    ];
+
+    const flexMessage = {
+      type: 'flex',
+      altText: `📋 ลงรับแล้ว: ${result.title.substring(0, 40)} — กรุณามอบหมายงาน`,
+      contents: {
+        type: 'bubble',
+        size: 'kilo',
+        header: {
+          type: 'box', layout: 'vertical', backgroundColor: '#1a73e8',
+          contents: [
+            { type: 'text', text: '📋 ลงรับแล้ว — กรุณามอบหมายงาน', weight: 'bold', size: 'sm', color: '#ffffff' },
+          ],
+          paddingAll: 'md',
+        },
+        body: {
+          type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md',
+          contents: bodyContents,
+        },
+        footer: {
+          type: 'box', layout: 'horizontal', spacing: 'sm', paddingAll: 'md',
+          contents: [
+            {
+              type: 'button', style: 'primary', height: 'sm', flex: 1,
+              action: { type: 'message', label: '📌 มอบหมาย', text: `มอบหมาย #${caseId}` },
+            },
+            {
+              type: 'button', style: 'secondary', height: 'sm', flex: 1,
+              action: { type: 'message', label: 'ดูรายละเอียด', text: `ดูเรื่อง #${caseId}` },
+            },
+          ],
+        },
+      },
+    };
+
+    for (const director of directors) {
+      await this.messaging.push(director.lineUser.lineUserId, [flexMessage]);
+      this.logger.log(`Notified ${director.fullName} (${director.roleCode}) for assignment of case #${caseId}`);
     }
   }
 
