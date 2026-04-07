@@ -32,6 +32,10 @@ import {
   FolderKanban,
   GitFork,
   Network,
+  Clock,
+  CalendarDays,
+  MapPin,
+  CheckSquare,
 } from "lucide-react";
 
 const documentFlowLinks = [
@@ -62,6 +66,13 @@ const vaultLinks = [
   { href: "/vault", label: "บันทึกความรู้", icon: BookOpen },
   { href: "/vault/graph", label: "Knowledge Graph", icon: GitFork },
   { href: "/vault/settings", label: "ตั้งค่า Vault", icon: SlidersHorizontal },
+];
+
+const attendanceLinks = [
+  { href: "/attendance", label: "ลงเวลา", icon: Clock },
+  { href: "/leave", label: "ลาหยุด", icon: CalendarDays },
+  { href: "/leave/travel", label: "ไปราชการ", icon: MapPin },
+  { href: "/leave/approvals", label: "รออนุมัติ", icon: CheckSquare },
 ];
 
 const projectLinks = [
@@ -127,6 +138,19 @@ export default function Sidebar() {
           <p className="text-[10px] uppercase tracking-widest text-outline font-bold">เครื่องมือ AI</p>
         </div>
         {toolLinks.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
+          return (
+            <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">ลงเวลา / Leave</p>
+        </div>
+        {attendanceLinks.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
             <Link key={href} href={href} className={clsx("flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary font-bold" : "text-on-surface-variant hover:text-primary hover:bg-surface-bright")}>

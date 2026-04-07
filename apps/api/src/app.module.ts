@@ -24,6 +24,7 @@ import { SystemPromptsModule } from './system-prompts/system-prompts.module';
 import { HorizonModule } from './horizon/horizon.module';
 import { ProjectsModule } from './projects/projects.module';
 import { VaultModule } from './vault/vault.module';
+import { AttendanceModule } from './attendance/attendance.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { VaultModule } from './vault/vault.module';
     HorizonModule,
     ProjectsModule,
     VaultModule,
+    AttendanceModule,
   ],
 })
 export class AppModule {}
