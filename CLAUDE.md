@@ -82,13 +82,16 @@ AppModule
 ├── DocumentsModule
 ├── OrganizationsModule
 ├── AcademicYearsModule
-└── KnowledgeModule
+├── KnowledgeModule
+└── NotificationsModule (SmartRoutingService — routes LINE push to correct staff by role/document type)
 ```
 
 **Controllers per module:**
 - `LineModule`: `line-webhook.controller`, `line-reply.controller`
 - `IntakeModule`: `intake.controller`
 - All other modules have one controller matching the module name.
+
+**User roles (roleCode):** `ADMIN`, `DIRECTOR`, `VICE_DIRECTOR`, `HEAD_TEACHER`, `TEACHER`, `CLERK`. Role-based access uses `@Roles()` decorator + `RolesGuard`. DIRECTOR/VICE_DIRECTOR receive LINE push notifications after document registration via `line-workflow.service.ts → notifyDirectors()`.
 
 **Google Drive integration** lives in `IntakeModule` (`google-drive.service.ts`); async backups run via `drive-backup.processor.ts` on the `file-intake` queue.
 
@@ -190,7 +193,7 @@ new → analyzing → proposed (RAG done) → registered (ลงรับ) → a
 
 **Webhook command routing** (`line-webhook.controller.ts`): Messages are intercepted in this order:
 1. Auto-pairing check (unlinked users)
-2. Regex command matching (ผูกบัญชี/ลงรับ/มอบหมาย/รับทราบ/เสร็จแล้ว/งานของฉัน)
+2. Regex command matching (ผูกบัญชี/ลงรับ/มอบหมาย/รับทราบ/เสร็จแล้ว/งานของฉัน/อนุมัติส่ง/รออนุมัติ)
 3. Text fallback → RAG pipeline via `dispatchLineMenuAction`
 4. Image/File → immediate "กรุณารอสักครู่" reply → `dispatchLineIntake`
 
@@ -205,6 +208,8 @@ new → analyzing → proposed (RAG done) → registered (ลงรับ) → a
 | รับทราบ #1 | `^รับทราบ\s*#(\d+)$` | `workflowSvc.handleAcceptAssignment` |
 | เสร็จแล้ว #1 | `^เสร็จแล้ว\s*#(\d+)$` | `workflowSvc.handleCompleteAssignment` |
 | งานของฉัน | `^(งานของฉัน\|สถานะงาน)$` | `workflowSvc.handleMyTasks` |
+| อนุมัติส่ง #3 | `^อนุมัติส่ง\s*#(\d+)$` | `inquirySvc.handleOutboundApprove` (DIRECTOR/VICE_DIRECTOR only) |
+| รออนุมัติ | `^(รออนุมัติ\|หนังสือรออนุมัติ\|รายการรออนุมัติ)$` | `inquirySvc.handlePendingOutbound` (DIRECTOR/VICE_DIRECTOR only) |
 
 ### Face Recognition Service
 
