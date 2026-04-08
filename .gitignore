@@ -21,3 +21,9 @@ apps/api/generated/prisma
 # Cursor AI — track rules, ignore session/cache
 .cursor/chat/
 .cursor/logs/
+
+# Docs — binary files and generated analysis
+docs/*.pdf
+docs/*.docx
+NEXTOFFICE_AI_RAG_ANALYSIS.md
+QUICK_REFERENCE.md
