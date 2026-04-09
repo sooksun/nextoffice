@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import DocumentUploadModal from "./DocumentUploadModal";
+import { getUser } from "@/lib/auth";
 import {
   LayoutDashboard,
   FileText,
@@ -39,7 +40,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: React.ElementType };
+// undefined = ทุก role เห็นได้
+type NavItem = { href: string; label: string; icon: React.ElementType; roles?: string[] };
 
 type NavGroup = {
   id: string;
@@ -47,13 +49,17 @@ type NavGroup = {
   items: NavItem[];
 };
 
+const MANAGER = ["DIRECTOR", "VICE_DIRECTOR", "ADMIN"];
+const SARABAN = ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "ADMIN"];
+const APPROVER = ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"];
+
 const NAV_GROUPS: NavGroup[] = [
   {
     id: "overview",
     label: "ภาพรวม",
     items: [
       { href: "/", label: "หน้าหลัก", icon: LayoutDashboard },
-      { href: "/director", label: "แดชบอร์ดผู้อำนวยการ", icon: LayoutDashboard },
+      { href: "/director", label: "แดชบอร์ดผู้อำนวยการ", icon: LayoutDashboard, roles: MANAGER },
       { href: "/notifications", label: "การแจ้งเตือน", icon: BellRing },
     ],
   },
@@ -63,9 +69,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/inbox", label: "หนังสือเข้า", icon: Inbox },
       { href: "/outbound", label: "หนังสือออก", icon: SendHorizontal },
-      { href: "/outbound/new", label: "สร้างหนังสือออก", icon: Send },
-      { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: ClipboardList },
-      { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: ScrollText },
+      { href: "/outbound/new", label: "สร้างหนังสือออก", icon: Send, roles: SARABAN },
+      { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: ClipboardList, roles: SARABAN },
+      { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: ScrollText, roles: SARABAN },
     ],
   },
   {
@@ -76,49 +82,53 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/attendance", label: "ลงเวลา", icon: Clock },
       { href: "/leave", label: "ลาหยุด", icon: CalendarDays },
       { href: "/leave/travel", label: "ไปราชการ", icon: MapPin },
-      { href: "/leave/approvals", label: "รออนุมัติ", icon: CheckSquare },
+      { href: "/leave/approvals", label: "รออนุมัติ", icon: CheckSquare, roles: APPROVER },
     ],
   },
   {
     id: "backoffice",
     label: "BACK OFFICE",
     items: [
-      { href: "/intakes", label: "AI ประมวลผลเอกสาร", icon: FileText },
+      { href: "/intakes", label: "AI ประมวลผลเอกสาร", icon: FileText, roles: ["CLERK", "ADMIN"] },
       { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
-      { href: "/cases", label: "เคส", icon: Briefcase },
-      { href: "/saraban/reports", label: "รายงาน", icon: ScrollText },
-      { href: "/reports/district", label: "รายงานระดับเขต", icon: Network },
-      { href: "/reports/1/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/cases", label: "เคส", icon: Briefcase, roles: ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
+      { href: "/saraban/reports", label: "รายงาน", icon: ScrollText, roles: SARABAN },
+      { href: "/reports/district", label: "รายงานระดับเขต", icon: Network, roles: MANAGER },
+      { href: "/reports/1/analytics", label: "Analytics", icon: BarChart3, roles: ["DIRECTOR", "ADMIN"] },
     ],
   },
   {
     id: "intelligence",
     label: "INTELLIGENCE",
     items: [
-      { href: "/horizon", label: "ภาพรวม Horizon", icon: Radar },
-      { href: "/horizon/sources", label: "แหล่งข้อมูล", icon: Globe },
-      { href: "/horizon/agendas", label: "วาระนโยบาย", icon: CalendarClock },
-      { href: "/horizon/signals", label: "สัญญาณ", icon: Newspaper },
+      { href: "/horizon", label: "ภาพรวม Horizon", icon: Radar, roles: MANAGER },
+      { href: "/horizon/sources", label: "แหล่งข้อมูล", icon: Globe, roles: ["ADMIN"] },
+      { href: "/horizon/agendas", label: "วาระนโยบาย", icon: CalendarClock, roles: MANAGER },
+      { href: "/horizon/signals", label: "สัญญาณ", icon: Newspaper, roles: MANAGER },
       { href: "/vault", label: "บันทึกความรู้", icon: BookOpen },
       { href: "/vault/graph", label: "Knowledge Graph", icon: GitFork },
-      { href: "/vault/settings", label: "ตั้งค่า Vault", icon: SlidersHorizontal },
-      { href: "/projects", label: "โครงการ", icon: FolderKanban },
+      { href: "/vault/settings", label: "ตั้งค่า Vault", icon: SlidersHorizontal, roles: ["ADMIN"] },
+      { href: "/projects", label: "โครงการ", icon: FolderKanban, roles: ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
     ],
   },
   {
     id: "admin",
     label: "จัดการ",
     items: [
-      { href: "/work-groups", label: "โครงสร้างองค์กร", icon: Users },
-      { href: "/knowledge", label: "ฐานข้อมูลความรู้", icon: BookOpen },
-      { href: "/settings/prompts", label: "ตั้งค่า AI Prompts", icon: SlidersHorizontal },
-      { href: "/organizations", label: "หน่วยงาน", icon: Building2 },
+      { href: "/work-groups", label: "โครงสร้างองค์กร", icon: Users, roles: ["ADMIN", "DIRECTOR"] },
+      { href: "/knowledge", label: "ฐานข้อมูลความรู้", icon: BookOpen, roles: ["ADMIN"] },
+      { href: "/settings/prompts", label: "ตั้งค่า AI Prompts", icon: SlidersHorizontal, roles: ["ADMIN", "DIRECTOR"] },
+      { href: "/organizations", label: "หน่วยงาน", icon: Building2, roles: ["ADMIN"] },
     ],
   },
 ];
 
-function isGroupActive(group: NavGroup, pathname: string): boolean {
-  return group.items.some(
+function filterItems(items: NavItem[], roleCode: string): NavItem[] {
+  return items.filter((item) => !item.roles || item.roles.includes(roleCode));
+}
+
+function isGroupActive(items: NavItem[], pathname: string): boolean {
+  return items.some(
     ({ href }) => pathname === href || (href !== "/" && pathname.startsWith(href)),
   );
 }
@@ -126,13 +136,18 @@ function isGroupActive(group: NavGroup, pathname: string): boolean {
 function NavGroupSection({
   group,
   pathname,
+  roleCode,
   defaultOpen,
 }: {
   group: NavGroup;
   pathname: string;
+  roleCode: string;
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const visibleItems = filterItems(group.items, roleCode);
+
+  if (visibleItems.length === 0) return null;
 
   return (
     <div>
@@ -159,7 +174,7 @@ function NavGroupSection({
         )}
       >
         <div className="space-y-0.5 pb-1">
-          {group.items.map(({ href, label, icon: Icon }) => {
+          {visibleItems.map(({ href, label, icon: Icon }) => {
             const isActive =
               pathname === href || (href !== "/" && pathname.startsWith(href));
             return (
@@ -187,6 +202,12 @@ function NavGroupSection({
 export default function Sidebar() {
   const pathname = usePathname();
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [roleCode, setRoleCode] = useState<string>("TEACHER");
+
+  useEffect(() => {
+    const user = getUser();
+    if (user?.roleCode) setRoleCode(user.roleCode);
+  }, []);
 
   return (
     <aside className="w-64 shrink-0 bg-surface-low flex flex-col border-r border-outline-variant/20 font-[family-name:var(--font-be-vietnam-pro)] text-sm font-medium">
@@ -229,14 +250,18 @@ export default function Sidebar() {
 
       {/* Nav — foldable groups */}
       <nav className="flex-1 px-3 overflow-y-auto custom-scrollbar">
-        {NAV_GROUPS.map((group) => (
-          <NavGroupSection
-            key={group.id}
-            group={group}
-            pathname={pathname}
-            defaultOpen={isGroupActive(group, pathname) || group.id === "overview"}
-          />
-        ))}
+        {NAV_GROUPS.map((group) => {
+          const visibleItems = filterItems(group.items, roleCode);
+          return (
+            <NavGroupSection
+              key={group.id}
+              group={group}
+              pathname={pathname}
+              roleCode={roleCode}
+              defaultOpen={isGroupActive(visibleItems, pathname) || group.id === "overview"}
+            />
+          );
+        })}
       </nav>
 
       {/* Footer */}
