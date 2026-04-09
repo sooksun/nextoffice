@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
   Query,
@@ -112,6 +113,17 @@ export class IntakeController {
   @ApiOperation({ summary: 'Get AI analysis result for intake' })
   getResult(@Param('id', ParseIntPipe) id: number) {
     return this.svc.getResult(id);
+  }
+
+  @Patch(':id/ai-result')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'แก้ไขสรุป AI และสิ่งที่ต้องดำเนินการก่อนลงทะเบียน' })
+  updateAiResult(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { summaryText?: string; actions?: string[] },
+  ) {
+    return this.svc.updateAiResult(id, body);
   }
 
   @Get(':id/file-url')

@@ -393,6 +393,23 @@ export class IntakeService {
     return result;
   }
 
+  async updateAiResult(intakeId: number, data: { summaryText?: string; actions?: string[] }) {
+    const aiResult = await this.prisma.documentAiResult.findUnique({
+      where: { documentIntakeId: BigInt(intakeId) },
+    });
+    if (!aiResult) throw new NotFoundException(`AI result for intake #${intakeId} not found`);
+
+    const updateData: any = {};
+    if (data.summaryText !== undefined) updateData.summaryText = data.summaryText;
+    if (data.actions !== undefined) updateData.nextActionJson = JSON.stringify(data.actions);
+
+    await this.prisma.documentAiResult.update({
+      where: { documentIntakeId: BigInt(intakeId) },
+      data: updateData,
+    });
+    return { ok: true };
+  }
+
   private serializeBigInts(obj: any): any {
     if (obj === null || obj === undefined) return obj;
     if (typeof obj === 'bigint') return Number(obj);

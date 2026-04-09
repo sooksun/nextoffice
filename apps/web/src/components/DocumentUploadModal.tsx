@@ -7,6 +7,7 @@ import { toastError, toastWarning } from "@/lib/toast";
 import {
   X, Upload, FileText, CheckCircle, XCircle, Loader2,
   Building2, Calendar, Hash, AlertTriangle, Sparkles, UserPlus, Users,
+  Pencil, Plus, Trash2,
 } from "lucide-react";
 
 
@@ -171,6 +172,11 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]);
   const [resolvedCaseId, setResolvedCaseId] = useState<number | null>(null);
 
+  // Editable AI fields
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [editedSummary, setEditedSummary] = useState("");
+  const [editedActions, setEditedActions] = useState<string[]>([]);
+
   if (!isOpen) return null;
 
   const ACCEPT = ".pdf,.docx,.jpg,.jpeg,.png";
@@ -183,6 +189,9 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     setRouting(null);
     setSelectedAssigneeIds([]);
     setResolvedCaseId(null);
+    setEditingSummary(false);
+    setEditedSummary("");
+    setEditedActions([]);
   };
 
   const handleClose = () => {
@@ -233,6 +242,9 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
       }
       const data: UploadResult = await res.json();
       setResult(data);
+      // Initialize editable fields from AI result
+      setEditedSummary(data.metadata?.summary ?? "");
+      setEditedActions(data.metadata?.actions ?? []);
 
       if (data.isOfficialDocument) {
         setStep("result");
@@ -279,10 +291,18 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     setSelectedAssigneeIds(allSelected ? [] : allIds);
   };
 
-  const handleSaveAndGo = () => {
+  const handleSaveAndGo = async () => {
     if (!result?.documentIntakeId) return;
+    // Save edits to AI result before navigating
+    try {
+      await apiFetch(`/intake/${result.documentIntakeId}/ai-result`, {
+        method: "PATCH",
+        body: JSON.stringify({ summaryText: editedSummary, actions: editedActions }),
+      });
+    } catch {
+      // Non-blocking — proceed even if patch fails
+    }
     // เก็บ pre-selection ไว้ใน sessionStorage — assign modal จะอ่านเมื่อเปิดครั้งแรก
-    // (case ยังมีสถานะ proposed ณ จุดนี้ ยังเรียก assign API ไม่ได้)
     if (selectedAssigneeIds.length > 0) {
       sessionStorage.setItem("preAssignUserIds", JSON.stringify(selectedAssigneeIds));
     }
@@ -455,34 +475,78 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
                 </div>
               </div>
 
-              {/* AI Summary */}
+              {/* AI Summary — editable */}
               <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest p-4">
-                <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-3">สรุปโดย AI</h3>
-                <AiSummaryParagraph
-                  structured={result.metadata.structuredSummary ?? null}
-                  fallbackSummary={result.metadata.summary}
-                  fallbackIntent={result.metadata.intent}
-                  meetingDate={result.metadata.meetingDate ?? null}
-                  meetingTime={result.metadata.meetingTime ?? null}
-                />
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide">สรุปโดย AI</h3>
+                  <button
+                    onClick={() => setEditingSummary((v) => !v)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors ${
+                      editingSummary
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "text-on-surface-variant hover:text-primary hover:bg-surface-bright"
+                    }`}
+                  >
+                    <Pencil size={11} />
+                    {editingSummary ? "เสร็จสิ้น" : "แก้ไข"}
+                  </button>
+                </div>
+                {editingSummary ? (
+                  <textarea
+                    value={editedSummary}
+                    onChange={(e) => setEditedSummary(e.target.value)}
+                    rows={4}
+                    className="w-full text-sm text-on-surface leading-relaxed px-3 py-2.5 rounded-xl border border-primary/30 bg-surface-bright focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                  />
+                ) : (
+                  <div>
+                    <p className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap">
+                      {editedSummary || <span className="text-on-surface-variant italic">ไม่มีสรุป</span>}
+                    </p>
+                    <p className="text-right text-xs text-on-surface-variant mt-3 pt-2 border-t border-outline-variant/10">
+                      ผู้สรุป: <span className="font-medium">NextOffice AI</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Actions from document */}
-              {result.metadata.actions?.length > 0 && (
-                <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest p-4">
-                  <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-2">สิ่งที่ต้องดำเนินการ</h3>
-                  <ul className="space-y-1.5">
-                    {result.metadata.actions.map((a, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm">
-                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
-                          {i + 1}
-                        </span>
-                        {a}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {/* Actions — editable */}
+              <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest p-4">
+                <h3 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-3">สิ่งที่ต้องดำเนินการ</h3>
+                <ul className="space-y-2">
+                  {editedActions.map((a, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0 mt-1.5">
+                        {i + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={a}
+                        onChange={(e) => {
+                          const updated = [...editedActions];
+                          updated[i] = e.target.value;
+                          setEditedActions(updated);
+                        }}
+                        className="flex-1 text-sm text-on-surface px-3 py-1.5 rounded-xl border border-outline-variant/30 bg-surface-bright focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                      <button
+                        onClick={() => setEditedActions(editedActions.filter((_, idx) => idx !== i))}
+                        className="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors shrink-0 mt-0.5"
+                        title="ลบรายการนี้"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => setEditedActions([...editedActions, ""])}
+                  className="mt-2.5 flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+                >
+                  <Plus size={13} />
+                  เพิ่มรายการ
+                </button>
+              </div>
 
               {/* Meeting info */}
               {result.metadata.isMeeting && (
