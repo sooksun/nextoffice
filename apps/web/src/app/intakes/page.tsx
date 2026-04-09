@@ -70,7 +70,7 @@ export default function IntakesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-black text-primary tracking-tight">AI ประมวลผลเอกสาร</h1>
+          <h1 className="text-3xl font-black text-primary tracking-tight">รับหนังสืออัตโนมัติ</h1>
           <p className="text-sm text-on-surface-variant mt-1">พบ {total} รายการ</p>
         </div>
         <div className="flex items-center gap-2">

@@ -86,7 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: "backoffice",
     label: "BACK OFFICE",
     items: [
-      { href: "/intakes", label: "AI ประมวลผลเอกสาร", icon: FileText, roles: ["CLERK", "ADMIN"] },
+      { href: "/intakes", label: "รับหนังสืออัตโนมัติ", icon: FileText, roles: ["CLERK", "ADMIN"] },
       { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
       { href: "/cases", label: "เคส", icon: Briefcase, roles: ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
       { href: "/saraban/reports", label: "รายงานสารบรรณ", icon: ScrollText, roles: SARABAN },
