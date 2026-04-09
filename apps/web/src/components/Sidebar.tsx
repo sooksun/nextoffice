@@ -56,7 +56,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "ภาพรวม",
     items: [
       { href: "/director", label: "แดชบอร์ด", icon: LayoutDashboard, roles: MANAGER },
-      { href: "/inbox", label: "หน้าหลัก", icon: LayoutDashboard, roles: ["TEACHER", "HEAD_TEACHER", "CLERK"] },
       { href: "/notifications", label: "การแจ้งเตือน", icon: BellRing },
     ],
   },
