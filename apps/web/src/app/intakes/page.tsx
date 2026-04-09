@@ -1,10 +1,13 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import CreateCaseButton from "@/components/CreateCaseButton";
+import DocumentUploadModal from "@/components/DocumentUploadModal";
 import Link from "next/link";
 import { formatThaiDateShort } from "@/lib/thai-date";
-
-export const dynamic = "force-dynamic";
+import { FilePlus, Upload, RefreshCw } from "lucide-react";
 
 interface AiResult {
   isOfficialDocument: boolean | null;
@@ -24,33 +27,93 @@ interface DocumentIntake {
   aiResult: AiResult | null;
 }
 
-interface PagedResponse<T> {
-  data: T[];
+interface PagedResponse {
+  data: DocumentIntake[];
   total: number;
 }
 
-async function getIntakes(): Promise<DocumentIntake[]> {
-  try {
-    const res = await apiFetch<PagedResponse<DocumentIntake> | DocumentIntake[]>("/intake?limit=100");
-    return Array.isArray(res) ? res : res.data;
-  } catch {
-    return [];
-  }
-}
+export default function IntakesPage() {
+  const [intakes, setIntakes] = useState<DocumentIntake[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
-export default async function IntakesPage() {
-  const intakes = await getIntakes();
+  const loadIntakes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch<PagedResponse | DocumentIntake[]>("/intake?limit=100");
+      if (Array.isArray(res)) {
+        setIntakes(res);
+        setTotal(res.length);
+      } else {
+        setIntakes(res.data);
+        setTotal(res.total);
+      }
+    } catch {
+      setIntakes([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadIntakes();
+  }, [loadIntakes]);
+
+  const handleModalClose = () => {
+    setUploadOpen(false);
+    loadIntakes();
+  };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-black text-primary tracking-tight">AI ประมวลผลเอกสาร</h1>
-        <p className="text-sm text-on-surface-variant">พบ {intakes.length} รายการ</p>
+        <div>
+          <h1 className="text-3xl font-black text-primary tracking-tight">AI ประมวลผลเอกสาร</h1>
+          <p className="text-sm text-on-surface-variant mt-1">พบ {total} รายการ</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadIntakes}
+            disabled={loading}
+            className="p-2 rounded-xl text-on-surface-variant hover:bg-surface-bright transition-colors disabled:opacity-40"
+            title="รีเฟรช"
+          >
+            <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={() => setUploadOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-2xl text-sm font-bold shadow-md shadow-primary/20 transition-transform active:scale-95"
+          >
+            <FilePlus size={15} />
+            อัปโหลดเอกสาร
+          </button>
+        </div>
       </div>
 
-      {intakes.length === 0 ? (
-        <div className="bg-surface-lowest rounded-2xl border border-outline-variant/10 p-12 text-center text-outline shadow-sm">
-          ยังไม่มีเอกสารขาเข้า
+      <DocumentUploadModal isOpen={uploadOpen} onClose={handleModalClose} />
+
+      {loading ? (
+        <div className="bg-surface-lowest rounded-2xl border border-outline-variant/10 p-12 text-center text-outline shadow-sm animate-pulse">
+          กำลังโหลด...
+        </div>
+      ) : intakes.length === 0 ? (
+        <div className="bg-surface-lowest rounded-2xl border border-outline-variant/10 p-16 text-center shadow-sm">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Upload size={28} className="text-primary" />
+          </div>
+          <p className="text-on-surface font-semibold text-base mb-1">ยังไม่มีเอกสารในระบบ</p>
+          <p className="text-sm text-on-surface-variant mb-6">
+            อัปโหลดเอกสาร PDF, DOCX, หรือรูปภาพ — AI จะอ่านและจับข้อมูลสำคัญให้อัตโนมัติ
+          </p>
+          <button
+            onClick={() => setUploadOpen(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-2xl text-sm font-bold shadow-md shadow-primary/20 transition-transform active:scale-95"
+          >
+            <FilePlus size={15} />
+            อัปโหลดเอกสารแรก
+          </button>
         </div>
       ) : (
         <div className="bg-surface-lowest rounded-2xl border border-outline-variant/10 overflow-hidden shadow-sm">
