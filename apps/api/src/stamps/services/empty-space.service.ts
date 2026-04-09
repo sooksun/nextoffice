@@ -197,7 +197,7 @@ export class EmptySpaceService {
     return specs.map((spec) => {
       switch (spec.preference) {
         case 'top-right':
-          return { x: pageW - spec.w - 22, y: pageH - spec.h - 22, w: spec.w, h: spec.h };
+          return { x: pageW - spec.w - 2, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
         case 'bottom-left':
           return { x: 40, y: 80, w: spec.w, h: spec.h };
         case 'bottom-right':

@@ -49,7 +49,7 @@ export class PdfStampService {
    */
   async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
     const specs = [
-      { w: 200, h: 95,  preference: 'top-right'   as const },
+      { w: 160, h: 70,  preference: 'top-right'   as const }, // stamp1: w-40, h-25
       { w: 260, h: 110, preference: 'bottom-left'  as const },
       ...(data.directorNote
         ? [{ w: 260, h: 120, preference: 'bottom-right' as const }]
@@ -57,6 +57,11 @@ export class PdfStampService {
     ];
 
     const zones = await this.emptySpace.findStampZones(pdfBuffer, specs);
+
+    // Stamp 1: shift right +20, up +10 after zone is found
+    if (zones[0]) {
+      zones[0] = { ...zones[0], x: zones[0].x + 20, y: zones[0].y + 10 };
+    }
 
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     pdfDoc.registerFontkit(fontkit);
@@ -129,17 +134,19 @@ export class PdfStampService {
       thickness: 0.5, color: rgb(0.07, 0.33, 0.71),
     });
 
+    const blue = rgb(0.07, 0.33, 0.71);
+
     // เลขที่รับ
-    page.drawText('เลขที่รับ', { x: x + 8, y: y + h - 36, size: 8, font: bold,    color: rgb(0, 0, 0) });
-    page.drawText(data.registrationNo, { x: x + 65, y: y + h - 36, size: 10, font: regular, color: rgb(0, 0, 0) });
+    page.drawText('เลขที่รับ', { x: x + 8, y: y + h - 36, size: 8, font: bold,    color: blue });
+    page.drawText(data.registrationNo, { x: x + 65, y: y + h - 36, size: 10, font: regular, color: blue });
 
     // วันที่
-    page.drawText('วันที่',   { x: x + 8, y: y + h - 54, size: 9, font: bold,    color: rgb(0, 0, 0) });
-    page.drawText(`${d.day} ${d.monthTh} ${d.year}`, { x: x + 45, y: y + h - 54, size: 9, font: regular, color: rgb(0, 0, 0) });
+    page.drawText('วันที่',   { x: x + 8, y: y + h - 54, size: 9, font: bold,    color: blue });
+    page.drawText(`${d.day} ${d.monthTh} ${d.year}`, { x: x + 45, y: y + h - 54, size: 9, font: regular, color: blue });
 
     // เวลา
-    page.drawText('เวลา',    { x: x + 8, y: y + h - 72, size: 9, font: bold,    color: rgb(0, 0, 0) });
-    page.drawText(d.time,    { x: x + 45, y: y + h - 72, size: 9, font: regular, color: rgb(0, 0, 0) });
+    page.drawText('เวลา',    { x: x + 8, y: y + h - 72, size: 9, font: bold,    color: blue });
+    page.drawText(d.time,    { x: x + 45, y: y + h - 72, size: 9, font: regular, color: blue });
   }
 
   // ─── Stamp #2: ตราการเกษียณหนังสือ ────────────────────────────────────────
@@ -151,11 +158,13 @@ export class PdfStampService {
     const { x, y, w, h } = zone;
     const d = this.toThaiDate(data.stampedAt);
 
-    // Dashed box
+    const blue = rgb(0.07, 0.33, 0.71);
+
+    // Dashed blue box
     page.drawRectangle({
       x, y, width: w, height: h,
       color: rgb(1, 1, 1),
-      borderColor: rgb(0.3, 0.3, 0.3),
+      borderColor: blue,
       borderWidth: 1.5,
       borderDashArray: [4, 3],
     });
@@ -164,15 +173,15 @@ export class PdfStampService {
     const lines = this.wrapThai(data.endorsementText, 38);
     let ty = y + h - 18;
     for (const line of lines.slice(0, 4)) {
-      page.drawText(line, { x: x + 8, y: ty, size: 10, font: regular, color: rgb(0, 0, 0) });
+      page.drawText(line, { x: x + 8, y: ty, size: 10, font: regular, color: blue });
       ty -= 16;
     }
 
     // Right-aligned signature block
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    this.drawRight(page, bold,    data.authorName,               x, y + 42, w - 8, 9);
-    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8);
-    this.drawRight(page, regular, dateStr,                       x, y + 14, w - 8, 8, rgb(0.4, 0.4, 0.4));
+    this.drawRight(page, bold,    data.authorName,               x, y + 42, w - 8, 9, blue);
+    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8, blue);
+    this.drawRight(page, regular, dateStr,                       x, y + 14, w - 8, 8, blue);
   }
 
   // ─── Stamp #3: ตราคำสั่งผู้บริหาร ─────────────────────────────────────────
@@ -184,11 +193,13 @@ export class PdfStampService {
     const { x, y, w, h } = zone;
     const d = this.toThaiDate(data.stampedAt);
 
-    // Navy box
+    const blue = rgb(0.07, 0.33, 0.71);
+
+    // Blue box
     page.drawRectangle({
       x, y, width: w, height: h,
       color: rgb(1, 1, 1),
-      borderColor: rgb(0.1, 0.1, 0.18),
+      borderColor: blue,
       borderWidth: 1.5,
     });
 
@@ -198,25 +209,25 @@ export class PdfStampService {
     const hW = bold.widthOfTextAtSize(header, hSize);
     const hx = x + (w - hW) / 2;
     const hy = y + h - 16;
-    page.drawText(header, { x: hx, y: hy, size: hSize, font: bold, color: rgb(0.1, 0.1, 0.18) });
-    page.drawLine({ start: { x: hx, y: hy - 1 }, end: { x: hx + hW, y: hy - 1 }, thickness: 0.5, color: rgb(0.1, 0.1, 0.18) });
+    page.drawText(header, { x: hx, y: hy, size: hSize, font: bold, color: blue });
+    page.drawLine({ start: { x: hx, y: hy - 1 }, end: { x: hx + hW, y: hy - 1 }, thickness: 0.5, color: blue });
 
     // Divider below header
-    page.drawLine({ start: { x: x + 5, y: y + h - 24 }, end: { x: x + w - 5, y: y + h - 24 }, thickness: 0.5, color: rgb(0.3, 0.3, 0.3) });
+    page.drawLine({ start: { x: x + 5, y: y + h - 24 }, end: { x: x + w - 5, y: y + h - 24 }, thickness: 0.5, color: blue });
 
     // Note text (word-wrapped)
     const lines = this.wrapThai(data.noteText, 38);
     let ty = y + h - 38;
     for (const line of lines.slice(0, 4)) {
-      page.drawText(line, { x: x + 8, y: ty, size: 10, font: regular, color: rgb(0, 0, 0) });
+      page.drawText(line, { x: x + 8, y: ty, size: 10, font: regular, color: blue });
       ty -= 16;
     }
 
     // Right-aligned signature block
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    this.drawRight(page, bold,    data.authorName,               x, y + 42, w - 8, 9);
-    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8);
-    this.drawRight(page, regular, dateStr,                       x, y + 14, w - 8, 8, rgb(0.4, 0.4, 0.4));
+    this.drawRight(page, bold,    data.authorName,               x, y + 42, w - 8, 9, blue);
+    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8, blue);
+    this.drawRight(page, regular, dateStr,                       x, y + 14, w - 8, 8, blue);
   }
 
   // ─── Utilities ────────────────────────────────────────────────────────────
