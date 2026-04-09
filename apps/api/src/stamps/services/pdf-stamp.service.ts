@@ -58,16 +58,17 @@ export class PdfStampService {
 
     const zones = await this.emptySpace.findStampZones(pdfBuffer, specs);
 
-    // Stamp 1: shift left −10px from zone (net result: remove previous +10 rightward shift)
-    if (zones[0]) {
-      zones[0] = { ...zones[0], y: zones[0].y + 10 };
-    }
-
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     pdfDoc.registerFontkit(fontkit);
     const { regular, bold } = await this.loadFonts(pdfDoc);
 
     const page = pdfDoc.getPages()[0];
+    const { height: pageH } = page.getSize();
+
+    // Stamp 1: x from algorithm (horizontal correct), y locked 8px from top of page
+    if (zones[0]) {
+      zones[0] = { ...zones[0], y: pageH - zones[0].h - 8 };
+    }
 
     // Draw in order 1 → 2 → 3 (top to bottom)
     this.drawRegistrationStamp(page, regular, bold, data.registration, zones[0]);
@@ -286,9 +287,14 @@ export class PdfStampService {
   }
 
   /**
-   * Render Thai text character by character, advancing x only for base characters.
-   * Combining marks (above/below vowels, tone marks) are drawn at the same x as the
-   * preceding consonant — fixing "สระลอย" (floating vowel) in pdf-lib.
+   * Render Thai text segment-by-segment (wordcut word boundaries).
+   *
+   * Each segment is passed as a complete string to page.drawText so fontkit
+   * applies GSUB/GPOS internally — marks (สระ/วรรณยุกต์) are positioned
+   * correctly ON the base consonant by the font's own tables, not by us.
+   *
+   * Between segments, x advances by thaiTextWidth (visual width, marks excluded)
+   * to avoid the "กระโดด" gap that character-by-character advance causes.
    */
   private drawThaiText(
     page: any, text: string,
@@ -296,20 +302,39 @@ export class PdfStampService {
     size: number, font: any, color: any,
   ) {
     if (!text) return;
-    let cx = x;
-    let lastBaseX = x;
 
-    for (const char of text.normalize('NFC')) {
-      const cp = char.codePointAt(0)!;
-      if (this.isThaiMark(cp)) {
-        // Render mark at the base consonant's x — no advance
-        page.drawText(char, { x: lastBaseX, y, size, font, color });
+    if (!this.wordcutReady) { wordcut.init(); this.wordcutReady = true; }
+
+    let segments: string[];
+    try {
+      const cut: string = wordcut.cut(text.normalize('NFC'));
+      segments = cut.split('|').filter((s: string) => s.length > 0);
+    } catch {
+      segments = [text.normalize('NFC')];
+    }
+
+    const merged = this.mergeMarkSegments(segments);
+
+    let cx = x;
+    for (const seg of merged) {
+      page.drawText(seg, { x: cx, y, size, font, color });
+      // Advance by visual width only (marks are zero-width)
+      cx += this.thaiTextWidth(seg, font, size);
+    }
+  }
+
+  /** Merge any segment that starts with a Thai combining mark into the previous segment. */
+  private mergeMarkSegments(segments: string[]): string[] {
+    const merged: string[] = [];
+    for (const seg of segments) {
+      const firstCp = seg.codePointAt(0);
+      if (merged.length > 0 && firstCp !== undefined && this.isThaiMark(firstCp)) {
+        merged[merged.length - 1] += seg;
       } else {
-        page.drawText(char, { x: cx, y, size, font, color });
-        lastBaseX = cx;
-        cx += font.widthOfTextAtSize(char, size);
+        merged.push(seg);
       }
     }
+    return merged;
   }
 
   /** Right-align Thai text within a box */
@@ -353,17 +378,8 @@ export class PdfStampService {
         : Array.from(text);
     }
 
-    // Merge any segment that starts with a Thai combining mark into the previous
-    // segment to prevent orphaned vowels at the beginning of a line.
-    const merged: string[] = [];
-    for (const seg of segments) {
-      const firstCp = seg.codePointAt(0);
-      if (merged.length > 0 && firstCp !== undefined && this.isThaiMark(firstCp)) {
-        merged[merged.length - 1] += seg;
-      } else {
-        merged.push(seg);
-      }
-    }
+    // Merge orphan mark segments before wrapping
+    const merged = this.mergeMarkSegments(segments);
 
     const lines: string[] = [];
     let cur = '';
