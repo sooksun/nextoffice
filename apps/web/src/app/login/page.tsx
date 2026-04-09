@@ -43,45 +43,31 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#75C56F" }}>
-      {/* Main content */}
-      <div className="flex flex-1">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#7DCB77" }}>
+      {/* Main content — green bg, branding left, card right */}
+      <div className="flex flex-1 items-center px-8 md:px-16 lg:px-24 gap-8 py-10">
+
         {/* Left — branding */}
-        <div className="hidden md:flex flex-1 flex-col items-center justify-center px-12 text-center gap-4 flex-grow">
-          {/* Logo placeholder — replace with <img src="/logo.png" /> when available */}
-          <div
-            className="w-36 h-36 rounded-full border-4 border-white/60 flex items-center justify-center shadow-lg"
-            style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
-          >
-            <svg
-              className="w-20 h-20 text-white/80"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"
-              />
+        <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center gap-5">
+          <div className="w-28 h-28 rounded-full border-4 border-white/40 flex items-center justify-center shadow-lg"
+            style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
+            <svg className="w-16 h-16 text-white/80" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
             </svg>
           </div>
-
           <div>
-            <p className="text-white text-xl font-semibold tracking-wide">สพป.เชียงราย เขต 3</p>
-            <h1 className="text-white text-4xl font-black tracking-widest mt-1">SMART OFFICE</h1>
-            <p className="text-white/90 text-sm mt-1">ระบบสำนักงานอิเล็กทรอนิกส์</p>
+            <p className="text-gray-800 text-xl font-semibold">สพป.เชียงราย เขต 3</p>
+            <h1 className="text-gray-900 text-4xl font-black tracking-widest mt-1">SMART OFFICE</h1>
+            <p className="text-gray-700 text-sm mt-1">ระบบสำนักงานอิเล็กทรอนิกส์</p>
           </div>
-
-          <p className="text-yellow-200 font-semibold text-lg leading-snug max-w-sm">
+          <p className="text-gray-800 font-semibold text-lg leading-snug max-w-sm">
             สำนักงานเขตพื้นที่การศึกษาประถมศึกษาเชียงราย เขต 3
           </p>
         </div>
 
-        {/* Right — login card */}
-        <div className="w-full md:flex-1 bg-white flex flex-col items-center justify-center px-10 py-14 shadow-2xl">
-          <div className="w-full max-w-sm">
+        {/* Right — floating white card */}
+        <div className="w-full md:w-[420px] lg:w-[460px] bg-white rounded-2xl shadow-2xl px-10 py-14 shrink-0">
           <h2 className="text-xl font-bold text-gray-800 text-center mb-8">
             ล็อกอินเข้าใช้งานระบบ
           </h2>
@@ -100,7 +86,6 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ชื่อล็อกอิน หรือ อีเมล */}
             <input
               type="text"
               value={email}
@@ -112,7 +97,6 @@ export default function LoginPage() {
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-white"
             />
 
-            {/* รหัสผ่าน */}
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -133,7 +117,6 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
@@ -147,7 +130,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-          </div>
         </div>
       </div>
 
