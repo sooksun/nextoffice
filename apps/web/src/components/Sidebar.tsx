@@ -8,7 +8,6 @@ import DocumentUploadModal from "./DocumentUploadModal";
 import { getUser } from "@/lib/auth";
 import {
   LayoutDashboard,
-  FileText,
   FolderOpen,
   Briefcase,
   Building2,
@@ -86,7 +85,6 @@ const NAV_GROUPS: NavGroup[] = [
     id: "backoffice",
     label: "BACK OFFICE",
     items: [
-      { href: "/intakes", label: "รับหนังสืออัตโนมัติ", icon: FileText, roles: ["CLERK", "ADMIN"] },
       { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
       { href: "/cases", label: "เคส", icon: Briefcase, roles: ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
       { href: "/saraban/reports", label: "รายงานสารบรรณ", icon: ScrollText, roles: SARABAN },
