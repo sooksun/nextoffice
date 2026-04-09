@@ -405,6 +405,7 @@ model InboundCase {
   @@map("inbound_cases")
 }
 
+
 model CaseTopic {
   id            BigInt  @id @default(autoincrement())
   inboundCaseId BigInt  @map("inbound_case_id")

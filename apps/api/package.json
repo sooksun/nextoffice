@@ -18,13 +18,26 @@
     "seed:all": "npm run seed:admin && npm run seed:sarabun && npm run seed:school"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "tsconfig.json" }]
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.json"
+        }
+      ]
     },
-    "collectCoverageFrom": ["**/*.(t|j)s", "!**/*.module.ts", "!**/main.ts"],
+    "collectCoverageFrom": [
+      "**/*.(t|j)s",
+      "!**/*.module.ts",
+      "!**/main.ts"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
@@ -44,6 +57,7 @@
     "@nestjs/platform-express": "^10.4.22",
     "@nestjs/schedule": "^6.1.1",
     "@nestjs/swagger": "^7.4.2",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@prisma/adapter-mariadb": "^7.6.0",
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
@@ -62,6 +76,8 @@
     "minio": "^8.0.7",
     "multer": "^2.1.1",
     "mysql2": "^3.15.3",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^2.16.105",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",

@@ -210,7 +210,7 @@ export class PageContextService {
     });
 
     const recentList = recent
-      .map((d) => `- ${d.registrationNo ?? '#' + Number(d.id)} | ${d.subject} | ${d.status}`)
+      .map((d) => `- ${'#' + Number(d.id)} | ${d.subject} | ${d.status}`)
       .join('\n');
 
     return {

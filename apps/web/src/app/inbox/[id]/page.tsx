@@ -109,9 +109,10 @@ async function getActivities(id: string) {
   try { return await apiFetch<Activity[]>(`/cases/${id}/activities`); } catch { return []; }
 }
 
-/** URL ไฟล์ต้นฉบับ — ผ่าน Next.js proxy route (ไม่ต้องพึ่ง external API domain) */
-function buildFileUrl(intakeId: number): string {
-  return `/api/files/intake/${intakeId}`;
+/** URL ไฟล์ — ถ้า status ผ่าน registered ขึ้นไป ให้ดึง stamped version */
+function buildFileUrl(intakeId: number, status: string): string {
+  const showStamped = !['new', 'analyzing', 'proposed'].includes(status);
+  return `/api/files/intake/${intakeId}${showStamped ? '?stamped=true' : ''}`;
 }
 
 export default async function InboxDetailPage({
@@ -128,7 +129,7 @@ export default async function InboxDetailPage({
 
   // แสดงไฟล์เฉพาะเมื่อมี storagePath (ไฟล์ถูก save ลง MinIO สำเร็จ)
   const hasFile = !!(caseData?.intake?.id && caseData?.intake?.storagePath);
-  const intakeFileUrl = hasFile ? buildFileUrl(caseData!.intake!.id) : null;
+  const intakeFileUrl = hasFile ? buildFileUrl(caseData!.intake!.id, caseData!.status) : null;
   const intakeMimeType = caseData?.intake?.mimeType ?? "";
   const intakeFileName = caseData?.intake?.originalFileName ?? null;
 

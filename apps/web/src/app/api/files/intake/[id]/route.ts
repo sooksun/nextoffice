@@ -20,8 +20,13 @@ export async function GET(
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
+  const stamped = request.nextUrl.searchParams.get("stamped") === "true";
+  const apiPath = stamped
+    ? `${internalBase}/stamps/intake/${id}/view`
+    : `${internalBase}/intake/${id}/file`;
+
   try {
-    const res = await fetch(`${internalBase}/intake/${id}/file`, { headers });
+    const res = await fetch(apiPath, { headers });
 
     if (!res.ok) {
       return new NextResponse(`ไม่พบไฟล์ (${res.status})`, { status: res.status });
@@ -33,7 +38,7 @@ export async function GET(
 
     const responseHeaders: Record<string, string> = {
       "Content-Type": contentType,
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": stamped ? "private, no-store" : "private, max-age=3600",
     };
     if (contentDisposition) responseHeaders["Content-Disposition"] = contentDisposition;
     if (contentLength) responseHeaders["Content-Length"] = contentLength;

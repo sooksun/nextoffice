@@ -5,6 +5,9 @@ import { GoogleCalendarService } from '../../calendar/services/google-calendar.s
 import { NotificationService } from '../../notifications/notification.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 import { WorkflowLearningService } from '../../projects/services/workflow-learning.service';
+import { PdfStampService } from '../../stamps/services/pdf-stamp.service';
+import { StampStorageService } from '../../stamps/services/stamp-storage.service';
+import { FileStorageService } from '../../intake/services/file-storage.service';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ['registered'],
@@ -27,6 +30,9 @@ export class CaseWorkflowService {
     @Optional() private readonly notifications: NotificationService,
     @Optional() private readonly dispatcher: QueueDispatcherService,
     @Optional() private readonly workflowLearning: WorkflowLearningService,
+    @Optional() private readonly pdfStamp: PdfStampService,
+    @Optional() private readonly stampStorage: StampStorageService,
+    @Optional() private readonly fileStorage: FileStorageService,
   ) {}
 
   /** Parse intake ID จาก description field (format: "intake:{id}") */
@@ -234,6 +240,11 @@ export class CaseWorkflowService {
         this.logger.warn(`Calendar event creation failed (non-blocking): ${calErr.message}`);
       }
     }
+
+    // Apply all 3 stamps to PDF in a single async pass (never blocks the response)
+    this.applyAllStampsAsync(caseId, updated, assignedByUserId, directorNote).catch(
+      (e) => this.logger.warn(`PDF stamp generation failed: ${e.message}`),
+    );
 
     return {
       case: this.serialize(updated),
@@ -443,6 +454,73 @@ export class CaseWorkflowService {
           );
         }
       }
+    }
+  }
+
+  /**
+   * Apply all 3 stamps to the original PDF in a single pass and save the result.
+   * Triggered automatically at the end of assign(). Never throws — failures are logged only.
+   */
+  private async applyAllStampsAsync(
+    caseId: number,
+    updatedCase: any,
+    assignedByUserId: number,
+    directorNote?: string,
+  ): Promise<void> {
+    if (!this.pdfStamp || !this.stampStorage || !this.fileStorage) return;
+
+    const intakeId = this.parseIntakeId(updatedCase.description);
+    if (!intakeId) return;
+
+    const intake = await this.prisma.documentIntake.findUnique({ where: { id: BigInt(intakeId) } });
+    if (!intake || !intake.mimeType?.includes('pdf')) return;
+
+    const [org, user] = await Promise.all([
+      this.prisma.organization.findUnique({
+        where: { id: updatedCase.organizationId },
+        select: { name: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: BigInt(assignedByUserId) },
+        select: { fullName: true, positionTitle: true },
+      }),
+    ]);
+
+    const now = new Date();
+    const pdfBuffer = await this.fileStorage.getBuffer(intake.storagePath);
+
+    const stamped = await this.pdfStamp.applyAllStamps(pdfBuffer, {
+      registration: {
+        orgName: org?.name ?? '',
+        registrationNo: updatedCase.registrationNo ?? '',
+        registeredAt: updatedCase.registeredAt ?? now,
+      },
+      endorsement: {
+        endorsementText: this.buildEndorsementText(updatedCase.urgencyLevel),
+        authorName: user?.fullName ?? 'ธุรการ',
+        positionTitle: user?.positionTitle ?? undefined,
+        stampedAt: now,
+      },
+      directorNote: directorNote
+        ? {
+            noteText: directorNote,
+            authorName: user?.fullName ?? 'ผู้บริหาร',
+            positionTitle: user?.positionTitle ?? undefined,
+            stampedAt: now,
+          }
+        : undefined,
+    });
+
+    await this.stampStorage.save(intakeId, stamped);
+    this.logger.log(`All stamps applied for intake #${intakeId} (case #${caseId})`);
+  }
+
+  private buildEndorsementText(urgencyLevel: string): string {
+    switch (urgencyLevel) {
+      case 'urgent':      return 'จึงเรียนมาเพื่อพิจารณาสั่งการ';
+      case 'very_urgent':
+      case 'most_urgent': return 'จึงเรียนมาเพื่อดำเนินการด่วน';
+      default:            return 'จึงเรียนมาเพื่อทราบ';
     }
   }
 
