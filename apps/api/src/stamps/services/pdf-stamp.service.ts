@@ -3,6 +3,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import * as fontkit from '@pdf-lib/fontkit';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as wordcut from 'wordcut';
 import { EmptySpaceService, StampZone } from './empty-space.service';
 
 // ─── Data interfaces ─────────────────────────────────────────────────────────
@@ -14,7 +15,9 @@ export interface RegistrationStampData {
 }
 
 export interface EndorsementStampData {
-  endorsementText: string;
+  schoolName: string;    // ชื่อโรงเรียน → "เรียน ผู้อำนวยการโรงเรียน {schoolName}"
+  aiSummary: string;     // สรุปโดย AI จาก DocumentAiResult.summaryText
+  actionSummary: string; // สิ่งที่ต้องดำเนินการ จาก nextActionJson
   authorName: string;
   positionTitle?: string;
   stampedAt: Date;
@@ -38,6 +41,7 @@ export interface AllStampsData {
 @Injectable()
 export class PdfStampService {
   private readonly logger = new Logger(PdfStampService.name);
+  private wordcutReady = false;
 
   constructor(private readonly emptySpace: EmptySpaceService) {}
 
@@ -50,7 +54,7 @@ export class PdfStampService {
   async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
     const specs = [
       { w: 160, h: 70,  preference: 'top-right'   as const }, // stamp1: w-40, h-25
-      { w: 260, h: 110, preference: 'bottom-left'  as const },
+      { w: 260, h: 150, preference: 'bottom-left'  as const },
       ...(data.directorNote
         ? [{ w: 260, h: 120, preference: 'bottom-right' as const }]
         : []),
@@ -60,7 +64,7 @@ export class PdfStampService {
 
     // Stamp 1: shift right +20, up +10 after zone is found
     if (zones[0]) {
-      zones[0] = { ...zones[0], x: zones[0].x + 20, y: zones[0].y + 10 };
+      zones[0] = { ...zones[0], x: zones[0].x + 10, y: zones[0].y + 10 };
     }
 
     const pdfDoc = await PDFDocument.load(pdfBuffer);
@@ -110,16 +114,11 @@ export class PdfStampService {
     const d = this.toThaiDate(data.registeredAt);
 
     // Box
-    page.drawRectangle({
-      x, y, width: w, height: h,
-      color: rgb(1, 1, 1),
-      borderColor: rgb(0.07, 0.33, 0.71),
-      borderWidth: 1.5,
-    });
+    this.drawRoundedRect(page, x, y, w, h, 20, rgb(1, 1, 1), rgb(0.07, 0.33, 0.71), 1.5);
 
-    // Org name — centered, truncate if too long
-    const orgName = data.orgName.length > 30 ? data.orgName.slice(0, 28) + '..' : data.orgName;
+    // Org name — centered, pixel-accurate truncation
     const orgSize = 8;
+    const orgName = (this.wrapToFit(data.orgName, bold, orgSize, w - 16, 1)[0]) ?? '';
     const orgW = bold.widthOfTextAtSize(orgName, orgSize);
     page.drawText(orgName, {
       x: x + (w - orgW) / 2,
@@ -156,32 +155,50 @@ export class PdfStampService {
     data: EndorsementStampData, zone: StampZone,
   ) {
     const { x, y, w, h } = zone;
+    const inner = w - 16; // usable content width (8px padding each side)
     const d = this.toThaiDate(data.stampedAt);
-
     const blue = rgb(0.07, 0.33, 0.71);
 
-    // Dashed blue box
-    page.drawRectangle({
-      x, y, width: w, height: h,
-      color: rgb(1, 1, 1),
-      borderColor: blue,
-      borderWidth: 1.5,
-      borderDashArray: [4, 3],
+    // Box (solid, rounded)
+    this.drawRoundedRect(page, x, y, w, h, 20, rgb(1, 1, 1), blue, 1.5);
+
+    // ── Row 1: เรียน ผู้อำนวยการโรงเรียน {schoolName} ──
+    const salutationLines = this.wrapToFit(
+      `เรียน ผู้อำนวยการโรงเรียน ${data.schoolName}`, bold, 8, inner, 1,
+    );
+    page.drawText(salutationLines[0] ?? '', { x: x + 8, y: y + h - 14, size: 8, font: bold, color: blue });
+
+    // Divider
+    page.drawLine({
+      start: { x: x + 5, y: y + h - 22 },
+      end:   { x: x + w - 5, y: y + h - 22 },
+      thickness: 0.5, color: blue,
     });
 
-    // Endorsement text (word-wrapped, max 4 lines)
-    const lines = this.wrapThai(data.endorsementText, 38);
-    let ty = y + h - 18;
-    for (const line of lines.slice(0, 4)) {
-      page.drawText(line, { x: x + 8, y: ty, size: 10, font: regular, color: blue });
-      ty -= 16;
+    // ── Row 2: AI summary (max 2 lines, 8pt regular) ──
+    const summaryLines = this.wrapToFit(data.aiSummary, regular, 8, inner, 2);
+    let ty = y + h - 33;
+    for (const line of summaryLines) {
+      page.drawText(line, { x: x + 8, y: ty, size: 8, font: regular, color: blue });
+      ty -= 11;
     }
 
-    // Right-aligned signature block
+    // ── Row 3: สิ่งที่ต้องดำเนินการ (label + content, max 2 lines) ──
+    const actionLabelY = y + h - 33 - (summaryLines.length || 1) * 11 - 6;
+    page.drawText('สิ่งที่ต้องดำเนินการ :', { x: x + 8, y: actionLabelY, size: 8, font: bold, color: blue });
+
+    const actionLines = this.wrapToFit(data.actionSummary, regular, 8, inner, 2);
+    let ay = actionLabelY - 11;
+    for (const line of actionLines) {
+      page.drawText(line, { x: x + 8, y: ay, size: 8, font: regular, color: blue });
+      ay -= 11;
+    }
+
+    // ── Signature block (fixed positions from bottom) ──
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    this.drawRight(page, bold,    data.authorName,               x, y + 42, w - 8, 9, blue);
+    this.drawRight(page, bold,    data.authorName,  x, y + 42, w - 8, 9, blue);
     if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8, blue);
-    this.drawRight(page, regular, dateStr,                       x, y + 14, w - 8, 8, blue);
+    this.drawRight(page, regular, dateStr,          x, y + 14, w - 8, 8, blue);
   }
 
   // ─── Stamp #3: ตราคำสั่งผู้บริหาร ─────────────────────────────────────────
@@ -195,13 +212,8 @@ export class PdfStampService {
 
     const blue = rgb(0.07, 0.33, 0.71);
 
-    // Blue box
-    page.drawRectangle({
-      x, y, width: w, height: h,
-      color: rgb(1, 1, 1),
-      borderColor: blue,
-      borderWidth: 1.5,
-    });
+    // Blue box (solid, rounded)
+    this.drawRoundedRect(page, x, y, w, h, 20, rgb(1, 1, 1), blue, 1.5);
 
     // Header "คำสั่ง" centered with underline
     const header = 'คำสั่ง';
@@ -215,12 +227,12 @@ export class PdfStampService {
     // Divider below header
     page.drawLine({ start: { x: x + 5, y: y + h - 24 }, end: { x: x + w - 5, y: y + h - 24 }, thickness: 0.5, color: blue });
 
-    // Note text (word-wrapped)
-    const lines = this.wrapThai(data.noteText, 38);
+    // Note text — pixel-accurate wrap, max 3 lines to avoid signature overlap
+    const lines = this.wrapToFit(data.noteText, regular, 9, w - 16, 3);
     let ty = y + h - 38;
-    for (const line of lines.slice(0, 4)) {
-      page.drawText(line, { x: x + 8, y: ty, size: 10, font: regular, color: blue });
-      ty -= 16;
+    for (const line of lines) {
+      page.drawText(line, { x: x + 8, y: ty, size: 9, font: regular, color: blue });
+      ty -= 14;
     }
 
     // Right-aligned signature block
@@ -228,6 +240,40 @@ export class PdfStampService {
     this.drawRight(page, bold,    data.authorName,               x, y + 42, w - 8, 9, blue);
     if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8, blue);
     this.drawRight(page, regular, dateStr,                       x, y + 14, w - 8, 8, blue);
+  }
+
+  // ─── Rounded rectangle ───────────────────────────────────────────────────
+
+  /** Draw a filled rounded rectangle using SVG path (pdf-lib drawRectangle has no radius support) */
+  private drawRoundedRect(
+    page: any,
+    x: number, y: number,
+    w: number, h: number,
+    r: number,
+    fillColor: any,
+    borderColor: any,
+    borderWidth: number,
+  ) {
+    const cr = Math.min(r, w / 2, h / 2);
+    const path = [
+      `M ${cr},0`,
+      `L ${w - cr},0`,
+      `Q ${w},0 ${w},${cr}`,
+      `L ${w},${h - cr}`,
+      `Q ${w},${h} ${w - cr},${h}`,
+      `L ${cr},${h}`,
+      `Q 0,${h} 0,${h - cr}`,
+      `L 0,${cr}`,
+      `Q 0,0 ${cr},0`,
+      'Z',
+    ].join(' ');
+    page.drawSvgPath(path, {
+      x,
+      y: y + h, // SVG origin = top-left → maps to PDF y = bottom + height
+      color: fillColor,
+      borderColor,
+      borderWidth,
+    });
   }
 
   // ─── Utilities ────────────────────────────────────────────────────────────
@@ -256,30 +302,64 @@ export class PdfStampService {
     };
   }
 
-  /** Naïve word-wrap for Thai text (splits on spaces; Thai words have no spaces,
-   *  so we fall back to character-count chunking when no space exists). */
-  private wrapThai(text: string, maxChars: number): string[] {
-    // If text has spaces (mixed Thai+space or English), split by space
-    if (text.includes(' ')) {
-      const words = text.split(' ');
-      const lines: string[] = [];
-      let cur = '';
-      for (const w of words) {
-        if ((cur + (cur ? ' ' : '') + w).length > maxChars) {
-          if (cur) lines.push(cur);
-          cur = w;
-        } else {
-          cur = cur ? `${cur} ${w}` : w;
-        }
-      }
-      if (cur) lines.push(cur);
-      return lines;
+  /**
+   * Pixel-accurate word wrap with Thai word segmentation via wordcut.
+   * @param text     input text (Thai, English, or mixed)
+   * @param font     embedded pdf-lib font (provides widthOfTextAtSize)
+   * @param size     font size in points
+   * @param maxWidthPt  max line width in PDF points
+   * @param maxLines maximum number of output lines (last line truncated with … if needed)
+   */
+  private wrapToFit(
+    text: string,
+    font: any,
+    size: number,
+    maxWidthPt: number,
+    maxLines: number,
+  ): string[] {
+    if (!text?.trim()) return [];
+
+    // Lazy-init wordcut (idempotent after first call)
+    if (!this.wordcutReady) {
+      wordcut.init();
+      this.wordcutReady = true;
     }
-    // Thai text: chunk by character count
+
+    // Segment Thai text into words; keep space tokens so mixed text stays readable
+    let segments: string[];
+    try {
+      const cut: string = wordcut.cut(text);
+      segments = cut.split('|').filter((s: string) => s.length > 0);
+    } catch {
+      // Fallback: split by space for English, or char-by-char for Thai
+      segments = text.includes(' ')
+        ? text.split(' ').flatMap((w, i, arr) => i < arr.length - 1 ? [w, ' '] : [w])
+        : Array.from(text);
+    }
+
     const lines: string[] = [];
-    for (let i = 0; i < text.length; i += maxChars) {
-      lines.push(text.slice(i, i + maxChars));
+    let cur = '';
+
+    for (const seg of segments) {
+      const test = cur + seg;
+      if (font.widthOfTextAtSize(test, size) > maxWidthPt && cur !== '') {
+        lines.push(cur);
+        if (lines.length >= maxLines) { cur = ''; break; }
+        cur = seg;
+      } else {
+        cur = test;
+      }
     }
-    return lines;
+    if (cur && lines.length < maxLines) lines.push(cur);
+
+    // Ensure every line fits; truncate last character + append … until it does
+    return lines.map((line) => {
+      if (font.widthOfTextAtSize(line, size) <= maxWidthPt) return line;
+      let t = line;
+      while (t.length > 0 && font.widthOfTextAtSize(t + '…', size) > maxWidthPt) {
+        t = t.slice(0, -1);
+      }
+      return t + '…';
+    });
   }
 }

@@ -472,7 +472,10 @@ export class CaseWorkflowService {
     const intakeId = this.parseIntakeId(updatedCase.description);
     if (!intakeId) return;
 
-    const intake = await this.prisma.documentIntake.findUnique({ where: { id: BigInt(intakeId) } });
+    const intake = await this.prisma.documentIntake.findUnique({
+      where: { id: BigInt(intakeId) },
+      include: { aiResult: { select: { summaryText: true, nextActionJson: true } } },
+    });
     if (!intake || !intake.mimeType?.includes('pdf')) return;
 
     const [org, user] = await Promise.all([
@@ -489,6 +492,16 @@ export class CaseWorkflowService {
     const now = new Date();
     const pdfBuffer = await this.fileStorage.getBuffer(intake.storagePath);
 
+    // Parse AI analysis data for stamp #2
+    const aiSummary = (intake as any).aiResult?.summaryText ?? '';
+    let actionSummary = '';
+    if ((intake as any).aiResult?.nextActionJson) {
+      try {
+        const actions: string[] = JSON.parse((intake as any).aiResult.nextActionJson);
+        actionSummary = actions.filter(Boolean).slice(0, 2).join(' / ');
+      } catch { /* ignore */ }
+    }
+
     const stamped = await this.pdfStamp.applyAllStamps(pdfBuffer, {
       registration: {
         orgName: org?.name ?? '',
@@ -496,7 +509,9 @@ export class CaseWorkflowService {
         registeredAt: updatedCase.registeredAt ?? now,
       },
       endorsement: {
-        endorsementText: this.buildEndorsementText(updatedCase.urgencyLevel),
+        schoolName: org?.name ?? '',
+        aiSummary,
+        actionSummary,
         authorName: user?.fullName ?? 'ธุรการ',
         positionTitle: user?.positionTitle ?? undefined,
         stampedAt: now,
@@ -513,15 +528,6 @@ export class CaseWorkflowService {
 
     await this.stampStorage.save(intakeId, stamped);
     this.logger.log(`All stamps applied for intake #${intakeId} (case #${caseId})`);
-  }
-
-  private buildEndorsementText(urgencyLevel: string): string {
-    switch (urgencyLevel) {
-      case 'urgent':      return 'จึงเรียนมาเพื่อพิจารณาสั่งการ';
-      case 'very_urgent':
-      case 'most_urgent': return 'จึงเรียนมาเพื่อดำเนินการด่วน';
-      default:            return 'จึงเรียนมาเพื่อทราบ';
-    }
   }
 
   private serialize(c: any) {
