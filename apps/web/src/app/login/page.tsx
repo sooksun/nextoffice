@@ -67,7 +67,8 @@ export default function LoginPage() {
         </div>
 
         {/* Right — floating white card */}
-        <div className="w-full md:w-[420px] lg:w-[460px] bg-white rounded-2xl shadow-2xl px-10 py-14 shrink-0">
+        <div className="flex-1 flex items-center justify-center">
+        <div className="w-full max-w-[460px] bg-white rounded-2xl shadow-2xl px-10 py-14">
           <h2 className="text-xl font-bold text-gray-800 text-center mb-8">
             ล็อกอินเข้าใช้งานระบบ
           </h2>
@@ -130,6 +131,7 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+        </div>
         </div>
       </div>
 
