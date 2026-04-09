@@ -43,7 +43,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#7DCB77" }}>
+    <div className="min-h-screen w-full flex flex-col" style={{ backgroundColor: "#7DCB77" }}>
       {/* Main content — green bg, branding left, card right */}
       <div className="flex flex-1 items-center px-8 md:px-16 lg:px-24 gap-8 py-10">
 
