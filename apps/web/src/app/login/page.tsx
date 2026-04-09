@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/auth";
-import { LogIn, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -33,7 +34,7 @@ export default function LoginPage() {
       setError(
         err instanceof Error
           ? err.message.includes("401")
-            ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+            ? "ชื่อล็อกอินหรือรหัสผ่านไม่ถูกต้อง"
             : "เกิดข้อผิดพลาดในการเชื่อมต่อ"
           : "เกิดข้อผิดพลาด",
       );
@@ -43,117 +44,131 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Brand */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#75C56F" }}>
+      {/* Main content */}
+      <div className="flex flex-1">
+        {/* Left — branding */}
+        <div className="hidden md:flex flex-1 flex-col items-center justify-center px-12 text-center gap-4">
+          {/* Logo placeholder — replace with <img src="/logo.png" /> when available */}
+          <div
+            className="w-36 h-36 rounded-full border-4 border-white/60 flex items-center justify-center shadow-lg"
+            style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
+          >
             <svg
-              className="w-8 h-8 text-white"
+              className="w-20 h-20 text-white/80"
               fill="none"
               stroke="currentColor"
-              strokeWidth={2}
+              strokeWidth={1.5}
               viewBox="0 0 24 24"
             >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                d="M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5"
               />
             </svg>
           </div>
-          <h1 className="text-3xl font-black text-primary font-headline tracking-tight">
-            Next Office
-          </h1>
-          <p className="text-sm text-on-surface-variant mt-1">
-            ระบบสารบรรณอิเล็กทรอนิกส์อัจฉริยะ
+
+          <div>
+            <p className="text-white text-xl font-semibold tracking-wide">สพป.เชียงราย เขต 3</p>
+            <h1 className="text-white text-4xl font-black tracking-widest mt-1">SMART OFFICE</h1>
+            <p className="text-white/90 text-sm mt-1">ระบบสำนักงานอิเล็กทรอนิกส์</p>
+          </div>
+
+          <p className="text-yellow-200 font-semibold text-lg leading-snug max-w-sm">
+            สำนักงานเขตพื้นที่การศึกษาประถมศึกษาเชียงราย เขต 3
           </p>
         </div>
 
-        {/* Card */}
-        <div className="bg-surface-lowest rounded-3xl border border-outline-variant/10 shadow-xl p-8">
-          <h2 className="text-xl font-bold text-primary font-headline mb-6">
-            เข้าสู่ระบบ
+        {/* Right — login card */}
+        <div className="w-full md:w-[420px] lg:w-[480px] bg-white flex flex-col justify-center px-10 py-14 shadow-2xl">
+          <h2 className="text-xl font-bold text-gray-800 text-center mb-8">
+            ล็อกอินเข้าใช้งานระบบ
           </h2>
 
           {sessionExpired && (
-            <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-secondary-container/40 text-on-secondary-container rounded-2xl text-sm font-medium border border-secondary/20">
-              <AlertCircle size={16} />
-              เซสชันหมดอายุหรือโทเค็นไม่ตรงกับเซิร์ฟเวอร์ (เช่น แก้ JWT_SECRET หรือ JWT_EXPIRES_IN
-              หลังล็อกอิน) กรุณาเข้าสู่ระบบอีกครั้ง
+            <div className="mb-4 flex items-start gap-2 px-4 py-3 bg-amber-50 text-amber-800 rounded-lg text-sm border border-amber-200">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง
             </div>
           )}
           {error && (
-            <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-error-container text-on-error-container rounded-2xl text-sm font-medium">
-              <AlertCircle size={16} />
+            <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-red-50 text-red-700 rounded-lg text-sm border border-red-200">
+              <AlertCircle size={16} className="shrink-0" />
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">
-                อีเมล
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-                placeholder="example@school.go.th"
-                className="w-full px-4 py-3 bg-surface-low border border-outline-variant/20 rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/30 outline-none transition-all"
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* ชื่อล็อกอิน (email) */}
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              placeholder="ชื่อล็อกอิน"
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-white"
+            />
 
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">
-                รหัสผ่าน
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 bg-surface-low border border-outline-variant/20 rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/30 outline-none transition-all pr-12"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
+            {/* นามสกุล */}
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="นามสกุล"
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-white"
+            />
+
+            {/* รหัสผ่าน */}
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete="current-password"
+                placeholder="รหัสผ่าน"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-white pr-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
             </div>
 
             {/* Submit */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-primary text-on-primary rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:brightness-110 flex items-center justify-center gap-2 shadow-md shadow-primary/20 disabled:opacity-60"
+              className="w-full py-3.5 rounded-lg font-semibold text-white text-sm transition-all hover:brightness-105 active:scale-[0.99] flex items-center justify-center disabled:opacity-60"
+              style={{ backgroundColor: "#1B90EF" }}
             >
               {loading ? (
                 <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <>
-                  <LogIn size={16} />
-                  เข้าสู่ระบบ
-                </>
+                "เข้าสู่ระบบ"
               )}
             </button>
           </form>
         </div>
+      </div>
 
-        <p className="text-center text-xs text-outline mt-6">
-          NextOffice AI E-Office &copy; {new Date().getFullYear()} — Education AI
-        </p>
+      {/* Footer */}
+      <div
+        className="flex items-center justify-between px-6 py-2 text-xs"
+        style={{ backgroundColor: "#1a1a2e", color: "#aaa" }}
+      >
+        <span>
+          {new Date().getFullYear()} &copy;{" "}
+          <span className="text-blue-400 font-medium">CVP Technology System.</span>{" "}
+          NextOffice AI E-Office
+        </span>
+        <span className="hover:text-white cursor-pointer transition-colors">ติดต่อเรา</span>
       </div>
     </div>
   );
