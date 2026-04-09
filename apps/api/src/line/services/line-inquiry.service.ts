@@ -333,6 +333,124 @@ export class LineInquiryService {
     ]);
   }
 
+  // ─── ดึงสาระสำคัญ ─────────────────────────────────────────
+
+  async handleExtractKeyPoints(lineUserId: string, caseId: number, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+    });
+    if (!c) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(`ไม่พบเรื่อง #${caseId}`),
+      ]);
+      return;
+    }
+
+    // หา AI result จาก intake link ใน description
+    let aiResult: any = null;
+    const intakeMatch = c.description?.match(/intake:(\d+)/);
+    if (intakeMatch) {
+      aiResult = await this.prisma.documentAiResult.findUnique({
+        where: { documentIntakeId: BigInt(intakeMatch[1]) },
+      });
+    }
+
+    const URGENCY_LABEL: Record<string, string> = {
+      most_urgent: '🚨 ด่วนที่สุด', very_urgent: '⚡ ด่วนมาก',
+      urgent: '⏰ ด่วน', normal: '📋 ปกติ',
+    };
+
+    const lines: string[] = [
+      `🔑 สาระสำคัญ — เรื่อง #${caseId}`,
+      ``,
+      `📌 เรื่อง: ${c.title}`,
+      `${URGENCY_LABEL[c.urgencyLevel] ?? '📋 ปกติ'}`,
+    ];
+
+    if (aiResult) {
+      if (aiResult.issuingAuthority) lines.push(`🏢 จาก: ${aiResult.issuingAuthority}`);
+      if (aiResult.documentNo)       lines.push(`📄 ที่: ${aiResult.documentNo}`);
+      if (aiResult.documentDate)     lines.push(`📅 ลงวันที่: ${new Date(aiResult.documentDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}`);
+      if (aiResult.summaryText) {
+        lines.push(``, `📝 สรุปสาระสำคัญ:`, aiResult.summaryText);
+      }
+      if (aiResult.deadlineDate) {
+        lines.push(``, `⏳ กำหนดดำเนินการ: ${new Date(aiResult.deadlineDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}`);
+      }
+      if (aiResult.nextActionJson) {
+        const actions: string[] = JSON.parse(aiResult.nextActionJson);
+        if (actions.length > 0) {
+          lines.push(``, `✅ สิ่งที่ต้องดำเนินการ:`);
+          actions.forEach((a, i) => lines.push(`  ${i + 1}. ${a}`));
+        }
+      }
+    }
+
+    await this.messaging.reply(replyToken, [
+      this.messaging.buildTextMessage(lines.join('\n')),
+    ]);
+  }
+
+  // ─── ร่างหนังสือตอบ ─────────────────────────────────────
+
+  async handleDraftReply(lineUserId: string, caseId: number, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+    });
+    if (!c) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(`ไม่พบเรื่อง #${caseId}`),
+      ]);
+      return;
+    }
+
+    let aiResult: any = null;
+    const intakeMatch = c.description?.match(/intake:(\d+)/);
+    if (intakeMatch) {
+      aiResult = await this.prisma.documentAiResult.findUnique({
+        where: { documentIntakeId: BigInt(intakeMatch[1]) },
+      });
+    }
+
+    const orgName = (user as any).organization?.name ?? 'สำนักงาน';
+    const buddhistYear = new Date().getFullYear() + 543;
+    const subject = aiResult?.subjectText || c.title;
+    const fromOrg = aiResult?.issuingAuthority ?? 'หน่วยงานต้นเรื่อง';
+
+    const draft = [
+      `✉ ร่างหนังสือตอบ — เรื่อง #${caseId}`,
+      ``,
+      `ที่ ........./........`,
+      `${orgName}`,
+      `วันที่ ...... ${buddhistYear}`,
+      ``,
+      `เรื่อง ${subject}`,
+      `เรียน ผู้บริหาร${fromOrg}`,
+      ``,
+      `ตามที่ ${fromOrg} ได้มีหนังสือ${aiResult?.documentNo ? ` ที่ ${aiResult.documentNo}` : ''} เรื่อง ${subject} มายัง ${orgName} นั้น`,
+      ``,
+      `${orgName} ขอเรียนว่า ...........................................................................`,
+      `...................................................................................................`,
+      ``,
+      `จึงเรียนมาเพื่อโปรดทราบ`,
+      ``,
+      `ขอแสดงความนับถือ`,
+      ``,
+      `(.....................................)`,
+      `ผู้อำนวยการ${orgName}`,
+    ].join('\n');
+
+    await this.messaging.reply(replyToken, [
+      this.messaging.buildTextMessage(draft),
+    ]);
+  }
+
   // ─── Helpers ────────────────────────────────────────────
 
   private async findLinkedUser(lineUserId: string) {

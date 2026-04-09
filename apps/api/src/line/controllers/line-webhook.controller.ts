@@ -103,6 +103,8 @@ export class LineWebhookController {
             const myTasksMatch = /^(งานของฉัน|สถานะงาน)$/.test(text);
             const holdMatch = text.match(/^รอพิจารณา\s*#(\d+)$/);
             const createCaseMatch = /^สร้างเรื่อง/.test(text);
+            const extractKeyPointsMatch = text.match(/^ดึงสาระสำคัญ\s*#(\d+)$/);
+            const draftReplyMatch = text.match(/^ร่างตอบ\s*#(\d+)$/);
 
             // V2: Inquiry commands — saraban, case detail, search, dashboard
             const sarabanInboundMatch = /^ทะเบียนรับ$/.test(text);
@@ -156,6 +158,10 @@ export class LineWebhookController {
                   { label: 'รายงานผล', text: 'สร้างรายงาน' },
                 ]),
               ]);
+            } else if (extractKeyPointsMatch && uid && rt) {
+              await this.inquirySvc.handleExtractKeyPoints(uid, Number(extractKeyPointsMatch[1]), rt);
+            } else if (draftReplyMatch && uid && rt) {
+              await this.inquirySvc.handleDraftReply(uid, Number(draftReplyMatch[1]), rt);
             // V2: Inquiry commands
             } else if (sarabanInboundMatch && uid && rt) {
               await this.inquirySvc.handleSarabanInbound(uid, rt);

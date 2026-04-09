@@ -140,6 +140,23 @@ export class LineWorkflowService {
       ]},
     ];
 
+    const quickReply = {
+      items: [
+        {
+          type: 'action',
+          action: { type: 'message', label: '🔑 ดึงสารสำคัญ', text: `ดึงสาระสำคัญ #${caseId}` },
+        },
+        {
+          type: 'action',
+          action: { type: 'message', label: '✉ ร่างหนังสือตอบ', text: `ร่างตอบ #${caseId}` },
+        },
+        {
+          type: 'action',
+          action: { type: 'message', label: '📋 มอบหมาย', text: `มอบหมาย #${caseId}` },
+        },
+      ],
+    };
+
     const flexMessage = {
       type: 'flex',
       altText: `📋 ลงรับแล้ว: ${result.title.substring(0, 40)} — กรุณามอบหมายงาน`,
@@ -173,8 +190,14 @@ export class LineWorkflowService {
       },
     };
 
+    const followUpMessage = {
+      type: 'text',
+      text: 'ต้องการดำเนินการอะไรต่อ?',
+      quickReply,
+    };
+
     for (const director of directors) {
-      await this.messaging.push(director.lineUser.lineUserId, [flexMessage]);
+      await this.messaging.push(director.lineUser.lineUserId, [flexMessage, followUpMessage]);
       this.logger.log(`Notified ${director.fullName} (${director.roleCode}) for assignment of case #${caseId}`);
     }
   }
