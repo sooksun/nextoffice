@@ -5,7 +5,7 @@ import { VectorStoreService, COLLECTION_KNOWLEDGE, COLLECTION_DOCUMENTS } from '
 import { ThaiTokenizerService } from './thai-tokenizer.service';
 
 export interface HybridResult {
-  sourceType: 'policy' | 'horizon' | 'document';
+  sourceType: 'policy' | 'horizon' | 'document' | 'user_knowledge';
   sourceId: bigint;
   vectorScore: number;   // 0-1 cosine similarity
   keywordScore: number;  // 0-1 TF-IDF relevance
@@ -27,7 +27,7 @@ export class HybridSearchService {
     private readonly tokenizer: ThaiTokenizerService,
   ) {}
 
-  async search(query: string, topK = 10): Promise<HybridResult[]> {
+  async search(query: string, topK = 10, orgId?: bigint): Promise<HybridResult[]> {
     let queryVector: number[] = [];
     try {
       queryVector = await this.embedding.embed(query);
@@ -126,7 +126,24 @@ export class HybridSearchService {
         payload: r.payload,
       }));
 
-    const all = [...policyResults, ...horizonResults, ...chunkResults]
+    // User-contributed knowledge: vector search from COLLECTION_KNOWLEDGE filtered by sourceType
+    const userKnowledgeVec = knowledgeVec.filter(
+      (r) => r.payload.sourceType === 'user_knowledge' &&
+        (!orgId || r.payload.organizationId === orgId.toString()),
+    );
+    const userKnowledgeResults: HybridResult[] = userKnowledgeVec
+      .filter((r) => r.score > 0.45)
+      .map((r) => ({
+        sourceType: 'user_knowledge' as const,
+        sourceId: BigInt(r.payload.itemId ?? 0),
+        vectorScore: r.score,
+        keywordScore: this.tokenizer.computeRelevance(query, r.payload.text ?? ''),
+        hybridScore: r.score * this.VECTOR_WEIGHT,
+        snippet: (r.payload.text ?? '').substring(0, 200),
+        payload: r.payload,
+      }));
+
+    const all = [...policyResults, ...horizonResults, ...chunkResults, ...userKnowledgeResults]
       .sort((a, b) => b.hybridScore - a.hybridScore)
       .slice(0, topK);
 

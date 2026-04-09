@@ -15,9 +15,10 @@ import { QueueModule } from '../queue/queue.module';
 import { AuthModule } from '../auth/auth.module';
 import { CasesModule } from '../cases/cases.module';
 import { GeminiModule } from '../gemini/gemini.module';
+import { KnowledgeImportModule } from '../knowledge-import/knowledge-import.module';
 
 @Module({
-  imports: [QueueModule, AuthModule, GeminiModule, forwardRef(() => CasesModule)],
+  imports: [QueueModule, AuthModule, GeminiModule, forwardRef(() => CasesModule), KnowledgeImportModule],
   controllers: [LineWebhookController, LineReplyController],
   providers: [
     LineSignatureService,

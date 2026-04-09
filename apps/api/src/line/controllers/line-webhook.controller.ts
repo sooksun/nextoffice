@@ -20,6 +20,7 @@ import { LineInquiryService } from '../services/line-inquiry.service';
 import { LineAttendanceService } from '../services/line-attendance.service';
 import { IntentClassifierService } from '../../ai/services/intent-classifier.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
+import { KnowledgeImportService } from '../../knowledge-import/knowledge-import.service';
 
 @ApiTags('line')
 @Controller('line')
@@ -37,6 +38,7 @@ export class LineWebhookController {
     private readonly attendanceSvc: LineAttendanceService,
     private readonly intentSvc: IntentClassifierService,
     private readonly dispatcher: QueueDispatcherService,
+    private readonly knowledgeImportSvc: KnowledgeImportService,
   ) {}
 
   @Post('webhook')
@@ -217,7 +219,34 @@ export class LineWebhookController {
               }
             }
           } else {
-            // Image / file messages → document intake pipeline
+            // Image / file messages — check for knowledge import caption first
+            const caption = event.message?.fileName || '';
+            const knowledgeCaptionMatch = caption.match(/^เพิ่มความรู้:\s*(.+)$/u);
+
+            if (knowledgeCaptionMatch && uid) {
+              // Knowledge import via LINE
+              const title = knowledgeCaptionMatch[1].trim();
+              try {
+                const fileBuffer = await this.messagingSvc.getMessageContent(event.message.id);
+                const mimeType = event.message.type === 'image' ? 'image/jpeg' : 'application/pdf';
+                await this.knowledgeImportSvc.createFromLine({ lineUserId: uid, title, fileBuffer, mimeType });
+                if (rt) {
+                  await this.messagingSvc.reply(rt, [
+                    { type: 'text', text: `รับข้อมูลความรู้ "${title}" แล้วครับ\nระบบกำลังประมวลผล อาจใช้เวลา 1-2 นาที` },
+                  ]);
+                }
+              } catch (err) {
+                this.logger.error(`Knowledge import from LINE failed: ${err.message}`);
+                if (rt) {
+                  await this.messagingSvc.reply(rt, [
+                    { type: 'text', text: 'เกิดข้อผิดพลาดในการนำเข้าความรู้ กรุณาลองใหม่อีกครั้ง' },
+                  ]);
+                }
+              }
+              continue;
+            }
+
+            // Standard document intake pipeline
             // Block intake for unlinked users
             if (uid) {
               const linkedUser = await this.pairingSvc.getLinkedUser(uid);

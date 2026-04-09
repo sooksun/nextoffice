@@ -25,6 +25,7 @@ import { HorizonModule } from './horizon/horizon.module';
 import { ProjectsModule } from './projects/projects.module';
 import { VaultModule } from './vault/vault.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { KnowledgeImportModule } from './knowledge-import/knowledge-import.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AttendanceModule } from './attendance/attendance.module';
     ProjectsModule,
     VaultModule,
     AttendanceModule,
+    KnowledgeImportModule,
   ],
 })
 export class AppModule {}

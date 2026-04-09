@@ -6,7 +6,7 @@ import { PolicyRagService } from './policy-rag.service';
 import { HybridSearchService } from './hybrid-search.service';
 
 export interface RetrievalResult {
-  sourceType: 'horizon' | 'horizon_v2' | 'policy' | 'context';
+  sourceType: 'horizon' | 'horizon_v2' | 'policy' | 'context' | 'user_knowledge';
   sourceRecordId: bigint;
   semanticScore: number;
   trustScore: number;
@@ -125,8 +125,10 @@ export class RetrievalService {
 
     const allResults: RetrievalResult[] = hybridResults.map((h) => {
       const final = h.hybridScore * 0.65 + contextFitScore * 0.2 + 0.15; // blend with context
+      const mappedType: RetrievalResult['sourceType'] =
+        h.sourceType === 'document' ? 'context' : h.sourceType;
       return {
-        sourceType: h.sourceType === 'document' ? 'context' : h.sourceType,
+        sourceType: mappedType,
         sourceRecordId: h.sourceId,
         semanticScore: h.vectorScore,
         trustScore: 0.8,
