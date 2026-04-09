@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 export interface StampSpec {
   w: number;
   h: number;
-  preference: 'top-right' | 'bottom-left' | 'bottom-right' | 'any';
+  preference: 'top-right' | 'top-left' | 'bottom-left' | 'bottom-right' | 'any';
 }
 
 export interface StampZone {
@@ -177,6 +177,9 @@ export class EmptySpaceService {
       case 'top-right':
         base = relX * 2 + relY * 3;
         break;
+      case 'top-left':
+        base = (1 - relX) * 2 + relY * 3;  // prefer left (low relX) + top (high relY)
+        break;
       case 'bottom-left':
         base = (1 - relX) * 2 + (1 - relY) * 3;
         break;
@@ -198,6 +201,8 @@ export class EmptySpaceService {
       switch (spec.preference) {
         case 'top-right':
           return { x: pageW - spec.w - 2, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
+        case 'top-left':
+          return { x: 40, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
         case 'bottom-left':
           return { x: 40, y: 80, w: spec.w, h: spec.h };
         case 'bottom-right':

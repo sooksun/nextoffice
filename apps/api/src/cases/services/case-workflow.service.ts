@@ -478,13 +478,18 @@ export class CaseWorkflowService {
     });
     if (!intake || !intake.mimeType?.includes('pdf')) return;
 
-    const [org, user] = await Promise.all([
+    const [org, user, director] = await Promise.all([
       this.prisma.organization.findUnique({
         where: { id: updatedCase.organizationId },
         select: { name: true },
       }),
       this.prisma.user.findUnique({
         where: { id: BigInt(assignedByUserId) },
+        select: { fullName: true, positionTitle: true },
+      }),
+      // ผู้อำนวยการโรงเรียน — ใช้เป็นผู้ลงนามตราที่ 3
+      this.prisma.user.findFirst({
+        where: { organizationId: updatedCase.organizationId, roleCode: 'DIRECTOR' },
         select: { fullName: true, positionTitle: true },
       }),
     ]);
@@ -519,8 +524,8 @@ export class CaseWorkflowService {
       directorNote: directorNote
         ? {
             noteText: directorNote,
-            authorName: user?.fullName ?? 'ผู้บริหาร',
-            positionTitle: user?.positionTitle ?? undefined,
+            authorName: director?.fullName ?? user?.fullName ?? 'ผู้อำนวยการ',
+            positionTitle: director?.positionTitle ?? 'ผู้อำนวยการโรงเรียน',
             stampedAt: now,
           }
         : undefined,
