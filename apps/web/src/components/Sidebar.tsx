@@ -237,7 +237,7 @@ export default function Sidebar() {
           className="w-full py-3 px-4 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
         >
           <FilePlus size={14} />
-          <span>+ เอกสารใหม่</span>
+          <span>+ เอกสารใหม่ด้วย AI</span>
         </button>
       </div>
       <DocumentUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
