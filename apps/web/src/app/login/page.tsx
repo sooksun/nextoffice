@@ -8,7 +8,6 @@ import { AlertCircle, Eye, EyeOff } from "lucide-react";
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -34,7 +33,7 @@ export default function LoginPage() {
       setError(
         err instanceof Error
           ? err.message.includes("401")
-            ? "ชื่อล็อกอินหรือรหัสผ่านไม่ถูกต้อง"
+            ? "ชื่อล็อกอิน/อีเมล หรือรหัสผ่านไม่ถูกต้อง"
             : "เกิดข้อผิดพลาดในการเชื่อมต่อ"
           : "เกิดข้อผิดพลาด",
       );
@@ -48,7 +47,7 @@ export default function LoginPage() {
       {/* Main content */}
       <div className="flex flex-1">
         {/* Left — branding */}
-        <div className="hidden md:flex flex-1 flex-col items-center justify-center px-12 text-center gap-4">
+        <div className="hidden md:flex flex-1 flex-col items-center justify-center px-12 text-center gap-4 flex-grow">
           {/* Logo placeholder — replace with <img src="/logo.png" /> when available */}
           <div
             className="w-36 h-36 rounded-full border-4 border-white/60 flex items-center justify-center shadow-lg"
@@ -81,7 +80,8 @@ export default function LoginPage() {
         </div>
 
         {/* Right — login card */}
-        <div className="w-full md:w-[420px] lg:w-[480px] bg-white flex flex-col justify-center px-10 py-14 shadow-2xl">
+        <div className="w-full md:flex-1 bg-white flex flex-col items-center justify-center px-10 py-14 shadow-2xl">
+          <div className="w-full max-w-sm">
           <h2 className="text-xl font-bold text-gray-800 text-center mb-8">
             ล็อกอินเข้าใช้งานระบบ
           </h2>
@@ -100,23 +100,15 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ชื่อล็อกอิน (email) */}
+            {/* ชื่อล็อกอิน หรือ อีเมล */}
             <input
-              type="email"
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               autoFocus
-              placeholder="ชื่อล็อกอิน"
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-white"
-            />
-
-            {/* นามสกุล */}
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="นามสกุล"
+              autoComplete="username"
+              placeholder="ชื่อล็อกอิน หรือ อีเมล"
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-white"
             />
 
@@ -155,6 +147,7 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+          </div>
         </div>
       </div>
 
