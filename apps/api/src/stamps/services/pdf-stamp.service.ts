@@ -357,7 +357,7 @@ export class PdfStampService {
     size: number, font: any, color: any,
   ) {
     if (!text) return;
-    const nfc = text.normalize('NFC');
+    const nfc = this.toThaiNumerals(text).normalize('NFC');
     this.THAI_CLUSTER_RE.lastIndex = 0;
     const clusters = [...nfc.matchAll(this.THAI_CLUSTER_RE)].map((m) => m[0]);
     let curX = x;
@@ -406,13 +406,18 @@ export class PdfStampService {
     return pass2;
   }
 
+  /** Convert ASCII digits 0–9 to Thai numerals ๐–๙ */
+  private toThaiNumerals(text: string): string {
+    return text.replace(/[0-9]/g, (d) => '๐๑๒๓๔๕๖๗๘๙'[+d]);
+  }
+
   /** Right-align Thai text within a box */
   private drawRight(
     page: any, font: any, text: string,
     boxX: number, y: number, maxW: number, size: number,
     color = rgb(0, 0, 0),
   ) {
-    const t = text.normalize('NFC');
+    const t = this.toThaiNumerals(text).normalize('NFC');
     const textW = font.widthOfTextAtSize(t, size);
     page.drawText(t, { x: boxX + maxW - textW, y, size, font, color });
   }
@@ -428,6 +433,8 @@ export class PdfStampService {
   ): string[] {
     if (!text?.trim()) return [];
 
+    const converted = this.toThaiNumerals(text);
+
     if (!this.wordcutReady) {
       wordcut.init();
       this.wordcutReady = true;
@@ -435,12 +442,12 @@ export class PdfStampService {
 
     let segments: string[];
     try {
-      const cut: string = wordcut.cut(text.normalize('NFC'));
+      const cut: string = wordcut.cut(converted.normalize('NFC'));
       segments = cut.split('|').filter((s: string) => s.length > 0);
     } catch {
-      segments = text.includes(' ')
-        ? text.split(' ').flatMap((w, i, arr) => i < arr.length - 1 ? [w, ' '] : [w])
-        : Array.from(text);
+      segments = converted.includes(' ')
+        ? converted.split(' ').flatMap((w, i, arr) => i < arr.length - 1 ? [w, ' '] : [w])
+        : Array.from(converted);
     }
 
     const merged = this.mergeMarkSegments(segments);
