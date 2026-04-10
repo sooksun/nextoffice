@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 export interface StampSpec {
   w: number;
   h: number;
+  minW?: number; // minimum width to try (for dynamic-width stamps)
   preference: 'top-right' | 'top-left' | 'bottom-left' | 'bottom-right' | 'lower-half-ltr' | 'any';
 }
 
@@ -184,65 +185,78 @@ export class EmptySpaceService {
     textRects: TextRect[],
   ): StampZone {
     const CELL = this.CELL;
-    const needCols = Math.ceil(spec.w / CELL);
+    const maxW = spec.w;
+    const minW = spec.minW ?? spec.w;
+    // Try widths from max down to min in 20pt steps
+    const widths: number[] = [];
+    for (let w = maxW; w >= minW; w -= 20) widths.push(w);
+    if (widths[widths.length - 1] !== minW) widths.push(minW);
+
     const needRows = Math.ceil(spec.h / CELL);
-    const totalCells = needCols * needRows;
 
     // Ideal y for stamps: ~25% from page bottom (signature zone for Thai docs)
     const idealGy = Math.floor(rows * 0.25);
 
     // ── Pass 1 (strict): fully empty in bottom 40%, recheck 0 text items ────
     const limit1 = Math.floor(rows * 0.40);
-    for (let gy = 0; gy <= limit1 - needRows; gy++) {
-      for (let gx = 0; gx <= cols - needCols; gx++) {
-        if (!this.isRectEmpty(grid, cols, gx, gy, needCols, needRows)) continue;
-        const px = gx * CELL;
-        const py = gy * CELL;
-        // Recheck: no actual text items within stamp bounds
-        if (this.countOverlappingItems(px, py, spec.w, spec.h, textRects) === 0) {
-          this.logger.debug(`Stamp LTR#${slotIndex} — Pass 1 (strict) at grid(${gx},${gy})`);
-          return { x: px, y: py, w: spec.w, h: spec.h };
+    for (const tryW of widths) {
+      const tryCols = Math.ceil(tryW / CELL);
+      for (let gy = 0; gy <= limit1 - needRows; gy++) {
+        for (let gx = 0; gx <= cols - tryCols; gx++) {
+          if (!this.isRectEmpty(grid, cols, gx, gy, tryCols, needRows)) continue;
+          const px = gx * CELL;
+          const py = gy * CELL;
+          if (this.countOverlappingItems(px, py, tryW, spec.h, textRects) === 0) {
+            this.logger.debug(`Stamp LTR#${slotIndex} — Pass 1 (strict) w=${tryW} at grid(${gx},${gy})`);
+            return { x: px, y: py, w: tryW, h: spec.h };
+          }
         }
       }
     }
 
     // ── Pass 2 (relaxed): ≤20% overlap, weighted score, bottom 55% ──────────
-    //    Create best candidate → recheck ≤3 text items
     const limit2 = Math.floor(rows * 0.55);
-    const maxOcc2 = Math.floor(totalCells * 0.20);
-    let best2 = this.scanWeighted(grid, cols, rows, needCols, needRows, idealGy, limit2, maxOcc2);
-    if (best2) {
-      const px = best2.gx * CELL;
-      const py = best2.gy * CELL;
-      const itemOverlaps = this.countOverlappingItems(px, py, spec.w, spec.h, textRects);
-      if (itemOverlaps <= 3) {
-        this.logger.debug(
-          `Stamp LTR#${slotIndex} — Pass 2 (relaxed) at grid(${best2.gx},${best2.gy}), ` +
-          `gridOcc=${best2.occ}/${totalCells}, textItems=${itemOverlaps}`,
-        );
-        return { x: px, y: py, w: spec.w, h: spec.h };
+    for (const tryW of widths) {
+      const tryCols = Math.ceil(tryW / CELL);
+      const totalCells = tryCols * needRows;
+      const maxOcc2 = Math.floor(totalCells * 0.20);
+      const best2 = this.scanWeighted(grid, cols, rows, tryCols, needRows, idealGy, limit2, maxOcc2);
+      if (best2) {
+        const px = best2.gx * CELL;
+        const py = best2.gy * CELL;
+        const itemOverlaps = this.countOverlappingItems(px, py, tryW, spec.h, textRects);
+        if (itemOverlaps <= 3) {
+          this.logger.debug(
+            `Stamp LTR#${slotIndex} — Pass 2 (relaxed) w=${tryW} at grid(${best2.gx},${best2.gy}), ` +
+            `gridOcc=${best2.occ}/${totalCells}, textItems=${itemOverlaps}`,
+          );
+          return { x: px, y: py, w: tryW, h: spec.h };
+        }
       }
-      // Recheck failed — fall through to Pass 3
-      this.logger.debug(
-        `Stamp LTR#${slotIndex} — Pass 2 recheck failed (${itemOverlaps} items), trying Pass 3`,
-      );
     }
 
     // ── Pass 3 (best-effort): minimum score in bottom 70%, always accept ────
     const limit3 = Math.floor(rows * 0.70);
-    const best3 = this.scanWeighted(grid, cols, rows, needCols, needRows, idealGy, limit3, totalCells);
-    if (best3) {
-      const px = best3.gx * CELL;
-      const py = best3.gy * CELL;
+    let bestZone: StampZone | null = null;
+    let bestScore = Infinity;
+    for (const tryW of widths) {
+      const tryCols = Math.ceil(tryW / CELL);
+      const totalCells = tryCols * needRows;
+      const best3 = this.scanWeighted(grid, cols, rows, tryCols, needRows, idealGy, limit3, totalCells);
+      if (best3 && best3.score < bestScore) {
+        bestScore = best3.score;
+        bestZone = { x: best3.gx * CELL, y: best3.gy * CELL, w: tryW, h: spec.h };
+      }
+    }
+    if (bestZone) {
       this.logger.debug(
-        `Stamp LTR#${slotIndex} — Pass 3 (best-effort) at grid(${best3.gx},${best3.gy}), ` +
-        `gridOcc=${best3.occ}/${totalCells}, score=${best3.score}`,
+        `Stamp LTR#${slotIndex} — Pass 3 (best-effort) w=${bestZone.w}, score=${bestScore}`,
       );
-      return { x: px, y: py, w: spec.w, h: spec.h };
+      return bestZone;
     }
 
-    // Ultimate fallback (should never reach here)
-    return { x: 40, y: Math.round(pageH * 0.20), w: spec.w, h: spec.h };
+    // Ultimate fallback
+    return { x: 40, y: Math.round(pageH * 0.20), w: minW, h: spec.h };
   }
 
   /**
@@ -342,11 +356,12 @@ export class EmptySpaceService {
         case 'top-left':
           return { x: 40, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
         case 'lower-half-ltr': {
+          const fbW = spec.minW ?? spec.w;
           const slotX = ltrSlot % 2 === 0
             ? Math.round(pageW * 0.04)
-            : Math.round(pageW * 0.04) + spec.w + 10;
+            : Math.round(pageW * 0.04) + fbW + 10;
           ltrSlot++;
-          return { x: slotX, y: Math.round(pageH * 0.20), w: spec.w, h: spec.h };
+          return { x: slotX, y: Math.round(pageH * 0.20), w: fbW, h: spec.h };
         }
         case 'bottom-left':
           return { x: 40, y: 80, w: spec.w, h: spec.h };

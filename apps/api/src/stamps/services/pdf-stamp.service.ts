@@ -56,18 +56,19 @@ export class PdfStampService {
     const page = pdfDoc.getPages()[0];
     const { height: pageH } = page.getSize();
 
-    // Compute auto-heights for stamps 2 & 3 based on actual content
-    const w23 = 240;
-    const h2 = this.computeEndorsementHeight(data.endorsement, regular, bold, w23);
+    // Compute auto-heights for stamps 2 & 3 (use minW for worst-case wrapping)
+    const maxW = 240;
+    const minW = 200;
+    const h2 = this.computeEndorsementHeight(data.endorsement, regular, bold, minW);
     const h3 = data.directorNote
-      ? this.computeDirectorNoteHeight(data.directorNote, regular, bold, w23)
+      ? this.computeDirectorNoteHeight(data.directorNote, regular, bold, minW)
       : 0;
 
     const specs = [
-      { w: 160, h: 70,  preference: 'top-right'      as const }, // stamp 1: locked top-right
-      { w: w23, h: h2,  preference: 'lower-half-ltr' as const }, // stamp 2: lower-half, L→R
+      { w: 160, h: 70,  preference: 'top-right'      as const },
+      { w: maxW, h: h2, minW, preference: 'lower-half-ltr' as const },
       ...(data.directorNote
-        ? [{ w: w23, h: h3, preference: 'lower-half-ltr' as const }] // stamp 3: next slot
+        ? [{ w: maxW, h: h3, minW, preference: 'lower-half-ltr' as const }]
         : []),
     ];
 
@@ -109,17 +110,14 @@ export class PdfStampService {
 
   /**
    * Compute the minimum height needed for stamp #2 (endorsement).
-   * Layout (top → bottom):
+   * Layout (top → bottom, signature is drawn BELOW the box):
    *   14pt  salutation
-   *    8pt  → separator at h-22
-   *   11pt  → gap to first summary line
+   *   11pt  gap to first summary line
    *   nSummary × 11pt  summary lines
    *    6pt  gap
    *   11pt  action label
    *   nAction × 11pt  action lines
-   *   ??pt  gap
-   *   42pt  signature block (author + position + date)
-   *   14pt  bottom padding
+   *    8pt  bottom padding
    */
   private computeEndorsementHeight(
     data: EndorsementStampData, regular: any, bold: any, w: number,
@@ -127,27 +125,24 @@ export class PdfStampService {
     const inner = w - 16;
     const nSummary = Math.max(this.wrapToFit(data.aiSummary, regular, 8, inner, 4).length, 1);
     const nAction  = Math.max(this.wrapToFit(data.actionSummary, regular, 8, inner, 4).length, 0);
-    // 89 = 14+8+11 (top) + 6+11 (action label gap) + 8 (content-sig gap) + 42+14 (sig+bottom)
-    return Math.max(89 + (nSummary + nAction) * 11 + 12, 90);
+    // 50 = 14 (salutation) + 11 (gap) + 6 (action gap) + 11 (action label) + 8 (bottom)
+    return Math.max(50 + (nSummary + nAction) * 11, 60);
   }
 
   /**
    * Compute the minimum height needed for stamp #3 (director note).
-   * Layout (top → bottom):
+   * Layout (top → bottom, signature is drawn BELOW the box):
    *   16pt  header "คำสั่ง"
-   *    8pt  → separator at h-24
-   *   14pt  → gap to first note line
+   *   14pt  gap to first note line
    *   nLines × 14pt  note lines
-   *   ??pt  gap
-   *   42pt  signature block
-   *   14pt  bottom padding
+   *    8pt  bottom padding
    */
   private computeDirectorNoteHeight(
     data: DirectorNoteStampData, regular: any, bold: any, w: number,
   ): number {
     const nLines = Math.max(this.wrapToFit(data.noteText, regular, 9, w - 16, 3).length, 1);
-    // 88 = 16+8+14 (top) + 8 (content-sig gap) + 42+14 (sig+bottom)   minus 14 for nLines start
-    return Math.max(88 + nLines * 14, 90);
+    // 38 = 16 (header) + 14 (gap) + 8 (bottom)
+    return Math.max(38 + nLines * 14, 50);
   }
 
   // ─── Stamp #1: ตราลงทะเบียนรับ ────────────────────────────────────────────
@@ -199,30 +194,22 @@ export class PdfStampService {
     const d = this.toThaiDate(data.stampedAt);
     const blue = rgb(0.07, 0.33, 0.71);
 
-    // No border box — transparent background
-
     // Row 1: เรียน ผู้อำนวยการโรงเรียน {schoolName}
     const salutation = this.wrapToFit(
       `เรียน ผู้อำนวยการโรงเรียน ${data.schoolName}`, bold, 8, inner, 1,
     )[0] ?? '';
     this.drawThaiText(page, salutation, x + 8, y + h - 14, 8, bold, blue);
 
-    page.drawLine({
-      start: { x: x + 5, y: y + h - 22 },
-      end:   { x: x + w - 5, y: y + h - 22 },
-      thickness: 0.5, color: blue,
-    });
-
     // Row 2: AI summary (max 4 lines)
     const summaryLines = this.wrapToFit(data.aiSummary, regular, 8, inner, 4);
-    let ty = y + h - 33;
+    let ty = y + h - 25;
     for (const line of summaryLines) {
       this.drawThaiText(page, line, x + 8, ty, 8, regular, blue);
       ty -= 11;
     }
 
     // Row 3: สิ่งที่ต้องดำเนินการ
-    const actionLabelY = y + h - 33 - (summaryLines.length || 1) * 11 - 6;
+    const actionLabelY = y + h - 25 - (summaryLines.length || 1) * 11 - 6;
     this.drawThaiText(page, 'สิ่งที่ต้องดำเนินการ :', x + 8, actionLabelY, 8, bold, blue);
 
     const actionLines = this.wrapToFit(data.actionSummary, regular, 8, inner, 4);
@@ -232,11 +219,11 @@ export class PdfStampService {
       ay -= 11;
     }
 
-    // Signature block (fixed from bottom)
+    // Signature block — drawn BELOW the stamp zone
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    this.drawRight(page, bold,    data.authorName,   x, y + 42, w - 8, 9, blue);
-    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8, blue);
-    this.drawRight(page, regular, dateStr,           x, y + 14, w - 8, 8, blue);
+    this.drawRight(page, bold,    data.authorName,   x, y - 4,  w - 8, 9, blue);
+    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y - 18, w - 8, 8, blue);
+    this.drawRight(page, regular, dateStr,           x, y - 32, w - 8, 8, blue);
   }
 
   // ─── Stamp #3: ตราคำสั่งผู้บริหาร (no border, transparent bg) ──────────────
@@ -249,32 +236,26 @@ export class PdfStampService {
     const d = this.toThaiDate(data.stampedAt);
     const blue = rgb(0.07, 0.33, 0.71);
 
-    // No border box — transparent background
-
-    // Header "คำสั่ง" left-aligned with underline
+    // Header "คำสั่ง" left-aligned (no underline)
     const header = 'คำสั่ง';
     const hSize = 9;
-    const hW = bold.widthOfTextAtSize(header.normalize('NFC'), hSize);
     const hx = x + 8;
     const hy = y + h - 16;
     this.drawThaiText(page, header, hx, hy, hSize, bold, blue);
-    page.drawLine({ start: { x: hx, y: hy - 1 }, end: { x: hx + hW, y: hy - 1 }, thickness: 0.5, color: blue });
-
-    page.drawLine({ start: { x: x + 5, y: y + h - 24 }, end: { x: x + w - 5, y: y + h - 24 }, thickness: 0.5, color: blue });
 
     // Note text (max 3 lines)
     const lines = this.wrapToFit(data.noteText, regular, 9, w - 16, 3);
-    let ty = y + h - 38;
+    let ty = y + h - 30;
     for (const line of lines) {
       this.drawThaiText(page, line, x + 8, ty, 9, regular, blue);
       ty -= 14;
     }
 
-    // Signature block
+    // Signature block — drawn BELOW the stamp zone
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    this.drawRight(page, bold,    data.authorName,   x, y + 42, w - 8, 9, blue);
-    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y + 28, w - 8, 8, blue);
-    this.drawRight(page, regular, dateStr,           x, y + 14, w - 8, 8, blue);
+    this.drawRight(page, bold,    data.authorName,   x, y - 4,  w - 8, 9, blue);
+    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y - 18, w - 8, 8, blue);
+    this.drawRight(page, regular, dateStr,           x, y - 32, w - 8, 8, blue);
   }
 
   // ─── Rounded rectangle (stamp #1 only) ───────────────────────────────────
