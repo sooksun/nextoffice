@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 export interface StampSpec {
   w: number;
   h: number;
-  preference: 'top-right' | 'top-left' | 'bottom-left' | 'bottom-right' | 'any';
+  preference: 'top-right' | 'top-left' | 'bottom-left' | 'bottom-right' | 'lower-half-ltr' | 'any';
 }
 
 export interface StampZone {
@@ -21,7 +21,7 @@ export class EmptySpaceService {
   /**
    * Find non-overlapping empty zones for each stamp spec.
    * Uses pdfjs-dist to extract text bounding boxes, builds a coverage grid,
-   * then finds the best empty rectangle for each stamp via preference-weighted scoring.
+   * then finds the best empty rectangle for each stamp.
    */
   async findStampZones(pdfBuffer: Buffer, specs: StampSpec[]): Promise<StampZone[]> {
     try {
@@ -62,7 +62,9 @@ export class EmptySpaceService {
       // Find a zone for each stamp, marking each as occupied before finding the next
       const zones: StampZone[] = [];
       for (const spec of specs) {
-        const zone = this.findBest(grid, cols, rows, spec, pageW, pageH);
+        const zone = spec.preference === 'lower-half-ltr'
+          ? this.findLowerHalfLtr(grid, cols, rows, spec, pageW, pageH)
+          : this.findBest(grid, cols, rows, spec, pageW, pageH);
         zones.push(zone);
         // Mark this zone so the next stamp doesn't overlap
         this.markArea(grid, cols, rows, zone.x - 2, zone.y - 2, zone.w + 4, zone.h + 4);
@@ -118,14 +120,47 @@ export class EmptySpaceService {
     return true;
   }
 
-  // ─── Best zone finder ────────────────────────────────────────────────────────
+  // ─── Lower-half left-to-right finder ────────────────────────────────────────
 
   /**
-   * Scan every valid placement in the grid and score it by:
-   *   (1) preference direction (top-right / bottom-left / bottom-right)
-   *   (2) amount of surrounding empty space (larger = better)
-   * Returns the highest-scoring placement as a StampZone.
+   * Deterministic scan: starting from visual page-middle downward, left to right.
+   * gy=0 = bottom of page, gy=rows-1 = top. Visual middle ≈ rows/2.
+   * Scan gy from rows/2 → 0 (going down visually), gx left → right.
+   * First empty rectangle wins. Falls back to upper half if nothing found.
    */
+  private findLowerHalfLtr(
+    grid: Uint8Array, cols: number, rows: number,
+    spec: StampSpec, pageW: number, pageH: number,
+  ): StampZone {
+    const CELL = this.CELL;
+    const needCols = Math.ceil(spec.w / CELL);
+    const needRows = Math.ceil(spec.h / CELL);
+
+    const startGy = Math.min(Math.floor(rows / 2), rows - needRows);
+
+    // Primary scan: visual middle → bottom
+    for (let gy = startGy; gy >= 0; gy--) {
+      for (let gx = 0; gx <= cols - needCols; gx++) {
+        if (this.isRectEmpty(grid, cols, gx, gy, needCols, needRows)) {
+          return { x: gx * CELL, y: gy * CELL, w: spec.w, h: spec.h };
+        }
+      }
+    }
+
+    // Fallback scan: upper half (still left to right, top → middle)
+    for (let gy = rows - needRows; gy > startGy; gy--) {
+      for (let gx = 0; gx <= cols - needCols; gx++) {
+        if (this.isRectEmpty(grid, cols, gx, gy, needCols, needRows)) {
+          return { x: gx * CELL, y: gy * CELL, w: spec.w, h: spec.h };
+        }
+      }
+    }
+
+    return { x: 40, y: Math.round(pageH / 4), w: spec.w, h: spec.h };
+  }
+
+  // ─── Scored zone finder (for top-right / top-left etc.) ─────────────────────
+
   private findBest(
     grid: Uint8Array, cols: number, rows: number,
     spec: StampSpec, pageW: number, pageH: number,
@@ -159,50 +194,36 @@ export class EmptySpaceService {
     };
   }
 
-  /**
-   * Score a candidate placement.
-   * relX = 0 (left) … 1 (right), relY = 0 (bottom) … 1 (top) in PDF coords.
-   * Preference biases the score toward a quadrant.
-   */
   private score(
     gx: number, gy: number, gw: number, gh: number,
     cols: number, rows: number,
     preference: StampSpec['preference'],
   ): number {
-    const relX = (gx + gw / 2) / cols; // 0=left … 1=right
+    const relX = (gx + gw / 2) / cols;
     const relY = (gy + gh / 2) / rows; // 0=bottom … 1=top (PDF y-axis)
 
-    let base = 0;
     switch (preference) {
-      case 'top-right':
-        base = relX * 2 + relY * 3;
-        break;
-      case 'top-left':
-        base = (1 - relX) * 2 + relY * 3;  // prefer left (low relX) + top (high relY)
-        break;
-      case 'bottom-left':
-        base = (1 - relX) * 2 + (1 - relY) * 3;
-        break;
-      case 'bottom-right':
-        base = relX * 2 + (1 - relY) * 3;
-        break;
-      default:
-        base = 1;
+      case 'top-right':    return relX * 2 + relY * 3;
+      case 'top-left':     return (1 - relX) * 2 + relY * 3;
+      case 'bottom-left':  return (1 - relX) * 2 + (1 - relY) * 3;
+      case 'bottom-right': return relX * 2 + (1 - relY) * 3;
+      default:             return 1;
     }
-    return base;
   }
 
   // ─── Fallback (no pdfjs-dist or parse error) ────────────────────────────────
 
   private fallback(specs: StampSpec[]): StampZone[] {
-    const pageW = 595;  // A4 width in pt
-    const pageH = 842;  // A4 height in pt
+    const pageW = 595;
+    const pageH = 842;
     return specs.map((spec) => {
       switch (spec.preference) {
         case 'top-right':
           return { x: pageW - spec.w - 2, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
         case 'top-left':
           return { x: 40, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
+        case 'lower-half-ltr':
+          return { x: 40, y: Math.round(pageH / 4), w: spec.w, h: spec.h };
         case 'bottom-left':
           return { x: 40, y: 80, w: spec.w, h: spec.h };
         case 'bottom-right':

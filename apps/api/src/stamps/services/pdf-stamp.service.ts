@@ -48,16 +48,7 @@ export class PdfStampService {
   // ─── Public: apply all 3 stamps in a single pass ──────────────────────────
 
   async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
-    const specs = [
-      { w: 160, h: 70,  preference: 'top-right' as const },
-      { w: 260, h: 150, preference: 'top-left'  as const },
-      ...(data.directorNote
-        ? [{ w: 260, h: 120, preference: 'top-left' as const }]
-        : []),
-    ];
-
-    const zones = await this.emptySpace.findStampZones(pdfBuffer, specs);
-
+    // Load PDF and fonts first — needed to compute dynamic heights for stamps 2 & 3
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     pdfDoc.registerFontkit(fontkit);
     const { regular, bold } = await this.loadFonts(pdfDoc);
@@ -65,12 +56,29 @@ export class PdfStampService {
     const page = pdfDoc.getPages()[0];
     const { height: pageH } = page.getSize();
 
-    // Stamp 1: x from algorithm (horizontal correct), y locked 8px from top of page
+    // Compute auto-heights for stamps 2 & 3 based on actual content
+    const w23 = 240;
+    const h2 = this.computeEndorsementHeight(data.endorsement, regular, bold, w23);
+    const h3 = data.directorNote
+      ? this.computeDirectorNoteHeight(data.directorNote, regular, bold, w23)
+      : 0;
+
+    const specs = [
+      { w: 160, h: 70,  preference: 'top-right'      as const }, // stamp 1: locked top-right
+      { w: w23, h: h2,  preference: 'lower-half-ltr' as const }, // stamp 2: lower-half, L→R
+      ...(data.directorNote
+        ? [{ w: w23, h: h3, preference: 'lower-half-ltr' as const }] // stamp 3: next slot
+        : []),
+    ];
+
+    const zones = await this.emptySpace.findStampZones(pdfBuffer, specs);
+
+    // Stamp 1: x from algorithm, y locked 8pt from top of page
     if (zones[0]) {
       zones[0] = { ...zones[0], y: pageH - zones[0].h - 8 };
     }
 
-    // Draw in order 1 → 2 → 3 (top to bottom)
+    // Draw in order 1 → 2 → 3
     this.drawRegistrationStamp(page, regular, bold, data.registration, zones[0]);
     this.drawEndorsementStamp(page, regular, bold, data.endorsement, zones[1]);
     if (data.directorNote && zones[2]) {
@@ -97,6 +105,51 @@ export class PdfStampService {
     }
   }
 
+  // ─── Height calculators ────────────────────────────────────────────────────
+
+  /**
+   * Compute the minimum height needed for stamp #2 (endorsement).
+   * Layout (top → bottom):
+   *   14pt  salutation
+   *    8pt  → separator at h-22
+   *   11pt  → gap to first summary line
+   *   nSummary × 11pt  summary lines
+   *    6pt  gap
+   *   11pt  action label
+   *   nAction × 11pt  action lines
+   *   ??pt  gap
+   *   42pt  signature block (author + position + date)
+   *   14pt  bottom padding
+   */
+  private computeEndorsementHeight(
+    data: EndorsementStampData, regular: any, bold: any, w: number,
+  ): number {
+    const inner = w - 16;
+    const nSummary = Math.max(this.wrapToFit(data.aiSummary, regular, 8, inner, 2).length, 1);
+    const nAction  = Math.max(this.wrapToFit(data.actionSummary, regular, 8, inner, 2).length, 0);
+    // 89 = 14+8+11 (top) + 6+11 (action label gap) + 8 (content-sig gap) + 42+14 (sig+bottom)
+    return Math.max(89 + (nSummary + nAction) * 11 + 12, 90);
+  }
+
+  /**
+   * Compute the minimum height needed for stamp #3 (director note).
+   * Layout (top → bottom):
+   *   16pt  header "คำสั่ง"
+   *    8pt  → separator at h-24
+   *   14pt  → gap to first note line
+   *   nLines × 14pt  note lines
+   *   ??pt  gap
+   *   42pt  signature block
+   *   14pt  bottom padding
+   */
+  private computeDirectorNoteHeight(
+    data: DirectorNoteStampData, regular: any, bold: any, w: number,
+  ): number {
+    const nLines = Math.max(this.wrapToFit(data.noteText, regular, 9, w - 16, 3).length, 1);
+    // 88 = 16+8+14 (top) + 8 (content-sig gap) + 42+14 (sig+bottom)   minus 14 for nLines start
+    return Math.max(88 + nLines * 14, 90);
+  }
+
   // ─── Stamp #1: ตราลงทะเบียนรับ ────────────────────────────────────────────
 
   private drawRegistrationStamp(
@@ -107,6 +160,7 @@ export class PdfStampService {
     const d = this.toThaiDate(data.registeredAt);
     const blue = rgb(0.07, 0.33, 0.71);
 
+    // Stamp 1 keeps its border box
     this.drawRoundedRect(page, x, y, w, h, 4, rgb(1, 1, 1), blue, 1.5);
 
     // Org name — centered
@@ -134,7 +188,7 @@ export class PdfStampService {
     this.drawThaiText(page, d.time, x + 45, y + h - 64, 9, regular, blue);
   }
 
-  // ─── Stamp #2: ตราการเกษียณหนังสือ ────────────────────────────────────────
+  // ─── Stamp #2: ตราการเกษียณหนังสือ (no border, transparent bg) ────────────
 
   private drawEndorsementStamp(
     page: any, regular: any, bold: any,
@@ -145,7 +199,7 @@ export class PdfStampService {
     const d = this.toThaiDate(data.stampedAt);
     const blue = rgb(0.07, 0.33, 0.71);
 
-    this.drawRoundedRect(page, x, y, w, h, 4, rgb(1, 1, 1), blue, 1.5);
+    // No border box — transparent background
 
     // Row 1: เรียน ผู้อำนวยการโรงเรียน {schoolName}
     const salutation = this.wrapToFit(
@@ -185,7 +239,7 @@ export class PdfStampService {
     this.drawRight(page, regular, dateStr,           x, y + 14, w - 8, 8, blue);
   }
 
-  // ─── Stamp #3: ตราคำสั่งผู้บริหาร ─────────────────────────────────────────
+  // ─── Stamp #3: ตราคำสั่งผู้บริหาร (no border, transparent bg) ──────────────
 
   private drawDirectorNoteStamp(
     page: any, regular: any, bold: any,
@@ -195,7 +249,7 @@ export class PdfStampService {
     const d = this.toThaiDate(data.stampedAt);
     const blue = rgb(0.07, 0.33, 0.71);
 
-    this.drawRoundedRect(page, x, y, w, h, 4, rgb(1, 1, 1), blue, 1.5);
+    // No border box — transparent background
 
     // Header "คำสั่ง" centered with underline
     const header = 'คำสั่ง';
@@ -208,7 +262,7 @@ export class PdfStampService {
 
     page.drawLine({ start: { x: x + 5, y: y + h - 24 }, end: { x: x + w - 5, y: y + h - 24 }, thickness: 0.5, color: blue });
 
-    // Note text (max 3 lines to avoid overlapping signature)
+    // Note text (max 3 lines)
     const lines = this.wrapToFit(data.noteText, regular, 9, w - 16, 3);
     let ty = y + h - 38;
     for (const line of lines) {
@@ -223,7 +277,7 @@ export class PdfStampService {
     this.drawRight(page, regular, dateStr,           x, y + 14, w - 8, 8, blue);
   }
 
-  // ─── Rounded rectangle ────────────────────────────────────────────────────
+  // ─── Rounded rectangle (stamp #1 only) ───────────────────────────────────
 
   private drawRoundedRect(
     page: any,
@@ -235,7 +289,7 @@ export class PdfStampService {
     borderWidth: number,
   ) {
     const cr = Math.min(r, w / 2, h / 2);
-    const path = [
+    const svgPath = [
       `M ${cr},0`,
       `L ${w - cr},0`,
       `Q ${w},0 ${w},${cr}`,
@@ -247,7 +301,7 @@ export class PdfStampService {
       `Q 0,0 ${cr},0`,
       'Z',
     ].join(' ');
-    page.drawSvgPath(path, {
+    page.drawSvgPath(svgPath, {
       x,
       y: y + h,
       color: fillColor,
@@ -258,24 +312,16 @@ export class PdfStampService {
 
   // ─── Thai-aware text rendering ────────────────────────────────────────────
 
-  /**
-   * Returns true for Thai combining marks (above/below vowels, tone marks)
-   * that should render on top of the preceding base character with zero advance.
-   */
   private isThaiMark(cp: number): boolean {
     return (
-      cp === 0x0E31 ||                    // ั  sara a (above)
-      (cp >= 0x0E34 && cp <= 0x0E37) ||  // ิ ี ึ ื
-      (cp >= 0x0E38 && cp <= 0x0E3A) ||  // ุ ู ฺ
-      cp === 0x0E47 ||                    // ็  maitaikhu
-      (cp >= 0x0E48 && cp <= 0x0E4E)     // ่ ้ ๊ ๋ ์ ํ ๎
+      cp === 0x0E31 ||
+      (cp >= 0x0E34 && cp <= 0x0E37) ||
+      (cp >= 0x0E38 && cp <= 0x0E3A) ||
+      cp === 0x0E47 ||
+      (cp >= 0x0E48 && cp <= 0x0E4E)
     );
   }
 
-  /**
-   * Compute the visual advance width of a Thai string, treating combining
-   * marks as zero-width (they overlay the base consonant).
-   */
   private thaiTextWidth(text: string, font: any, size: number): number {
     let w = 0;
     for (const char of text) {
@@ -326,11 +372,6 @@ export class PdfStampService {
 
   // ─── Thai-aware word wrap ─────────────────────────────────────────────────
 
-  /**
-   * Pixel-accurate word wrap using wordcut for Thai segmentation.
-   * Line widths are measured with thaiTextWidth (marks are zero-width).
-   * The last line is truncated with … if it still overflows.
-   */
   private wrapToFit(
     text: string,
     font: any,
@@ -355,7 +396,6 @@ export class PdfStampService {
         : Array.from(text);
     }
 
-    // Merge orphan mark segments before wrapping
     const merged = this.mergeMarkSegments(segments);
 
     const lines: string[] = [];
@@ -373,7 +413,6 @@ export class PdfStampService {
     }
     if (cur && lines.length < maxLines) lines.push(cur);
 
-    // Truncate any line that still overflows (e.g. a very long unbreakable word)
     return lines.map((line) => {
       if (this.thaiTextWidth(line, font, size) <= maxWidthPt) return line;
       let t = line;
