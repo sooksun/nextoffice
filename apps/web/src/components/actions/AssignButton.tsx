@@ -302,6 +302,7 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
       });
       toastSuccess("มอบหมายงานสำเร็จ" + (dueDate ? " — บันทึก Google Calendar แล้ว" : ""));
       setOpen(false);
+      window.dispatchEvent(new CustomEvent("assign-success"));
       router.refresh();
     } catch (err: unknown) {
       toastError((err as Error).message || "มอบหมายไม่สำเร็จ");

@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
-import { ArrowLeft, FileText, Clock, User, Paperclip, ExternalLink, FileImage } from "lucide-react";
+import { ArrowLeft, FileText, Clock, User } from "lucide-react";
+import PdfPreview from "@/components/PdfPreview";
 import { formatThaiDate, formatThaiDateShort, formatThaiDateTime } from "@/lib/thai-date";
 import RegisterButton from "@/components/actions/RegisterButton";
 import AssignButton from "@/components/actions/AssignButton";
@@ -199,64 +200,11 @@ export default async function InboxDetailPage({
       {/* Original File — streamed via API proxy (GET /intake/:id/file) */}
       {intakeFileUrl && (
         <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6 overflow-hidden">
-          <div className="px-5 pt-5 pb-4">
-            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-3 flex items-center gap-2">
-              <Paperclip size={14} />
-              เอกสารไฟล์ต้นฉบับ
-              {intakeFileName && (
-                <span className="text-xs font-normal text-outline normal-case ml-1">({intakeFileName})</span>
-              )}
-            </h2>
-
-            {intakeMimeType === "application/pdf" ? (
-              <div className="space-y-3">
-                <iframe
-                  src={intakeFileUrl}
-                  className="w-full rounded-xl border border-outline-variant/20"
-                  style={{ height: "640px" }}
-                  title="เอกสารต้นฉบับ"
-                />
-                <a
-                  href={intakeFileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-primary font-medium hover:underline"
-                >
-                  <ExternalLink size={14} />
-                  เปิดใน PDF viewer
-                </a>
-              </div>
-            ) : intakeMimeType.startsWith("image/") ? (
-              <div className="space-y-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={intakeFileUrl}
-                  alt="เอกสารต้นฉบับ"
-                  className="max-w-full rounded-xl border border-outline-variant/20 object-contain bg-surface-bright"
-                  style={{ maxHeight: "640px" }}
-                />
-                <a
-                  href={intakeFileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-primary font-medium hover:underline"
-                >
-                  <FileImage size={14} />
-                  ดูภาพขนาดเต็ม
-                </a>
-              </div>
-            ) : (
-              <a
-                href={intakeFileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
-              >
-                <ExternalLink size={14} />
-                ดาวน์โหลดไฟล์
-              </a>
-            )}
-          </div>
+          <PdfPreview
+            src={intakeFileUrl}
+            mimeType={intakeMimeType}
+            fileName={intakeFileName}
+          />
         </div>
       )}
 
