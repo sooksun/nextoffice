@@ -3,8 +3,8 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import * as fontkit from '@pdf-lib/fontkit';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as wordcut from 'wordcut';
-import { EmptySpaceService, StampZone } from './empty-space.service';
+import { EmptySpaceService } from './empty-space.service';
+import { StampCanvasService, SIG_TOTAL } from './stamp-canvas.service';
 
 // ─── Data interfaces ─────────────────────────────────────────────────────────
 
@@ -15,9 +15,9 @@ export interface RegistrationStampData {
 }
 
 export interface EndorsementStampData {
-  schoolName: string;    // ชื่อโรงเรียน → "เรียน ผู้อำนวยการโรงเรียน {schoolName}"
-  aiSummary: string;     // สรุปโดย AI จาก DocumentAiResult.summaryText
-  actionSummary: string; // สิ่งที่ต้องดำเนินการ จาก nextActionJson
+  schoolName: string;
+  aiSummary: string;
+  actionSummary: string;
   authorName: string;
   positionTitle?: string;
   stampedAt: Date;
@@ -38,421 +38,138 @@ export interface AllStampsData {
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
+/** Fixed stamp width for stamps #2 and #3 */
+const W23 = 220;
+
 @Injectable()
 export class PdfStampService {
   private readonly logger = new Logger(PdfStampService.name);
-  private wordcutReady = false;
 
-  constructor(private readonly emptySpace: EmptySpaceService) {}
+  constructor(
+    private readonly emptySpace: EmptySpaceService,
+    private readonly stampCanvas: StampCanvasService,
+  ) {}
 
-  // ─── Public: apply all 3 stamps in a single pass ──────────────────────────
+  // ─── Public: apply all 3 stamps ──────────────────────────────────────────
 
   async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
-    // Load PDF and fonts first — needed to compute dynamic heights for stamps 2 & 3
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     pdfDoc.registerFontkit(fontkit);
-    const { regular, bold } = await this.loadFonts(pdfDoc);
 
     const page = pdfDoc.getPages()[0];
     const { height: pageH } = page.getSize();
 
-    // Compute auto-heights for stamps 2 & 3
-    const w23 = 220;
-    const h2 = this.computeEndorsementHeight(data.endorsement, regular, bold, w23);
+    // ── Compute content-box heights (canvas measurement, no rendering yet) ──
+    const h2 = this.stampCanvas.computeEndorsementHeight(data.endorsement, W23);
     const h3 = data.directorNote
-      ? this.computeDirectorNoteHeight(data.directorNote, regular, bold, w23)
+      ? this.stampCanvas.computeDirectorNoteHeight(data.directorNote, W23)
       : 0;
 
+    // ── Find placement zones via pdfjs-dist text analysis ──
     const specs = [
       { w: 160, h: 70,  preference: 'top-right'       as const },
-      { w: w23, h: h2,  preference: 'lower-half-left'  as const },
+      { w: W23, h: h2,  preference: 'lower-half-left'  as const },
       ...(data.directorNote
-        ? [{ w: w23, h: h3, preference: 'lower-half-right' as const }]
+        ? [{ w: W23, h: h3, preference: 'lower-half-right' as const }]
         : []),
     ];
 
     const zones = await this.emptySpace.findStampZones(pdfBuffer, specs);
 
-    // Stamp 1: x from algorithm, y locked 8pt from top of page
-    if (zones[0]) {
-      zones[0] = { ...zones[0], y: pageH - zones[0].h - 8 };
+    // Stamp 1: y locked 8pt from top
+    if (zones[0]) zones[0] = { ...zones[0], y: pageH - zones[0].h - 8 };
+
+    // ── Draw stamp #1 with pdf-lib (simple: org name + numbers only) ──
+    const { regular, bold } = await this.loadFonts(pdfDoc);
+    if (zones[0]) this.drawRegistrationStamp(page, regular, bold, data.registration, zones[0]);
+
+    // ── Render stamps #2 and #3 as PNG via Skia canvas, then embed ──
+    if (zones[1]) {
+      const png2 = this.stampCanvas.renderEndorsement(data.endorsement, W23, h2);
+      const img2 = await pdfDoc.embedPng(png2);
+      // PNG includes signature area below box; position from (zone.y - SIG_TOTAL) upward
+      page.drawImage(img2, {
+        x:      zones[1].x,
+        y:      zones[1].y - SIG_TOTAL,
+        width:  W23,
+        height: h2 + SIG_TOTAL,
+      });
     }
 
-    // Draw in order 1 → 2 → 3
-    this.drawRegistrationStamp(page, regular, bold, data.registration, zones[0]);
-    this.drawEndorsementStamp(page, regular, bold, data.endorsement, zones[1]);
     if (data.directorNote && zones[2]) {
-      this.drawDirectorNoteStamp(page, regular, bold, data.directorNote, zones[2]);
+      const png3 = this.stampCanvas.renderDirectorNote(data.directorNote, W23, h3);
+      const img3 = await pdfDoc.embedPng(png3);
+      page.drawImage(img3, {
+        x:      zones[2].x,
+        y:      zones[2].y - SIG_TOTAL,
+        width:  W23,
+        height: h3 + SIG_TOTAL,
+      });
     }
 
     return Buffer.from(await pdfDoc.save());
   }
 
-  // ─── Font loading ─────────────────────────────────────────────────────────
+  // ─── Font loading (stamp #1 only) ────────────────────────────────────────
 
   private async loadFonts(pdfDoc: PDFDocument): Promise<{ regular: any; bold: any }> {
     try {
-      const regularBytes = fs.readFileSync(path.join(__dirname, '..', 'fonts', 'Sarabun-Regular.ttf'));
-      const boldBytes    = fs.readFileSync(path.join(__dirname, '..', 'fonts', 'Sarabun-Bold.ttf'));
-      const regular = await pdfDoc.embedFont(regularBytes);
-      const bold    = await pdfDoc.embedFont(boldBytes);
+      const dir = path.join(__dirname, '..', 'fonts');
+      const regular = await pdfDoc.embedFont(fs.readFileSync(path.join(dir, 'Sarabun-Regular.ttf')));
+      const bold    = await pdfDoc.embedFont(fs.readFileSync(path.join(dir, 'Sarabun-Bold.ttf')));
       return { regular, bold };
-    } catch (e) {
-      this.logger.warn(`Thai font not found, using Helvetica: ${e.message}`);
+    } catch {
       const regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const bold    = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
       return { regular, bold };
     }
   }
 
-  // ─── Height calculators ────────────────────────────────────────────────────
+  // ─── Stamp #1: ตราลงทะเบียนรับ (pdf-lib — simple fixed text) ──────────────
 
-  /**
-   * Compute the minimum height needed for stamp #2 (endorsement).
-   * Layout (top → bottom, signature is drawn BELOW the box):
-   *   14pt  salutation
-   *   11pt  gap to first summary line
-   *   nSummary × 11pt  summary lines
-   *    6pt  gap
-   *   11pt  action label
-   *   nAction × 11pt  action lines
-   *    8pt  bottom padding
-   */
-  private computeEndorsementHeight(
-    data: EndorsementStampData, regular: any, bold: any, w: number,
-  ): number {
-    const inner = w - 16;
-    const nSummary = Math.max(this.wrapToFit(data.aiSummary, regular, 8, inner, 4).length, 1);
-    const nAction  = Math.max(this.wrapToFit(data.actionSummary, regular, 8, inner, 4).length, 0);
-    // 50 = 14 (salutation) + 11 (gap) + 6 (action gap) + 11 (action label) + 8 (bottom)
-    return Math.max(50 + (nSummary + nAction) * 11, 60);
-  }
-
-  /**
-   * Compute the minimum height needed for stamp #3 (director note).
-   * Layout (top → bottom, signature is drawn BELOW the box):
-   *   16pt  header "คำสั่ง"
-   *   14pt  gap to first note line
-   *   nLines × 14pt  note lines
-   *    8pt  bottom padding
-   */
-  private computeDirectorNoteHeight(
-    data: DirectorNoteStampData, regular: any, bold: any, w: number,
-  ): number {
-    const nLines = Math.max(this.wrapToFit(data.noteText, regular, 9, w - 16, 3).length, 1);
-    // 38 = 16 (header) + 14 (gap) + 8 (bottom)
-    return Math.max(38 + nLines * 14, 50);
-  }
-
-  // ─── Stamp #1: ตราลงทะเบียนรับ ────────────────────────────────────────────
-
-  private drawRegistrationStamp(
-    page: any, regular: any, bold: any,
-    data: RegistrationStampData, zone: StampZone,
-  ) {
+  private drawRegistrationStamp(page: any, regular: any, bold: any, data: RegistrationStampData, zone: any) {
     const { x, y, w, h } = zone;
     const d = this.toThaiDate(data.registeredAt);
     const blue = rgb(0.07, 0.33, 0.71);
 
-    // Stamp 1 keeps its border box
     this.drawRoundedRect(page, x, y, w, h, 4, rgb(1, 1, 1), blue, 1.5);
 
     // Org name — centered
     const orgSize = 8;
-    const orgName = this.wrapToFit(data.orgName, bold, orgSize, w - 16, 1)[0] ?? '';
-    const orgW = bold.widthOfTextAtSize(orgName.normalize('NFC'), orgSize);
-    this.drawThaiText(page, orgName, x + (w - orgW) / 2, y + h - 16, orgSize, bold, blue);
+    const orgTxt = this.truncate(data.orgName, bold, orgSize, w - 16);
+    const orgW = bold.widthOfTextAtSize(orgTxt, orgSize);
+    page.drawText(orgTxt, { x: x + (w - orgW) / 2, y: y + h - 16, size: orgSize, font: bold, color: blue });
 
-    page.drawLine({
-      start: { x: x + 5, y: y + h - 22 },
-      end:   { x: x + w - 5, y: y + h - 22 },
-      thickness: 0.5, color: blue,
-    });
+    page.drawLine({ start: { x: x+5, y: y+h-22 }, end: { x: x+w-5, y: y+h-22 }, thickness: 0.5, color: blue });
 
-    // เลขที่รับ
-    this.drawThaiText(page, 'เลขที่รับ', x + 8, y + h - 36, 8, bold, blue);
-    this.drawThaiText(page, data.registrationNo, x + 65, y + h - 36, 10, regular, blue);
+    // เลขที่รับ / วันที่ / เวลา  — ASCII digits + short Thai labels (safe with pdf-lib)
+    page.drawText('เลขที่รับ', { x: x+8, y: y+h-36, size: 8, font: bold, color: blue });
+    page.drawText(data.registrationNo, { x: x+65, y: y+h-36, size: 10, font: regular, color: blue });
 
-    // วันที่
-    this.drawThaiText(page, 'วันที่', x + 8, y + h - 50, 9, bold, blue);
-    this.drawThaiText(page, `${d.day} ${d.monthTh} ${d.year}`, x + 45, y + h - 50, 9, regular, blue);
+    page.drawText('วันที่', { x: x+8, y: y+h-50, size: 9, font: bold, color: blue });
+    page.drawText(`${d.day} ${d.monthTh} ${d.year}`, { x: x+45, y: y+h-50, size: 9, font: regular, color: blue });
 
-    // เวลา
-    this.drawThaiText(page, 'เวลา', x + 8, y + h - 64, 9, bold, blue);
-    this.drawThaiText(page, d.time, x + 45, y + h - 64, 9, regular, blue);
+    page.drawText('เวลา', { x: x+8, y: y+h-64, size: 9, font: bold, color: blue });
+    page.drawText(d.time, { x: x+45, y: y+h-64, size: 9, font: regular, color: blue });
   }
 
-  // ─── Stamp #2: ตราการเกษียณหนังสือ (no border, transparent bg) ────────────
+  // ─── Rounded rect (stamp #1 only) ────────────────────────────────────────
 
-  private drawEndorsementStamp(
-    page: any, regular: any, bold: any,
-    data: EndorsementStampData, zone: StampZone,
-  ) {
-    const { x, y, w, h } = zone;
-    const inner = w - 16;
-    const d = this.toThaiDate(data.stampedAt);
-    const blue = rgb(0.07, 0.33, 0.71);
-
-    // Row 1: เรียน ผู้อำนวยการโรงเรียน {schoolName}
-    const salutation = this.wrapToFit(
-      `เรียน ผู้อำนวยการโรงเรียน ${data.schoolName}`, bold, 8, inner, 1,
-    )[0] ?? '';
-    this.drawThaiText(page, salutation, x + 8, y + h - 14, 8, bold, blue);
-
-    // Row 2: AI summary (max 4 lines)
-    const summaryLines = this.wrapToFit(data.aiSummary, regular, 8, inner, 4);
-    let ty = y + h - 25;
-    for (const line of summaryLines) {
-      this.drawThaiText(page, line, x + 8, ty, 8, regular, blue);
-      ty -= 11;
-    }
-
-    // Row 3: สิ่งที่ต้องดำเนินการ
-    const actionLabelY = y + h - 25 - (summaryLines.length || 1) * 11 - 6;
-    this.drawThaiText(page, 'สิ่งที่ต้องดำเนินการ :', x + 8, actionLabelY, 8, bold, blue);
-
-    const actionLines = this.wrapToFit(data.actionSummary, regular, 8, inner, 4);
-    let ay = actionLabelY - 11;
-    for (const line of actionLines) {
-      this.drawThaiText(page, line, x + 8, ay, 8, regular, blue);
-      ay -= 11;
-    }
-
-    // Signature block — drawn BELOW the stamp zone
-    const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    this.drawRight(page, bold,    data.authorName,   x, y - 4,  w - 8, 9, blue);
-    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y - 18, w - 8, 8, blue);
-    this.drawRight(page, regular, dateStr,           x, y - 32, w - 8, 8, blue);
-  }
-
-  // ─── Stamp #3: ตราคำสั่งผู้บริหาร (no border, transparent bg) ──────────────
-
-  private drawDirectorNoteStamp(
-    page: any, regular: any, bold: any,
-    data: DirectorNoteStampData, zone: StampZone,
-  ) {
-    const { x, y, w, h } = zone;
-    const d = this.toThaiDate(data.stampedAt);
-    const blue = rgb(0.07, 0.33, 0.71);
-
-    // Header "คำสั่ง" left-aligned (no underline)
-    const header = 'คำสั่ง';
-    const hSize = 9;
-    const hx = x + 8;
-    const hy = y + h - 16;
-    this.drawThaiText(page, header, hx, hy, hSize, bold, blue);
-
-    // Note text (max 3 lines)
-    const lines = this.wrapToFit(data.noteText, regular, 9, w - 16, 3);
-    let ty = y + h - 30;
-    for (const line of lines) {
-      this.drawThaiText(page, line, x + 8, ty, 9, regular, blue);
-      ty -= 14;
-    }
-
-    // Signature block — drawn BELOW the stamp zone
-    const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    this.drawRight(page, bold,    data.authorName,   x, y - 4,  w - 8, 9, blue);
-    if (data.positionTitle) this.drawRight(page, regular, data.positionTitle, x, y - 18, w - 8, 8, blue);
-    this.drawRight(page, regular, dateStr,           x, y - 32, w - 8, 8, blue);
-  }
-
-  // ─── Rounded rectangle (stamp #1 only) ───────────────────────────────────
-
-  private drawRoundedRect(
-    page: any,
-    x: number, y: number,
-    w: number, h: number,
-    r: number,
-    fillColor: any,
-    borderColor: any,
-    borderWidth: number,
-  ) {
+  private drawRoundedRect(page: any, x: number, y: number, w: number, h: number, r: number, fill: any, border: any, bw: number) {
     const cr = Math.min(r, w / 2, h / 2);
-    const svgPath = [
-      `M ${cr},0`,
-      `L ${w - cr},0`,
-      `Q ${w},0 ${w},${cr}`,
-      `L ${w},${h - cr}`,
-      `Q ${w},${h} ${w - cr},${h}`,
-      `L ${cr},${h}`,
-      `Q 0,${h} 0,${h - cr}`,
-      `L 0,${cr}`,
-      `Q 0,0 ${cr},0`,
-      'Z',
-    ].join(' ');
-    page.drawSvgPath(svgPath, {
-      x,
-      y: y + h,
-      color: fillColor,
-      borderColor,
-      borderWidth,
-    });
-  }
-
-  // ─── Thai-aware text rendering ────────────────────────────────────────────
-
-  private isThaiMark(cp: number): boolean {
-    return (
-      cp === 0x0E31 ||
-      cp === 0x0E33 ||                        // sara am ำ
-      (cp >= 0x0E34 && cp <= 0x0E37) ||
-      (cp >= 0x0E38 && cp <= 0x0E3A) ||
-      cp === 0x0E47 ||
-      (cp >= 0x0E48 && cp <= 0x0E4E)
+    page.drawSvgPath(
+      `M ${cr},0 L ${w-cr},0 Q ${w},0 ${w},${cr} L ${w},${h-cr} Q ${w},${h} ${w-cr},${h} L ${cr},${h} Q 0,${h} 0,${h-cr} L 0,${cr} Q 0,0 ${cr},0 Z`,
+      { x, y: y + h, color: fill, borderColor: border, borderWidth: bw },
     );
   }
 
-  private isThaiLeadingVowel(cp: number): boolean {
-    return cp >= 0x0E40 && cp <= 0x0E44; // เ แ โ ใ ไ
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+
+  private truncate(text: string, font: any, size: number, maxW: number): string {
+    let t = text;
+    while (t.length > 0 && font.widthOfTextAtSize(t, size) > maxW) t = t.slice(0, -1);
+    return t;
   }
-
-  private thaiTextWidth(text: string, font: any, size: number): number {
-    if (!text) return 0;
-    return font.widthOfTextAtSize(text.normalize('NFC'), size);
-  }
-
-  /**
-   * Thai syllable cluster regex.
-   * Matches: optional leading vowel (เแโใไ) + base consonant/vowel + optional combining marks.
-   * The `|.` fallback captures spaces, punctuation, and non-Thai characters.
-   */
-  private readonly THAI_CLUSTER_RE =
-    /[\u0E40-\u0E44]?[\u0E01-\u0E3F][\u0E31\u0E33-\u0E3A\u0E47-\u0E4E]*|./gsu;
-
-  /**
-   * Render Thai text cluster-by-cluster at explicit X positions.
-   * Sarabun's GPOS adds extra advance when ั and ่ stack on the same consonant
-   * (e.g. สั่), displacing the following ง visually. Drawing each cluster
-   * separately eliminates cross-cluster GPOS, fixing the gap.
-   */
-  private drawThaiText(
-    page: any, text: string,
-    x: number, y: number,
-    size: number, font: any, color: any,
-  ) {
-    if (!text) return;
-    const nfc = this.toThaiNumerals(text).normalize('NFC');
-    this.THAI_CLUSTER_RE.lastIndex = 0;
-    const clusters = [...nfc.matchAll(this.THAI_CLUSTER_RE)].map((m) => m[0]);
-    let curX = x;
-    for (const cluster of clusters) {
-      page.drawText(cluster, { x: curX, y, size, font, color });
-      curX += font.widthOfTextAtSize(cluster, size);
-    }
-  }
-
-  /**
-   * Merge Thai combining mark segments and leading-vowel segments with their base consonant.
-   * Pass 1: backward-merge trailing marks (ั ิ ่ ้ ็ ํ …) into the previous segment.
-   * Pass 2: forward-merge isolated leading vowels (เ แ โ ใ ไ) into the next segment.
-   */
-  private mergeMarkSegments(segments: string[]): string[] {
-    // Pass 1: backward-merge trailing marks
-    const pass1: string[] = [];
-    for (const seg of segments) {
-      const firstCp = seg.codePointAt(0);
-      if (pass1.length > 0 && firstCp !== undefined && this.isThaiMark(firstCp)) {
-        pass1[pass1.length - 1] += seg;
-      } else {
-        pass1.push(seg);
-      }
-    }
-
-    // Pass 2: forward-merge isolated leading vowels into the following segment
-    const pass2: string[] = [];
-    let i = 0;
-    while (i < pass1.length) {
-      const seg = pass1[i];
-      const cp = seg.codePointAt(0);
-      if (
-        seg.length === 1 &&
-        cp !== undefined &&
-        this.isThaiLeadingVowel(cp) &&
-        i + 1 < pass1.length
-      ) {
-        pass2.push(seg + pass1[i + 1]);
-        i += 2;
-      } else {
-        pass2.push(seg);
-        i++;
-      }
-    }
-    return pass2;
-  }
-
-  /** Convert ASCII digits 0–9 to Thai numerals ๐–๙ */
-  private toThaiNumerals(text: string): string {
-    return text.replace(/[0-9]/g, (d) => '๐๑๒๓๔๕๖๗๘๙'[+d]);
-  }
-
-  /** Right-align Thai text within a box */
-  private drawRight(
-    page: any, font: any, text: string,
-    boxX: number, y: number, maxW: number, size: number,
-    color = rgb(0, 0, 0),
-  ) {
-    const t = this.toThaiNumerals(text).normalize('NFC');
-    const textW = font.widthOfTextAtSize(t, size);
-    page.drawText(t, { x: boxX + maxW - textW, y, size, font, color });
-  }
-
-  // ─── Thai-aware word wrap ─────────────────────────────────────────────────
-
-  private wrapToFit(
-    text: string,
-    font: any,
-    size: number,
-    maxWidthPt: number,
-    maxLines: number,
-  ): string[] {
-    if (!text?.trim()) return [];
-
-    const converted = this.toThaiNumerals(text);
-
-    if (!this.wordcutReady) {
-      wordcut.init();
-      this.wordcutReady = true;
-    }
-
-    let segments: string[];
-    try {
-      const cut: string = wordcut.cut(converted.normalize('NFC'));
-      segments = cut.split('|').filter((s: string) => s.length > 0);
-    } catch {
-      segments = converted.includes(' ')
-        ? converted.split(' ').flatMap((w, i, arr) => i < arr.length - 1 ? [w, ' '] : [w])
-        : Array.from(converted);
-    }
-
-    const merged = this.mergeMarkSegments(segments);
-
-    const lines: string[] = [];
-    let cur = '';
-
-    for (const seg of merged) {
-      const test = cur + seg;
-      if (this.thaiTextWidth(test, font, size) > maxWidthPt && cur !== '') {
-        lines.push(cur);
-        if (lines.length >= maxLines) { cur = ''; break; }
-        cur = seg;
-      } else {
-        cur = test;
-      }
-    }
-    if (cur && lines.length < maxLines) lines.push(cur);
-
-    return lines.map((line) => {
-      if (this.thaiTextWidth(line, font, size) <= maxWidthPt) return line;
-      let t = line;
-      while (t.length > 0 && this.thaiTextWidth(t + '…', font, size) > maxWidthPt) {
-        t = t.slice(0, -1);
-      }
-      return t + '…';
-    });
-  }
-
-  // ─── Utilities ────────────────────────────────────────────────────────────
 
   private toThaiDate(date: Date) {
     const months = [

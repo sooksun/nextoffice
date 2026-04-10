@@ -49,6 +49,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.97",
     "@nestjs/bull": "^10.2.3",
     "@nestjs/common": "^10.4.22",
     "@nestjs/config": "^3.3.0",
