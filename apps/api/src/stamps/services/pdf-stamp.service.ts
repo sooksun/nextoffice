@@ -78,6 +78,11 @@ export class PdfStampService {
       zones[0] = { ...zones[0], y: pageH - zones[0].h - 8 };
     }
 
+    // Stamp 3: shift down 30pt to avoid overlap with document signatures
+    if (zones[2]) {
+      zones[2] = { ...zones[2], y: zones[2].y - 30 };
+    }
+
     // Draw in order 1 → 2 → 3
     this.drawRegistrationStamp(page, regular, bold, data.registration, zones[0]);
     this.drawEndorsementStamp(page, regular, bold, data.endorsement, zones[1]);
@@ -125,8 +130,8 @@ export class PdfStampService {
     data: EndorsementStampData, regular: any, bold: any, w: number,
   ): number {
     const inner = w - 16;
-    const nSummary = Math.max(this.wrapToFit(data.aiSummary, regular, 8, inner, 2).length, 1);
-    const nAction  = Math.max(this.wrapToFit(data.actionSummary, regular, 8, inner, 2).length, 0);
+    const nSummary = Math.max(this.wrapToFit(data.aiSummary, regular, 8, inner, 4).length, 1);
+    const nAction  = Math.max(this.wrapToFit(data.actionSummary, regular, 8, inner, 4).length, 0);
     // 89 = 14+8+11 (top) + 6+11 (action label gap) + 8 (content-sig gap) + 42+14 (sig+bottom)
     return Math.max(89 + (nSummary + nAction) * 11 + 12, 90);
   }
@@ -213,8 +218,8 @@ export class PdfStampService {
       thickness: 0.5, color: blue,
     });
 
-    // Row 2: AI summary (max 2 lines)
-    const summaryLines = this.wrapToFit(data.aiSummary, regular, 8, inner, 2);
+    // Row 2: AI summary (max 4 lines)
+    const summaryLines = this.wrapToFit(data.aiSummary, regular, 8, inner, 4);
     let ty = y + h - 33;
     for (const line of summaryLines) {
       this.drawThaiText(page, line, x + 8, ty, 8, regular, blue);
@@ -225,7 +230,7 @@ export class PdfStampService {
     const actionLabelY = y + h - 33 - (summaryLines.length || 1) * 11 - 6;
     this.drawThaiText(page, 'สิ่งที่ต้องดำเนินการ :', x + 8, actionLabelY, 8, bold, blue);
 
-    const actionLines = this.wrapToFit(data.actionSummary, regular, 8, inner, 2);
+    const actionLines = this.wrapToFit(data.actionSummary, regular, 8, inner, 4);
     let ay = actionLabelY - 11;
     for (const line of actionLines) {
       this.drawThaiText(page, line, x + 8, ay, 8, regular, blue);
@@ -251,11 +256,11 @@ export class PdfStampService {
 
     // No border box — transparent background
 
-    // Header "คำสั่ง" centered with underline
+    // Header "คำสั่ง" left-aligned with underline
     const header = 'คำสั่ง';
     const hSize = 9;
     const hW = bold.widthOfTextAtSize(header.normalize('NFC'), hSize);
-    const hx = x + (w - hW) / 2;
+    const hx = x + 8;
     const hy = y + h - 16;
     this.drawThaiText(page, header, hx, hy, hSize, bold, blue);
     page.drawLine({ start: { x: hx, y: hy - 1 }, end: { x: hx + hW, y: hy - 1 }, thickness: 0.5, color: blue });
