@@ -37,7 +37,8 @@ export interface AllStampsData {
 
 const S1_W = 160;
 const S1_H = 70;
-const W23  = 220;
+const W2   = 220; // stamp #2 width
+const W3   = 180; // stamp #3 width
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
@@ -50,17 +51,17 @@ export class PdfStampService {
 
   async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
     // ── 1. Compute content-box heights via canvas measurement ──────────────
-    const h2 = this.stampCanvas.computeEndorsementHeight(data.endorsement, W23);
+    const h2 = this.stampCanvas.computeEndorsementHeight(data.endorsement, W2);
     const h3 = data.directorNote
-      ? this.stampCanvas.computeDirectorNoteHeight(data.directorNote, W23)
+      ? this.stampCanvas.computeDirectorNoteHeight(data.directorNote, W3)
       : 0;
 
     // ── 2. Find placement zones (pdfjs-dist text analysis) ─────────────────
     const specs = [
       { w: S1_W, h: S1_H, preference: 'top-right'       as const },
-      { w: W23,  h: h2,   preference: 'lower-half-left'  as const },
+      { w: W2,   h: h2,   preference: 'lower-half-left'  as const },
       ...(data.directorNote
-        ? [{ w: W23, h: h3, preference: 'lower-half-right' as const }]
+        ? [{ w: W3, h: h3, preference: 'lower-half-right' as const }]
         : []),
     ];
 
@@ -74,9 +75,9 @@ export class PdfStampService {
 
     // ── 3. Render each stamp as PNG via Skia canvas ─────────────────────────
     const png1 = this.stampCanvas.renderRegistration(data.registration, S1_W, S1_H);
-    const png2 = this.stampCanvas.renderEndorsement(data.endorsement, W23, h2);
+    const png2 = this.stampCanvas.renderEndorsement(data.endorsement, W2, h2);
     const png3 = data.directorNote
-      ? this.stampCanvas.renderDirectorNote(data.directorNote, W23, h3)
+      ? this.stampCanvas.renderDirectorNote(data.directorNote, W3, h3)
       : null;
 
     // ── 4. Embed PNGs into PDF — pdf-lib is compositor only ─────────────────
@@ -98,7 +99,7 @@ export class PdfStampService {
       page.drawImage(img2, {
         x:      zones[1].x,
         y:      zones[1].y - SIG_TOTAL,
-        width:  W23,
+        width:  W2,
         height: h2 + SIG_TOTAL,
       });
     }
@@ -107,7 +108,7 @@ export class PdfStampService {
       page.drawImage(img3, {
         x:      zones[2].x,
         y:      zones[2].y - SIG_TOTAL,
-        width:  W23,
+        width:  W3,
         height: h3 + SIG_TOTAL,
       });
     }
