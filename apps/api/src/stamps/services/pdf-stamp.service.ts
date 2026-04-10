@@ -56,19 +56,18 @@ export class PdfStampService {
     const page = pdfDoc.getPages()[0];
     const { height: pageH } = page.getSize();
 
-    // Compute auto-heights for stamps 2 & 3 (use minW for worst-case wrapping)
-    const maxW = 240;
-    const minW = 200;
-    const h2 = this.computeEndorsementHeight(data.endorsement, regular, bold, minW);
+    // Compute auto-heights for stamps 2 & 3
+    const w23 = 220;
+    const h2 = this.computeEndorsementHeight(data.endorsement, regular, bold, w23);
     const h3 = data.directorNote
-      ? this.computeDirectorNoteHeight(data.directorNote, regular, bold, minW)
+      ? this.computeDirectorNoteHeight(data.directorNote, regular, bold, w23)
       : 0;
 
     const specs = [
-      { w: 160, h: 70,  preference: 'top-right'      as const },
-      { w: maxW, h: h2, minW, preference: 'lower-half-ltr' as const },
+      { w: 160, h: 70,  preference: 'top-right'       as const },
+      { w: w23, h: h2,  preference: 'lower-half-left'  as const },
       ...(data.directorNote
-        ? [{ w: maxW, h: h3, minW, preference: 'lower-half-ltr' as const }]
+        ? [{ w: w23, h: h3, preference: 'lower-half-right' as const }]
         : []),
     ];
 

@@ -3,8 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 export interface StampSpec {
   w: number;
   h: number;
-  minW?: number; // minimum width to try (for dynamic-width stamps)
-  preference: 'top-right' | 'top-left' | 'bottom-left' | 'bottom-right' | 'lower-half-ltr' | 'any';
+  preference: 'top-right' | 'top-left' | 'bottom-left' | 'bottom-right' | 'lower-half-left' | 'lower-half-right' | 'any';
 }
 
 export interface StampZone {
@@ -27,10 +26,9 @@ export class EmptySpaceService {
   /**
    * Find non-overlapping empty zones for each stamp spec.
    *
-   * For `lower-half-ltr` stamps, uses a 3-pass weighted algorithm:
-   *   Pass 1 — strict empty, recheck against text items
-   *   Pass 2 — ≤20% grid overlap + weighted score, recheck ≤3 overlapping items
-   *   Pass 3 — minimum weighted score, always accept
+   * For `lower-half-left` / `lower-half-right` stamps, uses fixed X positions
+   * (left margin 10px / right margin 10px) and scans for the best Y in the
+   * lower half of the page using weighted scoring.
    *
    * After each stamp is placed, its zone is marked occupied so the next stamp
    * gets a non-overlapping position.
@@ -77,11 +75,13 @@ export class EmptySpaceService {
 
       // Find zones
       const zones: StampZone[] = [];
-      let ltrSlot = 0;
       for (const spec of specs) {
-        const zone = spec.preference === 'lower-half-ltr'
-          ? this.findLowerHalfLtr(grid, cols, rows, spec, pageW, pageH, ltrSlot++, textRects)
-          : this.findBest(grid, cols, rows, spec, pageW, pageH);
+        let zone: StampZone;
+        if (spec.preference === 'lower-half-left' || spec.preference === 'lower-half-right') {
+          zone = this.findLowerHalfFixed(grid, cols, rows, spec, pageW, pageH, textRects);
+        } else {
+          zone = this.findBest(grid, cols, rows, spec, pageW, pageH);
+        }
         zones.push(zone);
         this.markArea(grid, cols, rows, zone.x - 4, zone.y - 4, zone.w + 8, zone.h + 8);
       }
@@ -162,133 +162,57 @@ export class EmptySpaceService {
     return count;
   }
 
-  // ─── Lower-half LTR: 3-pass weighted algorithm ─────────────────────────────
+  // ─── Lower-half fixed-X placement ──────────────────────────────────────────
 
   /**
-   * Three-pass scan with weighted scoring and text-item recheck.
+   * Place stamp at a fixed X (left margin 10 or right margin 10) and scan
+   * for the best Y in the lower half of the page.
    *
-   * The key insight: Thai official documents have right-aligned signatures
-   * at ~20-30% from page bottom, leaving the LEFT side relatively empty
-   * at that level. The weighted score steers stamps towards that zone
-   * instead of the footer area at the very bottom.
-   *
-   *  score = overlapCells × 10 + |position − idealY|
-   *
-   *  Pass 1 (strict):      grid-empty in bottom 40%,  recheck 0 text items
-   *  Pass 2 (relaxed):     ≤20% grid overlap in bottom 55%,  recheck ≤3 items
-   *  Pass 3 (best-effort): minimum score in bottom 70%,  always accept
+   * Scans bottom 50% of page, finds Y with least grid overlap.
+   * Falls back to 20% from bottom if nothing good found.
    */
-  private findLowerHalfLtr(
+  private findLowerHalfFixed(
     grid: Uint8Array, cols: number, rows: number,
     spec: StampSpec, pageW: number, pageH: number,
-    slotIndex: number,
     textRects: TextRect[],
   ): StampZone {
     const CELL = this.CELL;
-    const maxW = spec.w;
-    const minW = spec.minW ?? spec.w;
-    // Try widths from max down to min in 20pt steps
-    const widths: number[] = [];
-    for (let w = maxW; w >= minW; w -= 20) widths.push(w);
-    if (widths[widths.length - 1] !== minW) widths.push(minW);
-
+    const needCols = Math.ceil(spec.w / CELL);
     const needRows = Math.ceil(spec.h / CELL);
 
-    // Ideal y for stamps: ~25% from page bottom (signature zone for Thai docs)
+    // Fixed X: left margin 10px or right margin 10px
+    const fixedX = spec.preference === 'lower-half-left'
+      ? 10
+      : Math.round(pageW - spec.w - 10);
+    const fixedGx = Math.max(0, Math.floor(fixedX / CELL));
+
+    // Ideal Y: ~25% from page bottom (signature zone)
     const idealGy = Math.floor(rows * 0.25);
 
-    // ── Pass 1 (strict): fully empty in bottom 40%, recheck 0 text items ────
-    const limit1 = Math.floor(rows * 0.40);
-    for (const tryW of widths) {
-      const tryCols = Math.ceil(tryW / CELL);
-      for (let gy = 0; gy <= limit1 - needRows; gy++) {
-        for (let gx = 0; gx <= cols - tryCols; gx++) {
-          if (!this.isRectEmpty(grid, cols, gx, gy, tryCols, needRows)) continue;
-          const px = gx * CELL;
-          const py = gy * CELL;
-          if (this.countOverlappingItems(px, py, tryW, spec.h, textRects) === 0) {
-            this.logger.debug(`Stamp LTR#${slotIndex} — Pass 1 (strict) w=${tryW} at grid(${gx},${gy})`);
-            return { x: px, y: py, w: tryW, h: spec.h };
-          }
-        }
-      }
-    }
-
-    // ── Pass 2 (relaxed): ≤20% overlap, weighted score, bottom 55% ──────────
-    const limit2 = Math.floor(rows * 0.55);
-    for (const tryW of widths) {
-      const tryCols = Math.ceil(tryW / CELL);
-      const totalCells = tryCols * needRows;
-      const maxOcc2 = Math.floor(totalCells * 0.20);
-      const best2 = this.scanWeighted(grid, cols, rows, tryCols, needRows, idealGy, limit2, maxOcc2);
-      if (best2) {
-        const px = best2.gx * CELL;
-        const py = best2.gy * CELL;
-        const itemOverlaps = this.countOverlappingItems(px, py, tryW, spec.h, textRects);
-        if (itemOverlaps <= 3) {
-          this.logger.debug(
-            `Stamp LTR#${slotIndex} — Pass 2 (relaxed) w=${tryW} at grid(${best2.gx},${best2.gy}), ` +
-            `gridOcc=${best2.occ}/${totalCells}, textItems=${itemOverlaps}`,
-          );
-          return { x: px, y: py, w: tryW, h: spec.h };
-        }
-      }
-    }
-
-    // ── Pass 3 (best-effort): minimum score in bottom 70%, always accept ────
-    const limit3 = Math.floor(rows * 0.70);
-    let bestZone: StampZone | null = null;
+    // Scan bottom 60% of page for the best Y
+    const scanLimit = Math.floor(rows * 0.60);
+    let bestGy = idealGy;
     let bestScore = Infinity;
-    for (const tryW of widths) {
-      const tryCols = Math.ceil(tryW / CELL);
-      const totalCells = tryCols * needRows;
-      const best3 = this.scanWeighted(grid, cols, rows, tryCols, needRows, idealGy, limit3, totalCells);
-      if (best3 && best3.score < bestScore) {
-        bestScore = best3.score;
-        bestZone = { x: best3.gx * CELL, y: best3.gy * CELL, w: tryW, h: spec.h };
+
+    for (let gy = 0; gy <= scanLimit - needRows; gy++) {
+      const gx = Math.min(fixedGx, cols - needCols);
+      const occ = this.countOccupied(grid, cols, gx, gy, needCols, needRows);
+      const centerGy = gy + Math.floor(needRows / 2);
+      const posPenalty = Math.abs(centerGy - idealGy);
+      const score = occ * 10 + posPenalty;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestGy = gy;
       }
     }
-    if (bestZone) {
-      this.logger.debug(
-        `Stamp LTR#${slotIndex} — Pass 3 (best-effort) w=${bestZone.w}, score=${bestScore}`,
-      );
-      return bestZone;
-    }
 
-    // Ultimate fallback
-    return { x: 40, y: Math.round(pageH * 0.20), w: minW, h: spec.h };
-  }
-
-  /**
-   * Scan all positions up to `limitRow` and return the one with the lowest
-   * weighted score:  score = occupiedCells × 10 + |centerGy − idealGy|
-   *
-   * Only considers positions where occupied cells ≤ maxOccupied.
-   */
-  private scanWeighted(
-    grid: Uint8Array, cols: number, rows: number,
-    needCols: number, needRows: number,
-    idealGy: number,
-    limitRow: number,
-    maxOccupied: number,
-  ): { gx: number; gy: number; occ: number; score: number } | null {
-    let best: { gx: number; gy: number; occ: number; score: number } | null = null;
-
-    for (let gy = 0; gy <= limitRow - needRows; gy++) {
-      for (let gx = 0; gx <= cols - needCols; gx++) {
-        const occ = this.countOccupied(grid, cols, gx, gy, needCols, needRows);
-        if (occ > maxOccupied) continue;
-
-        const centerGy = gy + Math.floor(needRows / 2);
-        const posPenalty = Math.abs(centerGy - idealGy);
-        const score = occ * 10 + posPenalty;
-
-        if (!best || score < best.score) {
-          best = { gx, gy, occ, score };
-        }
-      }
-    }
-    return best;
+    const px = fixedX;
+    const py = bestGy * CELL;
+    this.logger.debug(
+      `Stamp ${spec.preference} — placed at (${px}, ${py}), score=${bestScore}`,
+    );
+    return { x: px, y: py, w: spec.w, h: spec.h };
   }
 
   // ─── Scored zone finder (for top-right / top-left etc.) ─────────────────────
@@ -348,21 +272,16 @@ export class EmptySpaceService {
   private fallback(specs: StampSpec[]): StampZone[] {
     const pageW = 595;
     const pageH = 842;
-    let ltrSlot = 0;
     return specs.map((spec) => {
       switch (spec.preference) {
         case 'top-right':
           return { x: pageW - spec.w - 2, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
         case 'top-left':
           return { x: 40, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
-        case 'lower-half-ltr': {
-          const fbW = spec.minW ?? spec.w;
-          const slotX = ltrSlot % 2 === 0
-            ? Math.round(pageW * 0.04)
-            : Math.round(pageW * 0.04) + fbW + 10;
-          ltrSlot++;
-          return { x: slotX, y: Math.round(pageH * 0.20), w: fbW, h: spec.h };
-        }
+        case 'lower-half-left':
+          return { x: 10, y: Math.round(pageH * 0.20), w: spec.w, h: spec.h };
+        case 'lower-half-right':
+          return { x: pageW - spec.w - 10, y: Math.round(pageH * 0.20), w: spec.w, h: spec.h };
         case 'bottom-left':
           return { x: 40, y: 80, w: spec.w, h: spec.h };
         case 'bottom-right':
