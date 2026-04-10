@@ -74,8 +74,8 @@ export class PdfStampService {
     if (zones[0]) zones[0] = { ...zones[0], y: pageH - S1_H - 8 };
     // Stamp 2: shift up 20pt from complimentary close baseline
     if (zones[1]) zones[1] = { ...zones[1], y: zones[1].y + 20 };
-    // Stamp 3: shift up 60pt relative to computed zone
-    if (zones[2]) zones[2] = { ...zones[2], y: zones[2].y + 60 };
+    // Stamp 3: shift up 50pt relative to computed zone
+    if (zones[2]) zones[2] = { ...zones[2], y: zones[2].y + 50 };
 
     // ── 3. Render each stamp as PNG via Skia canvas ─────────────────────────
     const png1 = this.stampCanvas.renderRegistration(data.registration, S1_W, S1_H);
