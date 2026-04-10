@@ -16,12 +16,12 @@ export interface StampZone {
 @Injectable()
 export class EmptySpaceService {
   private readonly logger = new Logger(EmptySpaceService.name);
-  private readonly CELL = 10; // grid cell size in points (finer = more accurate detection)
+  private readonly CELL = 10; // grid cell size in points
 
   /**
    * Find non-overlapping empty zones for each stamp spec.
    * Uses pdfjs-dist to extract text bounding boxes, builds a coverage grid,
-   * then finds the best empty rectangle for each stamp.
+   * then finds the best empty rectangle for each stamp via a 3-loop strategy.
    */
   async findStampZones(pdfBuffer: Buffer, specs: StampSpec[]): Promise<StampZone[]> {
     try {
@@ -45,18 +45,17 @@ export class EmptySpaceService {
       const rows = Math.ceil(pageH / CELL);
       const grid = new Uint8Array(cols * rows); // 0=empty, 1=occupied
 
-      // Mark a 2-cell border margin as occupied so stamps don't touch the page edge
+      // Mark a 2-cell border margin as occupied
       this.markBorder(grid, cols, rows, 2);
 
       // Extract text items and mark their grid cells as occupied.
-      // Padding: 8pt horizontal, 14pt above baseline (for Thai diacritics + line spacing),
-      // 6pt below baseline (for descenders). This prevents stamps from landing between
-      // tightly-spaced text lines that would appear "empty" with a coarser grid.
+      // Padding: 8pt horizontal, 14pt above baseline (Thai diacritics + leading),
+      // 6pt below baseline (descenders).
       const textContent = await page.getTextContent();
       for (const item of textContent.items as any[]) {
         if (!item.transform) continue;
         const ix = item.transform[4];           // x from left
-        const iy = item.transform[5];           // y from bottom (PDF baseline)
+        const iy = item.transform[5];           // y from bottom (baseline)
         const iw = Math.max(item.width ?? 0, 6);
         const ih = Math.max(item.height ?? 12, 10);
         this.markArea(grid, cols, rows, ix - 8, iy - 6, iw + 16, ih + 20);
@@ -83,8 +82,6 @@ export class EmptySpaceService {
 
   // ─── Grid helpers ───────────────────────────────────────────────────────────
 
-  /** Mark a rectangular area in the grid as occupied.
-   *  All coordinates are in PDF points (y from bottom). */
   private markArea(
     grid: Uint8Array, cols: number, rows: number,
     x: number, y: number, w: number, h: number,
@@ -112,6 +109,7 @@ export class EmptySpaceService {
     }
   }
 
+  /** Check if a rectangle in the grid is completely empty. */
   private isRectEmpty(
     grid: Uint8Array, cols: number,
     gx: number, gy: number, gw: number, gh: number,
@@ -124,21 +122,39 @@ export class EmptySpaceService {
     return true;
   }
 
-  // ─── Lower-half left-to-right finder ────────────────────────────────────────
+  /** Count how many cells are occupied within a rectangle. */
+  private countOccupied(
+    grid: Uint8Array, cols: number,
+    gx: number, gy: number, gw: number, gh: number,
+  ): number {
+    let count = 0;
+    for (let row = gy; row < gy + gh; row++) {
+      for (let col = gx; col < gx + gw; col++) {
+        if (grid[row * cols + col] !== 0) count++;
+      }
+    }
+    return count;
+  }
+
+  // ─── Lower-half left-to-right finder (3-loop strategy) ─────────────────────
 
   /**
-   * Strictly scan the lower portion of the page for a free zone.
+   * Three-pass scan to find the best position for a stamp in the lower page.
    *
-   * gy=0 is the page BOTTOM, gy=rows-1 is the page TOP.
-   * "Lower half" visually = gy 0 → rows*LOWER_FRAC.
+   * gy=0 = page bottom, gy=rows-1 = page top.
+   * All three loops scan bottom → upward, left → right.
    *
-   * Scan order: bottom → visual-middle, left → right.
-   * If no fully-empty rectangle is found in the lower portion, fall back to the
-   * BOTTOM of the page at a fixed slot position (left for even index, right for odd).
-   * We NEVER fall back to the upper half — placing stamps over document headers
-   * is always worse than placing them near the bottom where closings and signatures live.
+   *  Loop 1 (strict):      100% empty rectangle in bottom 45%
+   *  Loop 2 (relaxed):     ≤ 15% overlap, best fit in bottom 55%
+   *  Loop 3 (best-effort): minimum overlap in bottom 65%
    *
-   * @param slotIndex  0-based index of this stamp among lower-half stamps (controls fallback x)
+   * Each loop expands the search area slightly so earlier loops prefer
+   * positions deeper in the lower portion. Loop 3 always succeeds because
+   * it picks the least-overlapping position rather than requiring a threshold.
+   *
+   * We NEVER fall back to the upper half — placing stamps over document
+   * headers / body text is always worse than the lower portion where
+   * signatures and closings live.
    */
   private findLowerHalfLtr(
     grid: Uint8Array, cols: number, rows: number,
@@ -148,26 +164,58 @@ export class EmptySpaceService {
     const CELL = this.CELL;
     const needCols = Math.ceil(spec.w / CELL);
     const needRows = Math.ceil(spec.h / CELL);
+    const totalCells = needCols * needRows;
 
-    // Only consider the lower 50% of the page
-    const maxGy = Math.floor(rows * 0.50);
-
-    // Scan: bottom (gy=0) → lower-mid, left → right
-    for (let gy = 0; gy <= maxGy - needRows; gy++) {
+    // ── Loop 1 (strict): fully empty, bottom 45% ───────────────────────────
+    const limit1 = Math.floor(rows * 0.45);
+    for (let gy = 0; gy <= limit1 - needRows; gy++) {
       for (let gx = 0; gx <= cols - needCols; gx++) {
         if (this.isRectEmpty(grid, cols, gx, gy, needCols, needRows)) {
+          this.logger.debug(`Stamp LTR#${slotIndex} — Loop 1 (strict) at (${gx},${gy})`);
           return { x: gx * CELL, y: gy * CELL, w: spec.w, h: spec.h };
         }
       }
     }
 
-    // No clear space found — use a safe bottom-slot fallback.
-    // Alternate left/right so successive lower-half stamps don't stack on each other.
-    const bottomY = Math.round(pageH * 0.08); // ~8% from bottom
-    const slotX = slotIndex % 2 === 0
-      ? Math.round(pageW * 0.04)                    // left slot
-      : Math.round(pageW * 0.04) + spec.w + 10;     // right slot
-    return { x: slotX, y: bottomY, w: spec.w, h: spec.h };
+    // ── Loop 2 (relaxed): ≤ 15% overlap, bottom 55% ────────────────────────
+    const limit2 = Math.floor(rows * 0.55);
+    const maxOcc2 = Math.floor(totalCells * 0.15);
+    let best2: { gx: number; gy: number; occ: number } | null = null;
+    search2: for (let gy = 0; gy <= limit2 - needRows; gy++) {
+      for (let gx = 0; gx <= cols - needCols; gx++) {
+        const occ = this.countOccupied(grid, cols, gx, gy, needCols, needRows);
+        if (occ <= maxOcc2 && (!best2 || occ < best2.occ)) {
+          best2 = { gx, gy, occ };
+          if (occ === 0) break search2; // perfect — stop early
+        }
+      }
+    }
+    if (best2) {
+      this.logger.debug(
+        `Stamp LTR#${slotIndex} — Loop 2 (relaxed) at (${best2.gx},${best2.gy}), ` +
+        `overlap=${best2.occ}/${totalCells} (${Math.round(best2.occ / totalCells * 100)}%)`,
+      );
+      return { x: best2.gx * CELL, y: best2.gy * CELL, w: spec.w, h: spec.h };
+    }
+
+    // ── Loop 3 (best-effort): minimum overlap, bottom 65% ──────────────────
+    const limit3 = Math.floor(rows * 0.65);
+    let best3 = { gx: 2, gy: 2, occ: totalCells + 1 };
+    for (let gy = 0; gy <= limit3 - needRows; gy++) {
+      for (let gx = 0; gx <= cols - needCols; gx++) {
+        const occ = this.countOccupied(grid, cols, gx, gy, needCols, needRows);
+        if (occ < best3.occ) {
+          best3 = { gx, gy, occ };
+          if (occ === 0) break; // can't improve
+        }
+      }
+      if (best3.occ === 0) break;
+    }
+    this.logger.debug(
+      `Stamp LTR#${slotIndex} — Loop 3 (best-effort) at (${best3.gx},${best3.gy}), ` +
+      `overlap=${best3.occ}/${totalCells} (${Math.round(best3.occ / totalCells * 100)}%)`,
+    );
+    return { x: best3.gx * CELL, y: best3.gy * CELL, w: spec.w, h: spec.h };
   }
 
   // ─── Scored zone finder (for top-right / top-left etc.) ─────────────────────
