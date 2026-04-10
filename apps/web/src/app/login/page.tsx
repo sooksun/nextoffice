@@ -58,9 +58,12 @@ export default function LoginPage() {
           </div>
           <div>
             <p className="text-gray-800 text-xl font-semibold">สพป.เชียงราย เขต 3</p>
-            <h1 className="text-gray-900 text-4xl font-black tracking-widest mt-1">SMART OFFICE</h1>
-            <p className="text-gray-700 text-sm mt-1">ระบบสำนักงานอิเล็กทรอนิกส์</p>
+            <h1 className="text-gray-900 text-4xl font-black tracking-widest mt-1">NEXT OFFICE</h1>
+            <p className="text-gray-700 text-sm mt-1">ระบบสำนักงานอิเล็กทรอนิกส์ด้วยปัญญาประดิษฐ์</p>
           </div>
+          <p className="text-gray-800 font-semibold text-lg leading-snug max-w-sm">
+            โรงเรียนบ้านพญาไพร
+          </p>
           <p className="text-gray-800 font-semibold text-lg leading-snug max-w-sm">
             สำนักงานเขตพื้นที่การศึกษาประถมศึกษาเชียงราย เขต 3
           </p>
@@ -142,7 +145,7 @@ export default function LoginPage() {
       >
         <span>
           {new Date().getFullYear()} &copy;{" "}
-          <span className="text-blue-400 font-medium">CVP Technology System.</span>{" "}
+          <span className="text-blue-400 font-medium">Solution Nextgen.</span>{" "}
           NextOffice AI E-Office
         </span>
         <span className="hover:text-white cursor-pointer transition-colors">ติดต่อเรา</span>
