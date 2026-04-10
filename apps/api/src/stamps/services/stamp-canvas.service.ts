@@ -27,6 +27,7 @@ export class StampCanvasService {
   private readonly logger = new Logger(StampCanvasService.name);
   private fontsReady = false;
   private wordcutReady = false;
+  private _measureCtx: SKRSContext2D | null = null;
 
   // ─── Font init ─────────────────────────────────────────────────────────────
 
@@ -277,9 +278,12 @@ export class StampCanvasService {
     if (!this.wordcutReady) { wordcut.init(); this.wordcutReady = true; }
   }
 
-  /** 1×1 canvas with no transform — pure pixel-space measurement */
+  /** Cached measurement canvas — no transform, sized to hold any expected text */
   private measureCtx(): SKRSContext2D {
-    return createCanvas(1, 1).getContext('2d') as SKRSContext2D;
+    if (!this._measureCtx) {
+      this._measureCtx = createCanvas(2000, 60).getContext('2d') as SKRSContext2D;
+    }
+    return this._measureCtx;
   }
 }
 
