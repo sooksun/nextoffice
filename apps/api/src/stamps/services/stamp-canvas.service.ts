@@ -105,8 +105,13 @@ export class StampCanvasService {
 
     const d = toThaiDate(data.registeredAt);
 
-    // Org name — bold, centered
-    ctx.font = `bold ${8}px SarabunBold`;
+    // Org name — auto-shrink font (8→7→6px) until fits, centered
+    let orgSize = 8;
+    ctx.font = `bold ${orgSize}px SarabunBold`;
+    while (orgSize > 6 && ctx.measureText(data.orgName).width > w - 16) {
+      orgSize -= 0.5;
+      ctx.font = `bold ${orgSize}px SarabunBold`;
+    }
     const orgTxt = this.fitSingle(ctx, data.orgName, w - 16);
     const orgW = ctx.measureText(orgTxt).width;
     ctx.fillText(orgTxt, (w - orgW) / 2, 13);
@@ -129,13 +134,13 @@ export class StampCanvasService {
     ctx.font = `bold ${9}px SarabunBold`;
     ctx.fillText('วันที่', 8, 48);
     ctx.font = `${9}px Sarabun`;
-    ctx.fillText(`${d.day} ${d.monthTh} ${d.year}`, 40, 48);
+    ctx.fillText(toThaiNumerals(`${d.day} ${d.monthTh} ${d.year}`), 40, 48);
 
     // เวลา
     ctx.font = `bold ${9}px SarabunBold`;
     ctx.fillText('เวลา', 8, 62);
     ctx.font = `${9}px Sarabun`;
-    ctx.fillText(d.time, 40, 62);
+    ctx.fillText(toThaiNumerals(d.time), 40, 62);
 
     return canvas.toBuffer('image/png');
   }

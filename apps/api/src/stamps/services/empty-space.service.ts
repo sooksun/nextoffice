@@ -170,26 +170,34 @@ export class EmptySpaceService {
 
   // ─── Complimentary close detection ──────────────────────────────────────────
 
-  /** Thai complimentary close phrases to search for */
+  /**
+   * Thai complimentary close phrases.
+   * "ขอเชิญ" intentionally excluded — appears in body text as invitation verb.
+   */
   private readonly CLOSE_PHRASES = [
     'ขอแสดงความนับถือ',
     'ด้วยความนับถือ',
     'ขอแสดงความเคารพ',
     'ด้วยความเคารพ',
-    'ขอเชิญ',
   ];
 
   /**
    * Scan text items for a Thai complimentary close phrase.
+   * Only considers items in the bottom 45% of the page to avoid
+   * false positives from similar phrases in the body text.
    * Returns the Y coordinate (pdf-lib, from bottom) or null if not found.
    */
   private detectComplimentaryCloseY(items: any[], pageH: number): number | null {
+    const yLimit = pageH * 0.45; // only bottom 45% of page
     for (const item of items) {
       if (!item.transform || !item.str) continue;
+      const itemY: number = item.transform[5];
+      if (itemY > yLimit) continue; // skip items in upper 55%
       const str: string = item.str.trim();
       for (const phrase of this.CLOSE_PHRASES) {
         if (str.includes(phrase)) {
-          return item.transform[5] as number;
+          this.logger.debug(`Close phrase "${phrase}" found at Y=${itemY}`);
+          return itemY;
         }
       }
     }
