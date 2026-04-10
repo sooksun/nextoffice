@@ -131,7 +131,7 @@ export class StampCanvasService {
     const d = toThaiDate(data.stampedAt);
 
     // Row 1: salutation (1 line)
-    const salutation = this.lines(`bold ${8 * S}px SarabunBold`, `เรียน ผู้อำนวยการโรงเรียน ${data.schoolName}`, innerPx, 1)[0] ?? '';
+    const salutation = this.lines(`bold ${8 * S}px SarabunBold`, `เรียน ผู้อำนวยการ ${data.schoolName}`, innerPx, 1)[0] ?? '';
     ctx.font = `bold ${8}px SarabunBold`;
     ctx.fillText(salutation, 8, 11);
 
