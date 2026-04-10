@@ -56,8 +56,9 @@ export class StampCanvasService {
 
   computeDirectorNoteHeight(data: DirectorNoteStampData, w: number): number {
     this.ensureFonts();
-    const nLines = Math.max(this.lines(`${9 * SCALE}px Sarabun`, data.noteText, (w - 16) * SCALE, 3).length, 1);
-    return Math.max(16 + 14 + nLines * 14 + 8, 50);
+    const cleaned = data.noteText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    const nLines = Math.max(this.lines(`${8 * SCALE}px Sarabun`, cleaned, (w - 16) * SCALE, 6).length, 1);
+    return Math.max(12 + 11 + nLines * 11 + 8, 50);
   }
 
   // ─── Public: render stamps to PNG buffer ───────────────────────────────────
@@ -167,30 +168,54 @@ export class StampCanvasService {
     const totalH = h + SIG_TOTAL;
     const canvas = createCanvas(w * S, totalH * S);
     const ctx = canvas.getContext('2d') as SKRSContext2D;
-    ctx.scale(S, S);
-    ctx.clearRect(0, 0, w, totalH);
+    // ── No ctx.scale(): draw in pixel-space to eliminate CTM measurement drift ──
+    ctx.clearRect(0, 0, w * S, totalH * S);
     ctx.fillStyle = BLUE;
 
     const d = toThaiDate(data.stampedAt);
+    const innerPx = (w - 16) * S;
+
+    // Clip text to content box (safety net against overflow)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, w * S, h * S);
+    ctx.clip();
 
     // Header "คำสั่ง"
-    ctx.font = `bold ${9}px SarabunBold`;
-    ctx.fillText('คำสั่ง', 8, 13);
+    ctx.font = `bold ${9 * S}px SarabunBold`;
+    ctx.fillText('คำสั่ง', 8 * S, 12 * S);
 
-    // Note text — lines measured in pixel-space against actual 180pt width
-    const noteLines = this.lines(`${9 * S}px Sarabun`, data.noteText, (w - 16) * S, 3);
-    ctx.font = `${9}px Sarabun`;
-    let ty = 27;
-    for (const line of noteLines) { ctx.fillText(line, 8, ty); ty += 14; }
+    // Note text — clean newlines, 8pt body, up to 6 lines
+    const cleaned = data.noteText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    const bodyFont = `${8 * S}px Sarabun`;
+    const noteLines = this.lines(bodyFont, cleaned, innerPx, 6);
+    ctx.font = bodyFont;
+    let tyPx = 23 * S;
+    for (const line of noteLines) {
+      ctx.fillText(line, 8 * S, tyPx);
+      tyPx += 11 * S;
+    }
 
-    // Signature block below box
+    ctx.restore(); // remove clip
+
+    // ── Signature block below box (pixel-space, right-aligned) ───────────────
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    const sigTop = h + SIG_GAP;
-    ctx.font = `bold ${9}px SarabunBold`;
-    this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, sigTop + 11, S);
-    ctx.font = `${8}px Sarabun`;
-    if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, sigTop + 22, S);
-    this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, sigTop + 33, S);
+    const sigTopPx = (h + SIG_GAP) * S;
+    const rightPx = w * S;
+    const padPx = 8 * S;
+
+    ctx.fillStyle = BLUE;
+    ctx.font = `bold ${9 * S}px SarabunBold`;
+    const nameStr = toThaiNumerals(data.authorName);
+    ctx.fillText(nameStr, rightPx - this.measurePx(ctx.font, nameStr) - padPx, sigTopPx + 11 * S);
+
+    ctx.font = `${8 * S}px Sarabun`;
+    if (data.positionTitle) {
+      const posStr = toThaiNumerals(data.positionTitle);
+      ctx.fillText(posStr, rightPx - this.measurePx(ctx.font, posStr) - padPx, sigTopPx + 22 * S);
+    }
+    const dateText = toThaiNumerals(dateStr);
+    ctx.fillText(dateText, rightPx - this.measurePx(ctx.font, dateText) - padPx, sigTopPx + 33 * S);
 
     return canvas.toBuffer('image/png');
   }
