@@ -188,7 +188,7 @@ export class EmptySpaceService {
    * Returns the Y coordinate (pdf-lib, from bottom) or null if not found.
    */
   private detectComplimentaryCloseY(items: any[], pageH: number): number | null {
-    const yLimit = pageH * 0.45; // only bottom 45% of page
+    const yLimit = pageH * 0.65; // only bottom 65% of page
     for (const item of items) {
       if (!item.transform || !item.str) continue;
       const itemY: number = item.transform[5];
