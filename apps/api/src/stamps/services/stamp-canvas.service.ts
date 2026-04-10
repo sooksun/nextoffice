@@ -11,13 +11,13 @@ import { RegistrationStampData, EndorsementStampData, DirectorNoteStampData } fr
 const SCALE = 3;
 
 /** Stamp blue colour */
-const BLUE = 'rgb(18, 84, 177)'; // ≈ rgb(0.07, 0.33, 0.71)
+const BLUE = 'rgb(18, 84, 177)';
 
 /** Vertical padding below stamp box before signature block starts */
 const SIG_GAP = 4;
-/** Signature block height: name + position + date */
+/** Signature block height: name + position + date (in pt) */
 const SIG_H = 34;
-/** Total extra height below box for signature */
+/** Total extra height below box for signature (in pt) */
 export const SIG_TOTAL = SIG_GAP + SIG_H; // 38pt
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -46,53 +46,29 @@ export class StampCanvasService {
 
   // ─── Public: compute stamp content-box heights ─────────────────────────────
 
-  /**
-   * Compute height of stamp #2 content box (not including signature below).
-   * Uses a temporary canvas for accurate Thai text measurement.
-   */
   computeEndorsementHeight(data: EndorsementStampData, w: number): number {
     this.ensureFonts();
-    const inner = (w - 16) * SCALE;
-    const mCtx = this.measureCtx();
-
-    mCtx.font = `${8 * SCALE}px Sarabun`;
-    const nSummary = Math.max(this.wrapText(mCtx, data.aiSummary,    inner, 4).length, 1);
-    const nAction  = Math.max(this.wrapText(mCtx, data.actionSummary, inner, 4).length, 0);
-
-    // 14 (salutation) + 11 (gap) + nSummary×11 + 6 (gap) + 11 (action label) + nAction×11 + 8 (bottom)
+    const nSummary = Math.max(this.lines(`${8 * SCALE}px Sarabun`, data.aiSummary, (w - 16) * SCALE, 4).length, 1);
+    const nAction  = Math.max(this.lines(`${8 * SCALE}px Sarabun`, data.actionSummary, (w - 16) * SCALE, 4).length, 0);
     return Math.max(14 + 11 + nSummary * 11 + 6 + 11 + nAction * 11 + 8, 60);
   }
 
-  /**
-   * Compute height of stamp #3 content box.
-   */
   computeDirectorNoteHeight(data: DirectorNoteStampData, w: number): number {
     this.ensureFonts();
-    const mCtx = this.measureCtx();
-    mCtx.font = `${9 * SCALE}px Sarabun`;
-    const nLines = Math.max(this.wrapText(mCtx, data.noteText, (w - 16) * SCALE, 3).length, 1);
-
-    // 16 (header) + 14 (gap) + nLines×14 + 8 (bottom)
+    const nLines = Math.max(this.lines(`${9 * SCALE}px Sarabun`, data.noteText, (w - 16) * SCALE, 3).length, 1);
     return Math.max(16 + 14 + nLines * 14 + 8, 50);
   }
 
   // ─── Public: render stamps to PNG buffer ───────────────────────────────────
 
-  /**
-   * Render stamp #1 (registration) as PNG.
-   * Includes rounded-rect border, org name, separator line, เลขที่รับ/วันที่/เวลา.
-   * @param w  stamp width in PDF points (default 160)
-   * @param h  stamp height in PDF points (default 70)
-   */
   renderRegistration(data: RegistrationStampData, w: number, h: number): Buffer {
     this.ensureFonts();
     const S = SCALE;
     const canvas = createCanvas(w * S, h * S);
     const ctx = canvas.getContext('2d') as SKRSContext2D;
-
     ctx.scale(S, S);
 
-    // White fill + blue rounded-rect border
+    // White fill + blue border
     ctx.beginPath();
     ctx.roundRect(0.75, 0.75, w - 1.5, h - 1.5, 4);
     ctx.fillStyle = 'white';
@@ -100,29 +76,23 @@ export class StampCanvasService {
     ctx.strokeStyle = BLUE;
     ctx.lineWidth = 1.5;
     ctx.stroke();
-
     ctx.fillStyle = BLUE;
 
     const d = toThaiDate(data.registeredAt);
 
-    // Org name — auto-shrink font (8→7→6px) until fits, centered
-    let orgSize = 8;
-    ctx.font = `bold ${orgSize}px SarabunBold`;
-    while (orgSize > 6 && ctx.measureText(data.orgName).width > w - 16) {
-      orgSize -= 0.5;
-      ctx.font = `bold ${orgSize}px SarabunBold`;
+    // Org name: auto-shrink font until fits, centered
+    let orgSizePt = 8;
+    while (orgSizePt > 6 && this.measurePx(`bold ${orgSizePt * S}px SarabunBold`, data.orgName) > (w - 16) * S) {
+      orgSizePt -= 0.5;
     }
-    const orgTxt = this.fitSingle(ctx, data.orgName, w - 16);
-    const orgW = ctx.measureText(orgTxt).width;
-    ctx.fillText(orgTxt, (w - orgW) / 2, 13);
+    const orgTxt = this.fitSinglePx(`bold ${orgSizePt * S}px SarabunBold`, data.orgName, (w - 16) * S);
+    const orgWpt = this.measurePx(`bold ${orgSizePt * S}px SarabunBold`, orgTxt) / S;
+    ctx.font = `bold ${orgSizePt}px SarabunBold`;
+    ctx.fillText(orgTxt, (w - orgWpt) / 2, 13);
 
     // Separator line
-    ctx.beginPath();
-    ctx.moveTo(5, 20);
-    ctx.lineTo(w - 5, 20);
-    ctx.strokeStyle = BLUE;
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(5, 20); ctx.lineTo(w - 5, 20);
+    ctx.strokeStyle = BLUE; ctx.lineWidth = 0.5; ctx.stroke();
 
     // เลขที่รับ
     ctx.font = `bold ${8}px SarabunBold`;
@@ -145,34 +115,27 @@ export class StampCanvasService {
     return canvas.toBuffer('image/png');
   }
 
-  /**
-   * Render stamp #2 (endorsement) as a PNG buffer.
-   * Canvas includes content box + signature block below.
-   * @param w  stamp width in PDF points
-   * @param h  stamp content-box height in PDF points (from computeEndorsementHeight)
-   */
   renderEndorsement(data: EndorsementStampData, w: number, h: number): Buffer {
     this.ensureFonts();
     const S = SCALE;
     const totalH = h + SIG_TOTAL;
     const canvas = createCanvas(w * S, totalH * S);
     const ctx = canvas.getContext('2d') as SKRSContext2D;
-
     ctx.scale(S, S);
     ctx.clearRect(0, 0, w, totalH);
     ctx.fillStyle = BLUE;
 
-    const inner = w - 16;
+    const innerPx = (w - 16) * S;
     const d = toThaiDate(data.stampedAt);
 
-    // Row 1: salutation
+    // Row 1: salutation (1 line)
+    const salutation = this.lines(`bold ${8 * S}px SarabunBold`, `เรียน ผู้อำนวยการโรงเรียน ${data.schoolName}`, innerPx, 1)[0] ?? '';
     ctx.font = `bold ${8}px SarabunBold`;
-    const salutation = this.wrapText(ctx, `เรียน ผู้อำนวยการโรงเรียน ${data.schoolName}`, inner, 1)[0] ?? '';
     ctx.fillText(salutation, 8, 11);
 
     // Row 2: AI summary
+    const summaryLines = this.lines(`${8 * S}px Sarabun`, data.aiSummary, innerPx, 4);
     ctx.font = `${8}px Sarabun`;
-    const summaryLines = this.wrapText(ctx, data.aiSummary, inner, 4);
     let ty = 22;
     for (const line of summaryLines) { ctx.fillText(line, 8, ty); ty += 11; }
 
@@ -181,32 +144,28 @@ export class StampCanvasService {
     ctx.font = `bold ${8}px SarabunBold`;
     ctx.fillText('สิ่งที่ต้องดำเนินการ :', 8, ty);
     ty += 11;
+    const actionLines = this.lines(`${8 * S}px Sarabun`, data.actionSummary, innerPx, 4);
     ctx.font = `${8}px Sarabun`;
-    const actionLines = this.wrapText(ctx, data.actionSummary, inner, 4);
     for (const line of actionLines) { ctx.fillText(line, 8, ty); ty += 11; }
 
-    // Signature block — below content box
+    // Signature block below box
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
     const sigTop = h + SIG_GAP;
     ctx.font = `bold ${9}px SarabunBold`;
-    this.drawRight(ctx, data.authorName, w, sigTop + 11);
+    this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, sigTop + 11, S);
     ctx.font = `${8}px Sarabun`;
-    if (data.positionTitle) this.drawRight(ctx, data.positionTitle, w, sigTop + 22);
-    this.drawRight(ctx, dateStr, w, sigTop + 33);
+    if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, sigTop + 22, S);
+    this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, sigTop + 33, S);
 
     return canvas.toBuffer('image/png');
   }
 
-  /**
-   * Render stamp #3 (director note) as a PNG buffer.
-   */
   renderDirectorNote(data: DirectorNoteStampData, w: number, h: number): Buffer {
     this.ensureFonts();
     const S = SCALE;
     const totalH = h + SIG_TOTAL;
     const canvas = createCanvas(w * S, totalH * S);
     const ctx = canvas.getContext('2d') as SKRSContext2D;
-
     ctx.scale(S, S);
     ctx.clearRect(0, 0, w, totalH);
     ctx.fillStyle = BLUE;
@@ -217,39 +176,43 @@ export class StampCanvasService {
     ctx.font = `bold ${9}px SarabunBold`;
     ctx.fillText('คำสั่ง', 8, 13);
 
-    // Note text
+    // Note text — lines measured in pixel-space against actual 180pt width
+    const noteLines = this.lines(`${9 * S}px Sarabun`, data.noteText, (w - 16) * S, 3);
     ctx.font = `${9}px Sarabun`;
-    const lines = this.wrapText(ctx, data.noteText, w - 16, 3);
     let ty = 27;
-    for (const line of lines) { ctx.fillText(line, 8, ty); ty += 14; }
+    for (const line of noteLines) { ctx.fillText(line, 8, ty); ty += 14; }
 
-    // Signature block — below content box
+    // Signature block below box
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
     const sigTop = h + SIG_GAP;
     ctx.font = `bold ${9}px SarabunBold`;
-    this.drawRight(ctx, data.authorName, w, sigTop + 11);
+    this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, sigTop + 11, S);
     ctx.font = `${8}px Sarabun`;
-    if (data.positionTitle) this.drawRight(ctx, data.positionTitle, w, sigTop + 22);
-    this.drawRight(ctx, dateStr, w, sigTop + 33);
+    if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, sigTop + 22, S);
+    this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, sigTop + 33, S);
 
     return canvas.toBuffer('image/png');
   }
 
-  // ─── Thai-aware word wrap (uses ctx.measureText — Skia handles shaping) ────
+  // ─── Measurement helpers (always pixel-space, no CTM) ─────────────────────
 
-  private ensureWordcut() {
-    if (!this.wordcutReady) {
-      wordcut.init();
-      this.wordcutReady = true;
-    }
+  /**
+   * Measure text width in actual canvas pixels.
+   * Uses a 1×1 canvas with no transform so CTM never interferes.
+   * @param fontDecl  e.g. '27px Sarabun' or 'bold 27px SarabunBold'
+   */
+  private measurePx(fontDecl: string, text: string): number {
+    const ctx = this.measureCtx();
+    ctx.font = fontDecl;
+    return ctx.measureText(text).width;
   }
 
-  private wrapText(
-    ctx: SKRSContext2D,
-    text: string,
-    maxW: number,
-    maxLines: number,
-  ): string[] {
+  /**
+   * Wrap text into lines, measuring in pixel-space.
+   * @param fontDecl  font string with pixel size already multiplied by SCALE
+   * @param maxWpx    max width in canvas pixels  (= pt × SCALE)
+   */
+  private lines(fontDecl: string, text: string, maxWpx: number, maxLines: number): string[] {
     if (!text?.trim()) return [];
     this.ensureWordcut();
 
@@ -262,44 +225,59 @@ export class StampCanvasService {
       segments = converted.split(' ');
     }
 
-    const lines: string[] = [];
+    const result: string[] = [];
     let cur = '';
     for (const seg of segments) {
       const test = cur + seg;
-      if (ctx.measureText(test).width > maxW && cur !== '') {
-        lines.push(cur);
-        if (lines.length >= maxLines) { cur = ''; break; }
+      if (this.measurePx(fontDecl, test) > maxWpx && cur !== '') {
+        result.push(cur);
+        if (result.length >= maxLines) { cur = ''; break; }
         cur = seg;
       } else {
         cur = test;
       }
     }
-    if (cur && lines.length < maxLines) lines.push(cur);
+    if (cur && result.length < maxLines) result.push(cur);
 
-    // Truncate any line that still overflows
-    return lines.map((line) => {
-      if (ctx.measureText(line).width <= maxW) return line;
+    // Truncate any overflow line
+    return result.map((line) => {
+      if (this.measurePx(fontDecl, line) <= maxWpx) return line;
       let t = line;
-      while (t.length > 0 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+      while (t.length > 0 && this.measurePx(fontDecl, t + '…') > maxWpx) t = t.slice(0, -1);
       return t + '…';
     });
   }
 
-  /** Right-align text within stamp width */
-  private drawRight(ctx: SKRSContext2D, text: string, stampW: number, y: number) {
+  /**
+   * Right-align text within stamp width.
+   * Measures in pixel-space, converts to pt for drawing.
+   * @param fontDecl  full-pixel font string (e.g. '27px Sarabun')
+   * @param stampWpt  stamp width in PDF points
+   * @param S         SCALE factor
+   */
+  private drawRight(
+    ctx: SKRSContext2D, fontDecl: string, text: string,
+    stampWpt: number, y: number, S: number,
+  ) {
     const t = toThaiNumerals(text);
-    const tw = ctx.measureText(t).width;
-    ctx.fillText(t, stampW - tw - 8, y);
+    const twPt = this.measurePx(fontDecl, t) / S; // convert px → pt
+    ctx.fillText(t, stampWpt - twPt - 8, y);
   }
 
-  /** Truncate text to fit maxW (single line) */
-  private fitSingle(ctx: SKRSContext2D, text: string, maxW: number): string {
+  /**
+   * Truncate text to fit maxWpx (pixel-space), returns the fitted string.
+   */
+  private fitSinglePx(fontDecl: string, text: string, maxWpx: number): string {
     let t = text;
-    while (t.length > 0 && ctx.measureText(t).width > maxW) t = t.slice(0, -1);
+    while (t.length > 0 && this.measurePx(fontDecl, t) > maxWpx) t = t.slice(0, -1);
     return t;
   }
 
-  /** Temporary 1px canvas just for text measurement */
+  private ensureWordcut() {
+    if (!this.wordcutReady) { wordcut.init(); this.wordcutReady = true; }
+  }
+
+  /** 1×1 canvas with no transform — pure pixel-space measurement */
   private measureCtx(): SKRSContext2D {
     return createCanvas(1, 1).getContext('2d') as SKRSContext2D;
   }
