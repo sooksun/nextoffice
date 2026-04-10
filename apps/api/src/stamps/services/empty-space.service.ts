@@ -73,12 +73,18 @@ export class EmptySpaceService {
         textRects.push({ x: ix, y: iy, w: iw, h: ih });
       }
 
+      // Detect complimentary close Y level (คำลงท้าย)
+      const closeY = this.detectComplimentaryCloseY(textContent.items as any[], pageH);
+      if (closeY !== null) {
+        this.logger.debug(`Complimentary close detected at Y=${closeY}`);
+      }
+
       // Find zones
       const zones: StampZone[] = [];
       for (const spec of specs) {
         let zone: StampZone;
         if (spec.preference === 'lower-half-left' || spec.preference === 'lower-half-right') {
-          zone = this.findLowerHalfFixed(grid, cols, rows, spec, pageW, pageH, textRects);
+          zone = this.findLowerHalfFixed(grid, cols, rows, spec, pageW, pageH, textRects, closeY);
         } else {
           zone = this.findBest(grid, cols, rows, spec, pageW, pageH);
         }
@@ -162,19 +168,47 @@ export class EmptySpaceService {
     return count;
   }
 
+  // ─── Complimentary close detection ──────────────────────────────────────────
+
+  /** Thai complimentary close phrases to search for */
+  private readonly CLOSE_PHRASES = [
+    'ขอแสดงความนับถือ',
+    'ด้วยความนับถือ',
+    'ขอแสดงความเคารพ',
+    'ด้วยความเคารพ',
+    'ขอเชิญ',
+  ];
+
+  /**
+   * Scan text items for a Thai complimentary close phrase.
+   * Returns the Y coordinate (pdf-lib, from bottom) or null if not found.
+   */
+  private detectComplimentaryCloseY(items: any[], pageH: number): number | null {
+    for (const item of items) {
+      if (!item.transform || !item.str) continue;
+      const str: string = item.str.trim();
+      for (const phrase of this.CLOSE_PHRASES) {
+        if (str.includes(phrase)) {
+          return item.transform[5] as number;
+        }
+      }
+    }
+    return null;
+  }
+
   // ─── Lower-half fixed-X placement ──────────────────────────────────────────
 
   /**
-   * Place stamp at a fixed X (left margin 10 or right margin 10) and scan
-   * for the best Y in the lower half of the page.
+   * Place stamp at a fixed X (left margin 10 or right margin 10).
    *
-   * Scans bottom 50% of page, finds Y with least grid overlap.
-   * Falls back to 20% from bottom if nothing good found.
+   * If complimentary close Y was detected, anchors the stamp top at that Y level.
+   * Otherwise scans bottom 60% for the best Y using weighted scoring.
    */
   private findLowerHalfFixed(
     grid: Uint8Array, cols: number, rows: number,
     spec: StampSpec, pageW: number, pageH: number,
     textRects: TextRect[],
+    closeY: number | null,
   ): StampZone {
     const CELL = this.CELL;
     const needCols = Math.ceil(spec.w / CELL);
@@ -184,12 +218,21 @@ export class EmptySpaceService {
     const fixedX = spec.preference === 'lower-half-left'
       ? 10
       : Math.round(pageW - spec.w - 10);
+
+    // If complimentary close detected, place stamp top at that Y level
+    if (closeY !== null) {
+      // closeY is the baseline of the close text — place stamp top there
+      // stamp top = closeY, stamp bottom = closeY - h
+      const py = Math.max(closeY - spec.h, 10);
+      this.logger.debug(
+        `Stamp ${spec.preference} — anchored to close Y=${closeY}, placed at (${fixedX}, ${py})`,
+      );
+      return { x: fixedX, y: py, w: spec.w, h: spec.h };
+    }
+
+    // Fallback: weighted scan in bottom 60%
     const fixedGx = Math.max(0, Math.floor(fixedX / CELL));
-
-    // Ideal Y: ~25% from page bottom (signature zone)
     const idealGy = Math.floor(rows * 0.25);
-
-    // Scan bottom 60% of page for the best Y
     const scanLimit = Math.floor(rows * 0.60);
     let bestGy = idealGy;
     let bestScore = Infinity;
@@ -207,12 +250,11 @@ export class EmptySpaceService {
       }
     }
 
-    const px = fixedX;
     const py = bestGy * CELL;
     this.logger.debug(
-      `Stamp ${spec.preference} — placed at (${px}, ${py}), score=${bestScore}`,
+      `Stamp ${spec.preference} — no close detected, placed at (${fixedX}, ${py}), score=${bestScore}`,
     );
-    return { x: px, y: py, w: spec.w, h: spec.h };
+    return { x: fixedX, y: py, w: spec.w, h: spec.h };
   }
 
   // ─── Scored zone finder (for top-right / top-left etc.) ─────────────────────
