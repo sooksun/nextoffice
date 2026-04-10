@@ -49,10 +49,10 @@ export class PdfStampService {
 
   async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
     const specs = [
-      { w: 160, h: 70,  preference: 'top-right' as const },  // stamp 1: locked top-right
-      { w: 260, h: 150, preference: 'mid-left'  as const },  // stamp 2: left-middle area
+      { w: 160, h: 70,  preference: 'top-right' as const },
+      { w: 260, h: 150, preference: 'top-left'  as const },
       ...(data.directorNote
-        ? [{ w: 260, h: 120, preference: 'top-left' as const }] // stamp 3: next available top-left
+        ? [{ w: 260, h: 120, preference: 'top-left' as const }]
         : []),
     ];
 
