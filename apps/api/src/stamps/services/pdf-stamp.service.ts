@@ -78,6 +78,11 @@ export class PdfStampService {
       zones[0] = { ...zones[0], y: pageH - zones[0].h - 8 };
     }
 
+    // Stamp 3: shift down 30pt to avoid overlap with document signatures
+    if (zones[2]) {
+      zones[2] = { ...zones[2], y: zones[2].y - 30 };
+    }
+
     // Draw in order 1 → 2 → 3
     this.drawRegistrationStamp(page, regular, bold, data.registration, zones[0]);
     this.drawEndorsementStamp(page, regular, bold, data.endorsement, zones[1]);
