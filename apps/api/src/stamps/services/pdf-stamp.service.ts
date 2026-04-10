@@ -72,6 +72,8 @@ export class PdfStampService {
     const page = pdfDoc.getPages()[0];
     const { height: pageH } = page.getSize();
     if (zones[0]) zones[0] = { ...zones[0], y: pageH - S1_H - 8 };
+    // Stamp 3: shift up 60pt relative to computed zone
+    if (zones[2]) zones[2] = { ...zones[2], y: zones[2].y + 60 };
 
     // ── 3. Render each stamp as PNG via Skia canvas ─────────────────────────
     const png1 = this.stampCanvas.renderRegistration(data.registration, S1_W, S1_H);
