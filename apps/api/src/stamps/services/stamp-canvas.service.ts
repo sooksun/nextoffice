@@ -3,7 +3,7 @@ import { createCanvas, GlobalFonts, SKRSContext2D } from '@napi-rs/canvas';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as wordcut from 'wordcut';
-import { EndorsementStampData, DirectorNoteStampData } from './pdf-stamp.service';
+import { RegistrationStampData, EndorsementStampData, DirectorNoteStampData } from './pdf-stamp.service';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,68 @@ export class StampCanvasService {
   }
 
   // ─── Public: render stamps to PNG buffer ───────────────────────────────────
+
+  /**
+   * Render stamp #1 (registration) as PNG.
+   * Includes rounded-rect border, org name, separator line, เลขที่รับ/วันที่/เวลา.
+   * @param w  stamp width in PDF points (default 160)
+   * @param h  stamp height in PDF points (default 70)
+   */
+  renderRegistration(data: RegistrationStampData, w: number, h: number): Buffer {
+    this.ensureFonts();
+    const S = SCALE;
+    const canvas = createCanvas(w * S, h * S);
+    const ctx = canvas.getContext('2d') as SKRSContext2D;
+
+    ctx.scale(S, S);
+
+    // White fill + blue rounded-rect border
+    ctx.beginPath();
+    ctx.roundRect(0.75, 0.75, w - 1.5, h - 1.5, 4);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+    ctx.strokeStyle = BLUE;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = BLUE;
+
+    const d = toThaiDate(data.registeredAt);
+
+    // Org name — bold, centered
+    ctx.font = `bold ${8}px SarabunBold`;
+    const orgTxt = this.fitSingle(ctx, data.orgName, w - 16);
+    const orgW = ctx.measureText(orgTxt).width;
+    ctx.fillText(orgTxt, (w - orgW) / 2, 13);
+
+    // Separator line
+    ctx.beginPath();
+    ctx.moveTo(5, 20);
+    ctx.lineTo(w - 5, 20);
+    ctx.strokeStyle = BLUE;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // เลขที่รับ
+    ctx.font = `bold ${8}px SarabunBold`;
+    ctx.fillText('เลขที่รับ', 8, 34);
+    ctx.font = `${10}px Sarabun`;
+    ctx.fillText(toThaiNumerals(data.registrationNo), 60, 34);
+
+    // วันที่
+    ctx.font = `bold ${9}px SarabunBold`;
+    ctx.fillText('วันที่', 8, 48);
+    ctx.font = `${9}px Sarabun`;
+    ctx.fillText(`${d.day} ${d.monthTh} ${d.year}`, 40, 48);
+
+    // เวลา
+    ctx.font = `bold ${9}px SarabunBold`;
+    ctx.fillText('เวลา', 8, 62);
+    ctx.font = `${9}px Sarabun`;
+    ctx.fillText(d.time, 40, 62);
+
+    return canvas.toBuffer('image/png');
+  }
 
   /**
    * Render stamp #2 (endorsement) as a PNG buffer.
@@ -225,6 +287,13 @@ export class StampCanvasService {
     ctx.fillText(t, stampW - tw - 8, y);
   }
 
+  /** Truncate text to fit maxW (single line) */
+  private fitSingle(ctx: SKRSContext2D, text: string, maxW: number): string {
+    let t = text;
+    while (t.length > 0 && ctx.measureText(t).width > maxW) t = t.slice(0, -1);
+    return t;
+  }
+
   /** Temporary 1px canvas just for text measurement */
   private measureCtx(): SKRSContext2D {
     return createCanvas(1, 1).getContext('2d') as SKRSContext2D;
@@ -246,5 +315,6 @@ function toThaiDate(date: Date) {
     day:     date.getDate(),
     monthTh: months[date.getMonth()],
     year:    date.getFullYear() + 543,
+    time:    `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')} น.`,
   };
 }
