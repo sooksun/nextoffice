@@ -16,7 +16,7 @@ export interface StampZone {
 @Injectable()
 export class EmptySpaceService {
   private readonly logger = new Logger(EmptySpaceService.name);
-  private readonly CELL = 18; // grid cell size in points
+  private readonly CELL = 10; // grid cell size in points (finer = more accurate detection)
 
   /**
    * Find non-overlapping empty zones for each stamp spec.
@@ -45,29 +45,33 @@ export class EmptySpaceService {
       const rows = Math.ceil(pageH / CELL);
       const grid = new Uint8Array(cols * rows); // 0=empty, 1=occupied
 
-      // Mark a 1-cell border margin as occupied so stamps don't touch the page edge
-      this.markBorder(grid, cols, rows, 1);
+      // Mark a 2-cell border margin as occupied so stamps don't touch the page edge
+      this.markBorder(grid, cols, rows, 2);
 
-      // Extract text items and mark their grid cells as occupied
+      // Extract text items and mark their grid cells as occupied.
+      // Padding: 8pt horizontal, 14pt above baseline (for Thai diacritics + line spacing),
+      // 6pt below baseline (for descenders). This prevents stamps from landing between
+      // tightly-spaced text lines that would appear "empty" with a coarser grid.
       const textContent = await page.getTextContent();
       for (const item of textContent.items as any[]) {
         if (!item.transform) continue;
         const ix = item.transform[4];           // x from left
-        const iy = item.transform[5];           // y from bottom
-        const iw = Math.max(item.width ?? 0, 4);
-        const ih = Math.max(item.height ?? 10, 8);
-        this.markArea(grid, cols, rows, ix - 4, iy - 4, iw + 8, ih + 8);
+        const iy = item.transform[5];           // y from bottom (PDF baseline)
+        const iw = Math.max(item.width ?? 0, 6);
+        const ih = Math.max(item.height ?? 12, 10);
+        this.markArea(grid, cols, rows, ix - 8, iy - 6, iw + 16, ih + 20);
       }
 
       // Find a zone for each stamp, marking each as occupied before finding the next
       const zones: StampZone[] = [];
+      let ltrSlot = 0;
       for (const spec of specs) {
         const zone = spec.preference === 'lower-half-ltr'
-          ? this.findLowerHalfLtr(grid, cols, rows, spec, pageW, pageH)
+          ? this.findLowerHalfLtr(grid, cols, rows, spec, pageW, pageH, ltrSlot++)
           : this.findBest(grid, cols, rows, spec, pageW, pageH);
         zones.push(zone);
         // Mark this zone so the next stamp doesn't overlap
-        this.markArea(grid, cols, rows, zone.x - 2, zone.y - 2, zone.w + 4, zone.h + 4);
+        this.markArea(grid, cols, rows, zone.x - 4, zone.y - 4, zone.w + 8, zone.h + 8);
       }
 
       return zones;
@@ -123,23 +127,33 @@ export class EmptySpaceService {
   // ─── Lower-half left-to-right finder ────────────────────────────────────────
 
   /**
-   * Deterministic scan: starting from visual page-middle downward, left to right.
-   * gy=0 = bottom of page, gy=rows-1 = top. Visual middle ≈ rows/2.
-   * Scan gy from rows/2 → 0 (going down visually), gx left → right.
-   * First empty rectangle wins. Falls back to upper half if nothing found.
+   * Strictly scan the lower portion of the page for a free zone.
+   *
+   * gy=0 is the page BOTTOM, gy=rows-1 is the page TOP.
+   * "Lower half" visually = gy 0 → rows*LOWER_FRAC.
+   *
+   * Scan order: bottom → visual-middle, left → right.
+   * If no fully-empty rectangle is found in the lower portion, fall back to the
+   * BOTTOM of the page at a fixed slot position (left for even index, right for odd).
+   * We NEVER fall back to the upper half — placing stamps over document headers
+   * is always worse than placing them near the bottom where closings and signatures live.
+   *
+   * @param slotIndex  0-based index of this stamp among lower-half stamps (controls fallback x)
    */
   private findLowerHalfLtr(
     grid: Uint8Array, cols: number, rows: number,
     spec: StampSpec, pageW: number, pageH: number,
+    slotIndex: number,
   ): StampZone {
     const CELL = this.CELL;
     const needCols = Math.ceil(spec.w / CELL);
     const needRows = Math.ceil(spec.h / CELL);
 
-    const startGy = Math.min(Math.floor(rows / 2), rows - needRows);
+    // Only consider the lower 50% of the page
+    const maxGy = Math.floor(rows * 0.50);
 
-    // Primary scan: visual middle → bottom
-    for (let gy = startGy; gy >= 0; gy--) {
+    // Scan: bottom (gy=0) → lower-mid, left → right
+    for (let gy = 0; gy <= maxGy - needRows; gy++) {
       for (let gx = 0; gx <= cols - needCols; gx++) {
         if (this.isRectEmpty(grid, cols, gx, gy, needCols, needRows)) {
           return { x: gx * CELL, y: gy * CELL, w: spec.w, h: spec.h };
@@ -147,16 +161,13 @@ export class EmptySpaceService {
       }
     }
 
-    // Fallback scan: upper half (still left to right, top → middle)
-    for (let gy = rows - needRows; gy > startGy; gy--) {
-      for (let gx = 0; gx <= cols - needCols; gx++) {
-        if (this.isRectEmpty(grid, cols, gx, gy, needCols, needRows)) {
-          return { x: gx * CELL, y: gy * CELL, w: spec.w, h: spec.h };
-        }
-      }
-    }
-
-    return { x: 40, y: Math.round(pageH / 4), w: spec.w, h: spec.h };
+    // No clear space found — use a safe bottom-slot fallback.
+    // Alternate left/right so successive lower-half stamps don't stack on each other.
+    const bottomY = Math.round(pageH * 0.08); // ~8% from bottom
+    const slotX = slotIndex % 2 === 0
+      ? Math.round(pageW * 0.04)                    // left slot
+      : Math.round(pageW * 0.04) + spec.w + 10;     // right slot
+    return { x: slotX, y: bottomY, w: spec.w, h: spec.h };
   }
 
   // ─── Scored zone finder (for top-right / top-left etc.) ─────────────────────
@@ -216,14 +227,21 @@ export class EmptySpaceService {
   private fallback(specs: StampSpec[]): StampZone[] {
     const pageW = 595;
     const pageH = 842;
+    let ltrSlot = 0;
     return specs.map((spec) => {
       switch (spec.preference) {
         case 'top-right':
           return { x: pageW - spec.w - 2, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
         case 'top-left':
           return { x: 40, y: pageH - spec.h - 12, w: spec.w, h: spec.h };
-        case 'lower-half-ltr':
-          return { x: 40, y: Math.round(pageH / 4), w: spec.w, h: spec.h };
+        case 'lower-half-ltr': {
+          const bottomY = Math.round(pageH * 0.08);
+          const slotX = ltrSlot % 2 === 0
+            ? Math.round(pageW * 0.04)
+            : Math.round(pageW * 0.04) + spec.w + 10;
+          ltrSlot++;
+          return { x: slotX, y: bottomY, w: spec.w, h: spec.h };
+        }
         case 'bottom-left':
           return { x: 40, y: 80, w: spec.w, h: spec.h };
         case 'bottom-right':
