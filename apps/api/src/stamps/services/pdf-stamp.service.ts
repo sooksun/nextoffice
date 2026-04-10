@@ -315,6 +315,7 @@ export class PdfStampService {
   private isThaiMark(cp: number): boolean {
     return (
       cp === 0x0E31 ||
+      cp === 0x0E33 ||                        // sara am ำ
       (cp >= 0x0E34 && cp <= 0x0E37) ||
       (cp >= 0x0E38 && cp <= 0x0E3A) ||
       cp === 0x0E47 ||
@@ -322,19 +323,28 @@ export class PdfStampService {
     );
   }
 
+  private isThaiLeadingVowel(cp: number): boolean {
+    return cp >= 0x0E40 && cp <= 0x0E44; // เ แ โ ใ ไ
+  }
+
   private thaiTextWidth(text: string, font: any, size: number): number {
-    let w = 0;
-    for (const char of text) {
-      if (!this.isThaiMark(char.codePointAt(0)!)) {
-        w += font.widthOfTextAtSize(char, size);
-      }
-    }
-    return w;
+    if (!text) return 0;
+    return font.widthOfTextAtSize(text.normalize('NFC'), size);
   }
 
   /**
-   * Render Thai text as a single string — fontkit's GSUB/GPOS handles all
-   * mark positioning (สระ/วรรณยุกต์) internally, eliminating the กระโดด gap.
+   * Thai syllable cluster regex.
+   * Matches: optional leading vowel (เแโใไ) + base consonant/vowel + optional combining marks.
+   * The `|.` fallback captures spaces, punctuation, and non-Thai characters.
+   */
+  private readonly THAI_CLUSTER_RE =
+    /[\u0E40-\u0E44]?[\u0E01-\u0E3F][\u0E31\u0E33-\u0E3A\u0E47-\u0E4E]*|./gsu;
+
+  /**
+   * Render Thai text cluster-by-cluster at explicit X positions.
+   * Sarabun's GPOS adds extra advance when ั and ่ stack on the same consonant
+   * (e.g. สั่), displacing the following ง visually. Drawing each cluster
+   * separately eliminates cross-cluster GPOS, fixing the gap.
    */
   private drawThaiText(
     page: any, text: string,
@@ -342,21 +352,53 @@ export class PdfStampService {
     size: number, font: any, color: any,
   ) {
     if (!text) return;
-    page.drawText(text.normalize('NFC'), { x, y, size, font, color });
+    const nfc = text.normalize('NFC');
+    this.THAI_CLUSTER_RE.lastIndex = 0;
+    const clusters = [...nfc.matchAll(this.THAI_CLUSTER_RE)].map((m) => m[0]);
+    let curX = x;
+    for (const cluster of clusters) {
+      page.drawText(cluster, { x: curX, y, size, font, color });
+      curX += font.widthOfTextAtSize(cluster, size);
+    }
   }
 
-  /** Merge any segment that starts with a Thai combining mark into the previous segment. */
+  /**
+   * Merge Thai combining mark segments and leading-vowel segments with their base consonant.
+   * Pass 1: backward-merge trailing marks (ั ิ ่ ้ ็ ํ …) into the previous segment.
+   * Pass 2: forward-merge isolated leading vowels (เ แ โ ใ ไ) into the next segment.
+   */
   private mergeMarkSegments(segments: string[]): string[] {
-    const merged: string[] = [];
+    // Pass 1: backward-merge trailing marks
+    const pass1: string[] = [];
     for (const seg of segments) {
       const firstCp = seg.codePointAt(0);
-      if (merged.length > 0 && firstCp !== undefined && this.isThaiMark(firstCp)) {
-        merged[merged.length - 1] += seg;
+      if (pass1.length > 0 && firstCp !== undefined && this.isThaiMark(firstCp)) {
+        pass1[pass1.length - 1] += seg;
       } else {
-        merged.push(seg);
+        pass1.push(seg);
       }
     }
-    return merged;
+
+    // Pass 2: forward-merge isolated leading vowels into the following segment
+    const pass2: string[] = [];
+    let i = 0;
+    while (i < pass1.length) {
+      const seg = pass1[i];
+      const cp = seg.codePointAt(0);
+      if (
+        seg.length === 1 &&
+        cp !== undefined &&
+        this.isThaiLeadingVowel(cp) &&
+        i + 1 < pass1.length
+      ) {
+        pass2.push(seg + pass1[i + 1]);
+        i += 2;
+      } else {
+        pass2.push(seg);
+        i++;
+      }
+    }
+    return pass2;
   }
 
   /** Right-align Thai text within a box */
