@@ -49,10 +49,10 @@ export class PdfStampService {
 
   async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
     const specs = [
-      { w: 160, h: 70,  preference: 'top-right' as const },  // stamp 1: topmost
-      { w: 260, h: 150, preference: 'top-left'  as const },  // stamp 2: top-left scan
+      { w: 160, h: 70,  preference: 'top-right' as const },  // stamp 1: locked top-right
+      { w: 260, h: 150, preference: 'mid-left'  as const },  // stamp 2: left-middle area
       ...(data.directorNote
-        ? [{ w: 260, h: 120, preference: 'top-left' as const }] // stamp 3: top-left scan
+        ? [{ w: 260, h: 120, preference: 'top-left' as const }] // stamp 3: next available top-left
         : []),
     ];
 
@@ -112,7 +112,7 @@ export class PdfStampService {
     // Org name — centered
     const orgSize = 8;
     const orgName = this.wrapToFit(data.orgName, bold, orgSize, w - 16, 1)[0] ?? '';
-    const orgW = this.thaiTextWidth(orgName, bold, orgSize);
+    const orgW = bold.widthOfTextAtSize(orgName.normalize('NFC'), orgSize);
     this.drawThaiText(page, orgName, x + (w - orgW) / 2, y + h - 16, orgSize, bold, blue);
 
     page.drawLine({
@@ -200,7 +200,7 @@ export class PdfStampService {
     // Header "คำสั่ง" centered with underline
     const header = 'คำสั่ง';
     const hSize = 9;
-    const hW = this.thaiTextWidth(header, bold, hSize);
+    const hW = bold.widthOfTextAtSize(header.normalize('NFC'), hSize);
     const hx = x + (w - hW) / 2;
     const hy = y + h - 16;
     this.drawThaiText(page, header, hx, hy, hSize, bold, blue);
@@ -287,14 +287,8 @@ export class PdfStampService {
   }
 
   /**
-   * Render Thai text segment-by-segment (wordcut word boundaries).
-   *
-   * Each segment is passed as a complete string to page.drawText so fontkit
-   * applies GSUB/GPOS internally — marks (สระ/วรรณยุกต์) are positioned
-   * correctly ON the base consonant by the font's own tables, not by us.
-   *
-   * Between segments, x advances by thaiTextWidth (visual width, marks excluded)
-   * to avoid the "กระโดด" gap that character-by-character advance causes.
+   * Render Thai text as a single string — fontkit's GSUB/GPOS handles all
+   * mark positioning (สระ/วรรณยุกต์) internally, eliminating the กระโดด gap.
    */
   private drawThaiText(
     page: any, text: string,
@@ -302,25 +296,7 @@ export class PdfStampService {
     size: number, font: any, color: any,
   ) {
     if (!text) return;
-
-    if (!this.wordcutReady) { wordcut.init(); this.wordcutReady = true; }
-
-    let segments: string[];
-    try {
-      const cut: string = wordcut.cut(text.normalize('NFC'));
-      segments = cut.split('|').filter((s: string) => s.length > 0);
-    } catch {
-      segments = [text.normalize('NFC')];
-    }
-
-    const merged = this.mergeMarkSegments(segments);
-
-    let cx = x;
-    for (const seg of merged) {
-      page.drawText(seg, { x: cx, y, size, font, color });
-      // Advance by visual width only (marks are zero-width)
-      cx += this.thaiTextWidth(seg, font, size);
-    }
+    page.drawText(text.normalize('NFC'), { x, y, size, font, color });
   }
 
   /** Merge any segment that starts with a Thai combining mark into the previous segment. */
@@ -343,8 +319,9 @@ export class PdfStampService {
     boxX: number, y: number, maxW: number, size: number,
     color = rgb(0, 0, 0),
   ) {
-    const textW = this.thaiTextWidth(text, font, size);
-    this.drawThaiText(page, text, boxX + maxW - textW, y, size, font, color);
+    const t = text.normalize('NFC');
+    const textW = font.widthOfTextAtSize(t, size);
+    page.drawText(t, { x: boxX + maxW - textW, y, size, font, color });
   }
 
   // ─── Thai-aware word wrap ─────────────────────────────────────────────────
