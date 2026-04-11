@@ -636,6 +636,7 @@ export class CaseWorkflowService {
             positionTitle: director?.positionTitle ?? 'ผู้อำนวยการโรงเรียน',
             stampedAt: now,
             signatureBuffer: directorSigBuf ?? undefined,
+            assigneeNames,
           }
         : undefined,
     });

@@ -28,6 +28,7 @@ export interface DirectorNoteStampData {
   positionTitle?: string;
   stampedAt: Date;
   signatureBuffer?: Buffer;
+  assigneeNames?: string[];
 }
 
 export interface AllStampsData {

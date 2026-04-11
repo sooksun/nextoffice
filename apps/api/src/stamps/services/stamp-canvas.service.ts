@@ -75,7 +75,10 @@ export class StampCanvasService {
     this.ensureFonts();
     const cleaned = data.noteText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
     const nLines = Math.max(this.lines(`${8 * SCALE}px Sarabun`, cleaned, (w - 16) * SCALE, 6).length, 1);
-    return Math.max(12 + 11 + nLines * 11 + 8, 50);
+    const assigneeH = data.assigneeNames?.length
+      ? this.lines(`${8 * SCALE}px Sarabun`, data.assigneeNames.join(', '), (w - 16) * SCALE, 2).length * 11
+      : 0;
+    return Math.max(12 + 11 + nLines * 11 + assigneeH + 8, 50);
   }
 
   // ─── Public: render stamps to PNG buffer ───────────────────────────────────
@@ -176,7 +179,7 @@ export class StampCanvasService {
     if (data.assigneeNames?.length) {
       ty += 6;
       ctx.font = `bold ${8}px SarabunBold`;
-      ctx.fillText('มอบหมาย :', 8, ty);
+      ctx.fillText('เห็นควรมอบหมาย :', 8, ty);
       ty += 11;
       const namesLine = this.lines(`${8 * S}px Sarabun`, data.assigneeNames.join(', '), innerPx, 2);
       ctx.font = `${8}px Sarabun`;
@@ -232,9 +235,9 @@ export class StampCanvasService {
     ctx.rect(0, 0, w * S, h * S);
     ctx.clip();
 
-    // Header "คำสั่ง"
+    // Header "เห็นชอบ/มอบ"
     ctx.font = `bold ${9 * S}px SarabunBold`;
-    ctx.fillText('คำสั่ง', 8 * S, 12 * S);
+    ctx.fillText('เห็นชอบ/มอบ', 8 * S, 12 * S);
 
     // Note text — clean newlines, 8pt body, up to 6 lines
     const cleaned = data.noteText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
@@ -245,6 +248,17 @@ export class StampCanvasService {
     for (const line of noteLines) {
       ctx.fillText(line, 8 * S, tyPx);
       tyPx += 11 * S;
+    }
+
+    // Assignee names — appended after note text
+    if (data.assigneeNames?.length) {
+      const namesText = data.assigneeNames.join(', ');
+      const namesLines = this.lines(bodyFont, namesText, innerPx, 2);
+      ctx.font = bodyFont;
+      for (const line of namesLines) {
+        ctx.fillText(line, 8 * S, tyPx);
+        tyPx += 11 * S;
+      }
     }
 
     ctx.restore(); // remove clip
