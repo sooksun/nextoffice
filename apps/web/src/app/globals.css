@@ -157,3 +157,66 @@ h1, h2, h3, h4, .font-headline {
 }
 .react-datepicker__navigation { @apply hidden; }
 .react-datepicker__triangle { display: none !important; }
+
+/* ─── Registry Print Styles ─── */
+@media print {
+  /* Hide non-essential UI */
+  .no-print,
+  nav,
+  aside,
+  header,
+  [data-sidebar],
+  [data-chat-panel] { display: none !important; }
+
+  body { background: white !important; }
+
+  /* Full-width content */
+  main, [data-main-content] {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .print-full {
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  .print-title {
+    font-size: 18pt !important;
+    text-align: center !important;
+    display: block !important;
+    margin-bottom: 4pt !important;
+  }
+
+  /* Registry table print formatting */
+  .registry-table {
+    font-size: 9pt !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  .registry-table th,
+  .registry-table td {
+    border: 0.5pt solid #333 !important;
+    padding: 3pt 4pt !important;
+    background: white !important;
+    color: black !important;
+  }
+  .registry-table thead th {
+    background: #eee !important;
+    font-weight: bold !important;
+    text-transform: none !important;
+  }
+  .registry-table a {
+    color: black !important;
+    text-decoration: none !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+}

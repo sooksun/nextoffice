@@ -30,6 +30,7 @@ export class OutboundService {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
+        organization: { select: { id: true, name: true, shortName: true } },
         createdBy: { select: { id: true, fullName: true } },
         approvedBy: { select: { id: true, fullName: true } },
         relatedInboundCase: { select: { id: true, title: true, registrationNo: true } },
@@ -338,6 +339,9 @@ ${additionalContext ? `บริบทเพิ่มเติม: ${additionalC
       relatedInboundCaseId: doc.relatedInboundCaseId ? Number(doc.relatedInboundCaseId) : null,
       createdBy: doc.createdBy ? { ...doc.createdBy, id: Number(doc.createdBy.id) } : null,
       approvedBy: doc.approvedBy ? { ...doc.approvedBy, id: Number(doc.approvedBy.id) } : null,
+      organization: doc.organization
+        ? { id: Number(doc.organization.id), name: doc.organization.name, shortName: doc.organization.shortName }
+        : null,
       relatedInboundCase: doc.relatedInboundCase
         ? { ...doc.relatedInboundCase, id: Number(doc.relatedInboundCase.id) }
         : null,

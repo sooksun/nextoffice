@@ -223,7 +223,15 @@ export class CasesService {
           organization: true,
           assignedTo: { select: { id: true, fullName: true } },
           registeredBy: { select: { id: true, fullName: true } },
-          sourceDocument: { select: { id: true, issuingAuthority: true, documentCode: true } },
+          sourceDocument: { select: { id: true, issuingAuthority: true, documentCode: true, publishedAt: true } },
+          assignments: {
+            select: {
+              assignedToUserId: true,
+              role: true,
+              status: true,
+              assignedTo: { select: { id: true, fullName: true } },
+            },
+          },
         },
         orderBy: { receivedAt: 'desc' },
         take: opts.take ?? 100,
@@ -239,19 +247,23 @@ export class CasesService {
       if (m) intakePairs.push({ caseId: Number(c.id), intakeId: BigInt(m[1]) });
     }
     const documentNoMap: Record<number, string> = {};
+    const documentDateMap: Record<number, string | null> = {};
     if (intakePairs.length > 0) {
       const aiResults = await this.prisma.documentAiResult.findMany({
         where: { documentIntakeId: { in: intakePairs.map((p) => p.intakeId) } },
-        select: { documentIntakeId: true, documentNo: true },
+        select: { documentIntakeId: true, documentNo: true, documentDate: true },
       });
-      const byIntakeId: Record<string, string> = {};
+      const byIntakeId: Record<string, { documentNo?: string; documentDate?: Date | null }> = {};
       for (const ar of aiResults) {
-        if (ar.documentNo) byIntakeId[Number(ar.documentIntakeId)] = ar.documentNo;
+        byIntakeId[Number(ar.documentIntakeId)] = {
+          documentNo: ar.documentNo ?? undefined,
+          documentDate: ar.documentDate,
+        };
       }
       for (const pair of intakePairs) {
-        if (byIntakeId[Number(pair.intakeId)]) {
-          documentNoMap[pair.caseId] = byIntakeId[Number(pair.intakeId)];
-        }
+        const ai = byIntakeId[Number(pair.intakeId)];
+        if (ai?.documentNo) documentNoMap[pair.caseId] = ai.documentNo;
+        if (ai?.documentDate) documentDateMap[pair.caseId] = ai.documentDate.toISOString();
       }
     }
 
@@ -260,6 +272,7 @@ export class CasesService {
       data: cases.map((c) => {
         const s = this.serialize(c);
         if (documentNoMap[s.id]) s.documentNo = documentNoMap[s.id];
+        if (documentDateMap[s.id]) s.documentDate = documentDateMap[s.id];
         return s;
       }),
     };
@@ -510,6 +523,14 @@ ${ragSection}
     }
     if (c.registeredBy) {
       result.registeredBy = { ...c.registeredBy, id: Number(c.registeredBy.id) };
+    }
+    if (c.assignments) {
+      result.assignments = c.assignments.map((a: any) => ({
+        assignedToUserId: Number(a.assignedToUserId),
+        role: a.role,
+        status: a.status,
+        assignedTo: a.assignedTo ? { id: Number(a.assignedTo.id), fullName: a.assignedTo.fullName } : null,
+      }));
     }
     if (c.topics) {
       result.topics = c.topics.map((t: any) => ({

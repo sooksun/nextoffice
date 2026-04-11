@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Send } from "lucide-react";
 import { formatThaiDateShort } from "@/lib/thai-date";
 import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
+import PrintButton from "../inbound/PrintButton";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ const STATUS_LABEL: Record<string, string> = {
   draft: "ร่าง",
   pending_approval: "รออนุมัติ",
   approved: "อนุมัติแล้ว",
-  sent: "ส่งแล้ว",
+  sent: "ส่งแล���ว",
 };
 const STATUS_COLOR: Record<string, string> = {
   draft: "bg-surface-bright text-on-surface-variant",
@@ -20,9 +21,9 @@ const STATUS_COLOR: Record<string, string> = {
   sent: "bg-green-100 text-green-800",
 };
 const URGENCY_LABEL: Record<string, string> = {
-  normal: "ทั่วไป",
+  normal: "ปกติ",
   urgent: "ด่วน",
-  very_urgent: "ด่วนที่สุด",
+  very_urgent: "ด่วนมาก",
   most_urgent: "ด่วนที่สุด",
 };
 const URGENCY_COLOR: Record<string, string> = {
@@ -39,19 +40,27 @@ const LETTER_TYPE_LABEL: Record<string, string> = {
   official_record: "หนังสือที่เจ้าหน้าที่ทำขึ้น",
   secret_letter:   "หนังสือลับ",
 };
+const SENT_METHOD_LABEL: Record<string, string> = {
+  email: "อีเมล",
+  line: "LINE",
+  paper: "ส่งเอกสาร",
+};
 
 interface OutboundDoc {
   id: number;
   documentNo: string | null;
   documentDate: string | null;
   subject: string;
+  recipientName: string | null;
   recipientOrg: string | null;
   urgencyLevel: string;
   securityLevel: string;
   letterType: string;
   status: string;
   sentAt: string | null;
+  sentMethod: string | null;
   createdBy: { id: number; fullName: string } | null;
+  organization: { id: number; name: string; shortName: string | null } | null;
 }
 
 async function getDocs(orgId: string, status?: string, letterType?: string, roleCode?: string) {
@@ -76,7 +85,6 @@ export default async function OutboundRegistryPage({
   const orgId = sp.organizationId ?? "1";
   const letterType = sp.type;
 
-  // Get user role from server token for filtering
   let roleCode: string | undefined;
   try {
     const token = await getServerToken();
@@ -100,14 +108,17 @@ export default async function OutboundRegistryPage({
             <Send size={20} className="text-secondary" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-primary tracking-tight">{pageTitle}</h1>
-            <p className="text-xs text-on-surface-variant">พบ {docs.length} รายการ</p>
+            <h1 className="text-2xl font-black text-primary tracking-tight print-title">{pageTitle}</h1>
+            <p className="text-xs text-on-surface-variant no-print">
+              แบบที่ 13 ตามระเบียบสำนักนายกรัฐมนตรี — พบ {docs.length} รายการ
+            </p>
           </div>
         </div>
+        <PrintButton />
       </div>
 
       {/* Letter type tabs */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4 no-print">
         <Link
           href="/saraban/outbound"
           className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${!letterType ? "bg-primary text-on-primary" : "bg-surface-bright text-on-surface-variant hover:text-primary"}`}
@@ -134,7 +145,7 @@ export default async function OutboundRegistryPage({
       </div>
 
       {/* Status + date filter */}
-      <form method="GET" className="flex flex-wrap gap-3 mb-5">
+      <form method="GET" className="flex flex-wrap gap-3 mb-5 no-print">
         {letterType && <input type="hidden" name="type" value={letterType} />}
         <select name="status" defaultValue={sp.status ?? ""} className="input-select">
           <option value="">ทุกสถานะ</option>
@@ -149,54 +160,73 @@ export default async function OutboundRegistryPage({
         <a href={letterType ? `/saraban/outbound?type=${letterType}` : "/saraban/outbound"} className="btn-ghost">ล้าง</a>
       </form>
 
-      <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm">
-        <table className="w-full text-sm">
+      {/* Table — แบบที่ 13 ทะเบียนส่ง */}
+      <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm print-full">
+        <table className="w-full text-sm registry-table">
           <thead className="bg-surface-bright text-on-surface-variant text-xs uppercase tracking-wide">
             <tr>
-              <th className="px-4 py-3 text-left">ลำดับ</th>
-              <th className="px-4 py-3 text-left">เลขที่หนังสือ</th>
-              <th className="px-4 py-3 text-left">เรื่อง</th>
-              <th className="px-4 py-3 text-left">ถึง</th>
-              <th className="px-4 py-3 text-left">ประเภท</th>
-              <th className="px-4 py-3 text-left">ชั้นความเร็ว</th>
-              <th className="px-4 py-3 text-left">สถานะ</th>
-              <th className="px-4 py-3 text-left">วันที่ส่ง</th>
-              <th className="px-4 py-3 text-left">ผู้สร้าง</th>
+              <th className="px-3 py-3 text-center w-12">ลำดับที่</th>
+              <th className="px-3 py-3 text-left">ที่</th>
+              <th className="px-3 py-3 text-left">ลงวันที่</th>
+              <th className="px-3 py-3 text-left">จาก</th>
+              <th className="px-3 py-3 text-left">ถึง</th>
+              <th className="px-3 py-3 text-left">เรื่อง</th>
+              <th className="px-3 py-3 text-left">ประเภท</th>
+              <th className="px-3 py-3 text-center">ชั้นความเร็ว</th>
+              <th className="px-3 py-3 text-center">สถานะ</th>
+              <th className="px-3 py-3 text-left">การปฏิบัติ</th>
             </tr>
           </thead>
           <tbody>
             {docs.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบข้อมูล</td>
+                <td colSpan={10} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบข้อมูล</td>
               </tr>
             )}
-            {docs.map((d, i) => (
-              <tr key={d.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
-                <td className="px-4 py-3 text-on-surface-variant">{i + 1}</td>
-                <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{d.documentNo ?? "—"}</td>
-                <td className="px-4 py-3 max-w-xs">
-                  <a href={`/outbound/${d.id}`} className="hover:text-primary hover:underline line-clamp-2">{d.subject}</a>
-                </td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant">{d.recipientOrg ?? "—"}</td>
-                <td className="px-4 py-3 text-xs">
-                  <span className={`px-2 py-0.5 rounded-lg font-medium ${d.letterType === "secret_letter" ? "bg-red-50 text-red-700" : "bg-surface-bright text-on-surface-variant"}`}>
-                    {d.letterType === "secret_letter" ? "🔒 " : ""}{LETTER_TYPE_LABEL[d.letterType] ?? d.letterType}
-                  </span>
-                </td>
-                <td className={`px-4 py-3 text-xs ${URGENCY_COLOR[d.urgencyLevel] ?? ""}`}>
-                  {URGENCY_LABEL[d.urgencyLevel] ?? d.urgencyLevel}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[d.status] ?? STATUS_COLOR.draft}`}>
-                    {STATUS_LABEL[d.status] ?? d.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
-                  {d.sentAt ? formatThaiDateShort(d.sentAt) : "—"}
-                </td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant">{d.createdBy?.fullName ?? "—"}</td>
-              </tr>
-            ))}
+            {docs.map((d, i) => {
+              const recipient = [d.recipientOrg, d.recipientName].filter(Boolean).join(" / ") || "—";
+              const actionParts: string[] = [];
+              if (d.sentAt) actionParts.push(`ส่งแล้ว ${formatThaiDateShort(d.sentAt)}`);
+              if (d.sentMethod) actionParts.push(SENT_METHOD_LABEL[d.sentMethod] ?? d.sentMethod);
+              const actionText = actionParts.join(" — ") || "—";
+
+              return (
+                <tr key={d.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
+                  <td className="px-3 py-2 text-center text-on-surface-variant">{i + 1}</td>
+                  <td className="px-3 py-2 font-mono text-xs font-bold text-primary whitespace-nowrap">
+                    {d.documentNo ?? "—"}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-on-surface-variant whitespace-nowrap">
+                    {formatThaiDateShort(d.documentDate)}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-on-surface-variant max-w-[120px] truncate" title={d.organization?.name ?? ""}>
+                    {d.organization?.shortName || d.organization?.name || "—"}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-on-surface-variant max-w-[140px] truncate" title={recipient}>
+                    {recipient}
+                  </td>
+                  <td className="px-3 py-2 max-w-[200px]">
+                    <a href={`/outbound/${d.id}`} className="hover:text-primary hover:underline line-clamp-2 text-xs">{d.subject}</a>
+                  </td>
+                  <td className="px-3 py-2 text-xs">
+                    <span className={`px-2 py-0.5 rounded-lg font-medium ${d.letterType === "secret_letter" ? "bg-red-50 text-red-700" : "bg-surface-bright text-on-surface-variant"}`}>
+                      {d.letterType === "secret_letter" ? "🔒 " : ""}{LETTER_TYPE_LABEL[d.letterType] ?? d.letterType}
+                    </span>
+                  </td>
+                  <td className={`px-3 py-2 text-xs text-center ${URGENCY_COLOR[d.urgencyLevel] ?? ""}`}>
+                    {URGENCY_LABEL[d.urgencyLevel] ?? d.urgencyLevel}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <span className={`inline-flex px-2 py-0.5 rounded-lg text-[10px] font-semibold ${STATUS_COLOR[d.status] ?? STATUS_COLOR.draft}`}>
+                      {STATUS_LABEL[d.status] ?? d.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-on-surface-variant max-w-[140px]">
+                    <span className="line-clamp-2">{actionText}</span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
