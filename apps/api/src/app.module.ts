@@ -27,6 +27,7 @@ import { VaultModule } from './vault/vault.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { KnowledgeImportModule } from './knowledge-import/knowledge-import.module';
 import { StampsModule } from './stamps/stamps.module';
+import { StaffConfigModule } from './staff-config/staff-config.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { StampsModule } from './stamps/stamps.module';
     AttendanceModule,
     KnowledgeImportModule,
     StampsModule,
+    StaffConfigModule,
   ],
 })
 export class AppModule {}

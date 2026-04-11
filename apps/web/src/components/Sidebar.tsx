@@ -112,6 +112,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/work-groups", label: "โครงสร้างองค์กร", icon: Users, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/knowledge", label: "จัดการนโยบาย/กฎหมาย", icon: BookOpen, roles: ["ADMIN"] },
+      { href: "/settings/staff", label: "บุคลากรผู้ลงนาม", icon: Users, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/settings/prompts", label: "ตั้งค่า AI Prompts", icon: SlidersHorizontal, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/organizations", label: "หน่วยงาน", icon: Building2, roles: ["ADMIN"] },
     ],
