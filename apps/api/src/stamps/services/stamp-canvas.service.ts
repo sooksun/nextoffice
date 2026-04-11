@@ -19,16 +19,19 @@ const SIG_GAP = 4;
 const SIG_IMG_H = 36;
 /** Line height for name / position / date rows in the sig block (pt) */
 const SIG_LH = 10;
+/** How many pt the signature block is shifted UP into the box area */
+const SIG_SHIFT_UP = 30;
 /** Signature block height: name + position + date (in pt) */
 const SIG_H = 34;
 /** Total extra height below box — no signature image (in pt) */
 export const SIG_TOTAL = SIG_GAP + SIG_H; // 38pt
 /**
  * Total extra height below box — with signature image (in pt).
- * Layout: SIG_GAP (box→image) | image SIG_IMG_H | SIG_GAP (image→name) | name+pos+date
- * Equal gaps on both sides of the image.
+ * Layout: equal gap above/below image, then name+pos+date.
+ * The whole block is shifted SIG_SHIFT_UP pt upward into the box area.
  */
-export const SIG_TOTAL_SIG = SIG_GAP + SIG_IMG_H + SIG_GAP + 9 + SIG_LH * 2; // 4+36+4+9+20 = 73pt
+export const SIG_TOTAL_SIG =
+  SIG_GAP + SIG_IMG_H + SIG_GAP + 9 + SIG_LH * 2 - SIG_SHIFT_UP; // 73-30 = 43pt
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
@@ -140,6 +143,9 @@ export class StampCanvasService {
 
     const innerPx = (w - 16) * S;
     const d = toThaiDate(data.stampedAt);
+    // sigTop is shifted SIG_SHIFT_UP pt above the box bottom so signature
+    // sits closer to the box text (overlapping the bottom SIG_SHIFT_UP pt of the box area)
+    const sigTopOffset = hasSig ? SIG_SHIFT_UP : 0;
 
     // Row 1: salutation (1 line)
     const salutation = this.lines(`bold ${8 * S}px SarabunBold`, `เรียน ผู้อำนวยการ ${data.schoolName}`, innerPx, 1)[0] ?? '';
@@ -161,9 +167,9 @@ export class StampCanvasService {
     ctx.font = `${8}px Sarabun`;
     for (const line of actionLines) { ctx.fillText(line, 8, ty); ty += 11; }
 
-    // Signature block below box
+    // Signature block — shifted SIG_SHIFT_UP pt up into box area (when sig image present)
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    const sigTop = h + SIG_GAP;
+    const sigTop = h + SIG_GAP - sigTopOffset;
 
     if (hasSig) {
       // Draw signature image right-aligned
@@ -227,9 +233,10 @@ export class StampCanvasService {
 
     ctx.restore(); // remove clip
 
-    // ── Signature block below box (pixel-space, right-aligned) ───────────────
+    // ── Signature block — shifted SIG_SHIFT_UP pt up when sig image present ──
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
-    const sigTopPx = (h + SIG_GAP) * S;
+    const sigShiftPx = hasSig ? SIG_SHIFT_UP * S : 0;
+    const sigTopPx = (h + SIG_GAP) * S - sigShiftPx;
     const rightPx = w * S;
     const padPx = 8 * S;
 
