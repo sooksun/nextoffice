@@ -7,6 +7,7 @@ import RegisterButton from "@/components/actions/RegisterButton";
 import AssignButton from "@/components/actions/AssignButton";
 import AcknowledgeButton from "@/components/actions/AcknowledgeButton";
 import CompleteButton from "@/components/actions/CompleteButton";
+import EndorsementPanel from "@/components/actions/EndorsementPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -310,6 +311,9 @@ export default async function InboxDetailPage({
           </div>
         </div>
       )}
+
+      {/* Endorsement Panel */}
+      <EndorsementPanel caseId={caseData.id} />
 
       {/* Activity Timeline */}
       {activities.length > 0 && (

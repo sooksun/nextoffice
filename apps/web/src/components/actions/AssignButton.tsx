@@ -187,6 +187,8 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [directorNote, setDirectorNote] = useState("");
+  const [clerkOpinion, setClerkOpinion] = useState("");
+  const [routingPath, setRoutingPath] = useState<"direct" | "via_vice">("direct");
 
   // Default: "from_doc" ถ้ามีวันที่จากหนังสือ, ไม่งั้น "none"
   const defaultMode: DueDateMode = caseDueDate ? "from_doc" : "none";
@@ -298,7 +300,12 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
       }));
       await apiFetch(`/cases/${caseId}/assign`, {
         method: "POST",
-        body: JSON.stringify({ assignments, directorNote: directorNote || undefined }),
+        body: JSON.stringify({
+          assignments,
+          directorNote: directorNote || undefined,
+          clerkOpinion: clerkOpinion || undefined,
+          routingPath,
+        }),
       });
       toastSuccess("มอบหมายงานสำเร็จ" + (dueDate ? " — บันทึก Google Calendar แล้ว" : ""));
       setOpen(false);
@@ -507,6 +514,52 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
                     onChange={setCustomThaiDate}
                   />
                 )}
+              </div>
+
+              {/* Clerk opinion */}
+              <div>
+                <label className="text-sm font-semibold text-on-surface-variant mb-2 block">
+                  ความเห็น/ข้อความเกษียณ
+                </label>
+                <textarea
+                  value={clerkOpinion}
+                  onChange={(e) => setClerkOpinion(e.target.value)}
+                  placeholder="ความเห็นของธุรการ / ข้อความเกษียณหนังสือ..."
+                  className="w-full p-3 rounded-xl border border-outline-variant/20 bg-surface-bright text-sm resize-none"
+                  rows={3}
+                />
+              </div>
+
+              {/* Routing path */}
+              <div>
+                <p className="text-sm font-semibold text-on-surface-variant mb-2">เส้นทางการเกษียณ</p>
+                <div className="space-y-2">
+                  {(
+                    [
+                      { value: "direct" as const, label: "ส่งตรงถึง ผอ." },
+                      { value: "via_vice" as const, label: "ผ่านรอง ผอ. ก่อน" },
+                    ] as { value: "direct" | "via_vice"; label: string }[]
+                  ).map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        routingPath === opt.value
+                          ? "border-primary/40 bg-primary/5"
+                          : "border-outline-variant/20 hover:bg-surface-bright"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="routingPath"
+                        value={opt.value}
+                        checked={routingPath === opt.value}
+                        onChange={() => setRoutingPath(opt.value)}
+                        className="accent-primary"
+                      />
+                      <span className="text-sm font-medium text-on-surface">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               {/* Director note */}
