@@ -97,18 +97,19 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
     };
   }, [startCamera]);
 
-  // Auto-retry when user grants camera permission from the browser lock icon
+  // Auto-reload when user grants camera permission from the browser lock icon settings
+  // (Chrome requires a full page reload for settings-changed permissions to take effect)
   useEffect(() => {
     if (!navigator.permissions) return;
     let permStatus: PermissionStatus | null = null;
     (navigator.permissions as any).query({ name: "camera" }).then((ps: PermissionStatus) => {
       permStatus = ps;
       ps.onchange = () => {
-        if (ps.state === "granted" && mountedRef.current) startCamera();
+        if (ps.state === "granted" && mountedRef.current) window.location.reload();
       };
     }).catch(() => {});
     return () => { if (permStatus) permStatus.onchange = null; };
-  }, [startCamera]);
+  }, []);
 
   // ─── GPS ─────────────────────────────────────────────────────────────────
   const requestGps = useCallback(() => {
@@ -148,11 +149,11 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
     (navigator.permissions as any).query({ name: "geolocation" }).then((ps: PermissionStatus) => {
       permStatus = ps;
       ps.onchange = () => {
-        if (ps.state === "granted" && mountedRef.current) requestGps();
+        if (ps.state === "granted" && mountedRef.current) window.location.reload();
       };
     }).catch(() => {});
     return () => { if (permStatus) permStatus.onchange = null; };
-  }, [requestGps]);
+  }, []);
 
   // ─── Capture ─────────────────────────────────────────────────────────────
   const capture = useCallback(async () => {
