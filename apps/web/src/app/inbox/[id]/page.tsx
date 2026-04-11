@@ -313,7 +313,7 @@ export default async function InboxDetailPage({
       )}
 
       {/* Endorsement Panel */}
-      <EndorsementPanel caseId={caseData.id} />
+      <EndorsementPanel caseId={caseData.id} directorNote={caseData.directorNote} />
 
       {/* Activity Timeline */}
       {activities.length > 0 && (

@@ -36,9 +36,10 @@ const ROUTING_LABEL: Record<string, string> = {
 
 interface Props {
   caseId: number;
+  directorNote?: string | null;
 }
 
-export default function EndorsementPanel({ caseId }: Props) {
+export default function EndorsementPanel({ caseId, directorNote }: Props) {
   const [endorsements, setEndorsements] = useState<Endorsement[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -108,7 +109,7 @@ export default function EndorsementPanel({ caseId }: Props) {
     endorsement: endorsements.find((e) => e.stepOrder === order) ?? null,
   }));
 
-  const hasAny = endorsements.length > 0;
+  const hasAny = endorsements.length > 0 || !!directorNote;
 
   return (
     <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6">
@@ -169,7 +170,14 @@ export default function EndorsementPanel({ caseId }: Props) {
                         )}
                       </div>
 
-                      {endorsement ? (
+                      {/* step 3 ผอ. — ถ้าไม่มี endorsement record แต่มี directorNote ให้แสดงแทน */}
+                      {!endorsement && order === 3 && directorNote ? (
+                        <div className="rounded-xl bg-surface-bright border border-outline-variant/15 p-3">
+                          <p className="text-sm text-on-surface whitespace-pre-wrap leading-relaxed">
+                            {directorNote}
+                          </p>
+                        </div>
+                      ) : endorsement ? (
                         <div className="rounded-xl bg-surface-bright border border-outline-variant/15 p-3 space-y-2">
                           {isEditing ? (
                             <div className="space-y-2">
