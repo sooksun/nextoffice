@@ -71,6 +71,7 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
             v.onloadedmetadata = () => resolve();
             setTimeout(resolve, 3000);
           });
+          try { await videoRef.current?.play(); } catch { /* autoplay policy — video has autoPlay attr */ }
         }
         if (mountedRef.current) setStreaming(true);
         return;
