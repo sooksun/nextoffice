@@ -393,6 +393,7 @@ model InboundCase {
   retrievals         CaseRetrievalResult[]
   options            CaseOption[]
   assignments        CaseAssignment[]
+  endorsements       CaseEndorsement[]
   activities         CaseActivity[]
   outboundDocuments  OutboundDocument[]
   documentRegistries DocumentRegistry[]
@@ -663,6 +664,7 @@ model User {
   assignedCases         InboundCase[]      @relation("CaseAssignedTo")
   assignmentsGiven      CaseAssignment[]   @relation("AssignmentGivenBy")
   assignmentsReceived   CaseAssignment[]   @relation("AssignmentReceivedBy")
+  endorsementsAuthored  CaseEndorsement[]  @relation("EndorsementAuthor")
   caseActivities        CaseActivity[]
   staffAssignments      StaffAssignment[]
   outboundApprovals     OutboundDocument[] @relation("OutboundApprovedBy")
@@ -769,6 +771,25 @@ model CaseAssignment {
   @@index([assignedToUserId])
   @@index([status])
   @@map("case_assignments")
+}
+
+model CaseEndorsement {
+  id              BigInt   @id @default(autoincrement())
+  inboundCaseId   BigInt   @map("inbound_case_id")
+  authorUserId    BigInt   @map("author_user_id")
+  roleCode        String   @map("role_code") @db.VarChar(30)
+  stepOrder       Int      @map("step_order")
+  noteText        String   @map("note_text") @db.Text
+  assignToUserIds String?  @map("assign_to_user_ids") @db.Text
+  routingPath     String   @map("routing_path") @db.VarChar(20) @default("direct")
+  createdAt       DateTime @map("created_at") @default(now())
+  updatedAt       DateTime @map("updated_at") @updatedAt
+
+  inboundCase InboundCase @relation(fields: [inboundCaseId], references: [id])
+  author      User        @relation("EndorsementAuthor", fields: [authorUserId], references: [id])
+
+  @@index([inboundCaseId, stepOrder])
+  @@map("case_endorsements")
 }
 
 model CaseActivity {

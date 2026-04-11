@@ -118,6 +118,9 @@ export class CaseWorkflowService {
     assignments: { userId: number; role?: string; dueDate?: string; note?: string }[],
     directorNote?: string,
     selectedOptionId?: number,
+    callerRoleCode?: string,
+    clerkOpinion?: string,
+    routingPath?: string,
   ): Promise<any> {
     const c = await this.findCaseOrThrow(caseId);
     if (c.status !== 'registered' && c.status !== 'assigned') {
@@ -194,12 +197,38 @@ export class CaseWorkflowService {
       data: updateData,
     });
 
+    // Create endorsement record for this role step
+    const stepOrder =
+      callerRoleCode === 'DIRECTOR' ? 3 :
+      callerRoleCode === 'VICE_DIRECTOR' ? 2 : 1;
+    const endorsementText = clerkOpinion ?? directorNote ?? '';
+    if (endorsementText || callerRoleCode) {
+      try {
+        await this.prisma.caseEndorsement.create({
+          data: {
+            inboundCaseId: BigInt(caseId),
+            authorUserId: BigInt(assignedByUserId),
+            roleCode: callerRoleCode ?? 'CLERK',
+            stepOrder,
+            noteText: endorsementText,
+            assignToUserIds: assignments.length
+              ? JSON.stringify(assignments.map((a) => a.userId))
+              : null,
+            routingPath: routingPath ?? 'direct',
+          },
+        });
+      } catch (e) {
+        this.logger.warn(`Endorsement create failed (non-blocking): ${e.message}`);
+      }
+    }
+
     await this.logActivity(caseId, assignedByUserId, 'assign', {
       assignments: assignments.map((a) => ({
         userId: a.userId,
         role: a.role || 'responsible',
       })),
       directorNote,
+      clerkOpinion,
       selectedOptionId,
     });
 
@@ -370,6 +399,56 @@ export class CaseWorkflowService {
     }));
   }
 
+  async getEndorsements(caseId: number): Promise<any[]> {
+    const endorsements = await this.prisma.caseEndorsement.findMany({
+      where: { inboundCaseId: BigInt(caseId) },
+      include: { author: { select: { id: true, fullName: true, roleCode: true } } },
+      orderBy: { stepOrder: 'asc' },
+    });
+    return endorsements.map((e) => ({
+      id: Number(e.id),
+      inboundCaseId: Number(e.inboundCaseId),
+      authorUserId: Number(e.authorUserId),
+      roleCode: e.roleCode,
+      stepOrder: e.stepOrder,
+      noteText: e.noteText,
+      assignToUserIds: e.assignToUserIds ? JSON.parse(e.assignToUserIds) : [],
+      routingPath: e.routingPath,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+      author: { id: Number(e.author.id), fullName: e.author.fullName, roleCode: e.author.roleCode },
+    }));
+  }
+
+  async updateEndorsement(
+    endorsementId: number,
+    userId: number,
+    noteText: string,
+    callerRoleCode: string,
+  ): Promise<any> {
+    const endorsement = await this.prisma.caseEndorsement.findUnique({
+      where: { id: BigInt(endorsementId) },
+    });
+    if (!endorsement) {
+      throw new NotFoundException(`Endorsement #${endorsementId} not found`);
+    }
+    if (Number(endorsement.authorUserId) !== userId) {
+      throw new BadRequestException('ไม่มีสิทธิ์แก้ไขความเห็นของผู้อื่น');
+    }
+    if (!['DIRECTOR', 'VICE_DIRECTOR', 'CLERK'].includes(callerRoleCode)) {
+      throw new BadRequestException('ไม่มีสิทธิ์แก้ไขความเห็น');
+    }
+    const updated = await this.prisma.caseEndorsement.update({
+      where: { id: BigInt(endorsementId) },
+      data: { noteText },
+    });
+    return {
+      id: Number(updated.id),
+      noteText: updated.noteText,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
   // ─── Helpers ───
 
   private async findCaseOrThrow(caseId: number) {
@@ -517,6 +596,30 @@ export class CaseWorkflowService {
       } catch { /* ignore */ }
     }
 
+    // Fetch clerk endorsement (stepOrder=1) for stamp data
+    let clerkOpinionText: string | undefined;
+    let assigneeNames: string[] | undefined;
+    try {
+      const clerkEndorsement = await this.prisma.caseEndorsement.findFirst({
+        where: { inboundCaseId: BigInt(caseId), stepOrder: 1 },
+      });
+      if (clerkEndorsement) {
+        clerkOpinionText = clerkEndorsement.noteText || undefined;
+        if (clerkEndorsement.assignToUserIds) {
+          const userIds: number[] = JSON.parse(clerkEndorsement.assignToUserIds);
+          if (userIds.length) {
+            const assignees = await this.prisma.user.findMany({
+              where: { id: { in: userIds.map((id) => BigInt(id)) } },
+              select: { fullName: true },
+            });
+            assigneeNames = assignees.map((u) => u.fullName).filter(Boolean);
+          }
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`Endorsement fetch for stamp failed: ${e.message}`);
+    }
+
     const stamped = await this.pdfStamp.applyAllStamps(pdfBuffer, {
       registration: {
         orgName: org?.name ?? '',
@@ -531,6 +634,8 @@ export class CaseWorkflowService {
         positionTitle: user?.positionTitle ?? undefined,
         stampedAt: now,
         signatureBuffer: userSigBuf ?? undefined,
+        clerkOpinion: clerkOpinionText,
+        assigneeNames,
       },
       directorNote: directorNote
         ? {

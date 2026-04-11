@@ -431,7 +431,7 @@ export class CasesService {
       : '';
 
     const urgencyMap: Record<string, string> = {
-      most_urgent: 'ด่วนที่สุด', very_urgent: 'ด่วนมาก', urgent: 'ด่วน', normal: 'ทั่วไป',
+      most_urgent: 'ด่วนที่สุด', very_urgent: 'ด่วนที่สุด', urgent: 'ด่วน', normal: 'ทั่วไป',
     };
 
     const prompt = `คุณเป็น AI ผู้ช่วยงานสารบรรณของโรงเรียน ช่วยวิเคราะห์หนังสือราชการและแนะนำการมอบหมายงาน

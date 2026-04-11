@@ -19,6 +19,8 @@ export interface EndorsementStampData {
   positionTitle?: string;
   stampedAt: Date;
   signatureBuffer?: Buffer;
+  clerkOpinion?: string;
+  assigneeNames?: string[];
 }
 
 export interface DirectorNoteStampData {

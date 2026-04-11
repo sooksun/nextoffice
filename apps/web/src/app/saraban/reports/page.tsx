@@ -27,7 +27,7 @@ async function getData(orgId: string) {
 }
 
 const URGENCY_TH: Record<string, string> = {
-  normal: "ปกติ", urgent: "ด่วน", very_urgent: "ด่วนมาก", most_urgent: "ด่วนที่สุด",
+  normal: "ปกติ", urgent: "ด่วน", very_urgent: "ด่วนที่สุด", most_urgent: "ด่วนที่สุด",
 };
 
 export default async function ReportsPage({

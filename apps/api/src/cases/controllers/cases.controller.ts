@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Query, Body, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Put, Param, Query, Body, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { CasesService } from '../services/cases.service';
 import { CaseWorkflowService } from '../services/case-workflow.service';
@@ -146,7 +146,7 @@ export class CasesController {
   @Post(':id/assign')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK')
-  @ApiOperation({ summary: 'มอบหมายงาน (ผอ./รอง ผอ./เจ้าหน้าที่)' })
+  @ApiOperation({ summary: 'มอบหมายงาน + เกษียณหนังสือ (ผอ./รอง ผอ./ธุรการ)' })
   assign(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: any,
@@ -154,6 +154,8 @@ export class CasesController {
       assignments: { userId: number; role?: string; dueDate?: string; note?: string }[];
       directorNote?: string;
       selectedOptionId?: number;
+      clerkOpinion?: string;
+      routingPath?: 'direct' | 'via_vice';
     },
   ) {
     return this.workflow.assign(
@@ -162,7 +164,29 @@ export class CasesController {
       body.assignments,
       body.directorNote,
       body.selectedOptionId,
+      user.roleCode,
+      body.clerkOpinion,
+      body.routingPath,
     );
+  }
+
+  @Get(':id/endorsements')
+  @ApiOperation({ summary: 'ดู endorsement chain ของ case' })
+  getEndorsements(@Param('id', ParseIntPipe) id: number) {
+    return this.workflow.getEndorsements(id);
+  }
+
+  @Put(':id/endorsements/:eid')
+  @UseGuards(RolesGuard)
+  @Roles('DIRECTOR', 'VICE_DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: 'แก้ไขความเห็น/เกษียณ (เจ้าของ endorsement เท่านั้น)' })
+  updateEndorsement(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('eid', ParseIntPipe) eid: number,
+    @CurrentUser() user: any,
+    @Body() body: { noteText: string },
+  ) {
+    return this.workflow.updateEndorsement(eid, Number(user.id), body.noteText, user.roleCode);
   }
 
   @Patch(':id/status')

@@ -68,7 +68,7 @@ interface SchoolResponse {
 
 const URGENCY_LABEL: Record<string, string> = {
   most_urgent: "เร่งด่วนที่สุด",
-  very_urgent: "เร่งด่วนมาก",
+  very_urgent: "เร่งด่วนที่สุด",
   urgent: "เร่งด่วน",
   normal: "ปกติ",
 };
@@ -303,7 +303,7 @@ function SchoolCaseCard({ c }: { c: SchoolCase }) {
 const URGENCY_FILTERS = [
   { value: "all", label: "ทั้งหมด" },
   { value: "most_urgent", label: "เร่งด่วนที่สุด" },
-  { value: "very_urgent", label: "เร่งด่วนมาก" },
+  { value: "very_urgent", label: "เร่งด่วนที่สุด" },
   { value: "urgent", label: "เร่งด่วน" },
   { value: "normal", label: "ปกติ" },
 ];

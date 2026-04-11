@@ -48,7 +48,7 @@ function urgencyBadge(urgency: string) {
   const labels: Record<string, string> = {
     normal: "ปกติ",
     urgent: "ด่วน",
-    very_urgent: "ด่วนมาก",
+    very_urgent: "ด่วนที่สุด",
     most_urgent: "ด่วนที่สุด",
   };
   return (

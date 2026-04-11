@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const URGENCY_LABEL: Record<string, string> = {
   normal: "ปกติ",
   urgent: "ด่วน",
-  very_urgent: "ด่วนมาก",
+  very_urgent: "ด่วนที่สุด",
   most_urgent: "ด่วนที่สุด",
 };
 const URGENCY_COLOR: Record<string, string> = {

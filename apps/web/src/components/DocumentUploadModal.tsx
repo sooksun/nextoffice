@@ -13,7 +13,7 @@ import {
 
 const URGENCY_LABEL: Record<string, string> = {
   high: "ด่วนที่สุด", medium: "ด่วน", low: "ปกติ",
-  most_urgent: "ด่วนที่สุด", very_urgent: "ด่วนมาก", urgent: "ด่วน", normal: "ปกติ",
+  most_urgent: "ด่วนที่สุด", very_urgent: "ด่วนที่สุด", urgent: "ด่วน", normal: "ปกติ",
 };
 const URGENCY_COLOR: Record<string, string> = {
   high: "bg-red-100 text-red-800", most_urgent: "bg-red-100 text-red-800",

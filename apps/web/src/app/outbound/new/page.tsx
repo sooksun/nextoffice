@@ -129,7 +129,7 @@ export default function NewOutboundPage() {
             >
               <option value="normal">ทั่วไป</option>
               <option value="urgent">ด่วน</option>
-              <option value="very_urgent">ด่วนมาก</option>
+              <option value="very_urgent">ด่วนที่สุด</option>
               <option value="most_urgent">ด่วนที่สุด</option>
             </select>
           </div>

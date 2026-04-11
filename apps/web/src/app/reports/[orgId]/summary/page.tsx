@@ -35,7 +35,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const URGENCY_LABEL: Record<string, string> = {
-  normal: "ปกติ", urgent: "ด่วน", very_urgent: "ด่วนมาก", most_urgent: "ด่วนที่สุด",
+  normal: "ปกติ", urgent: "ด่วน", very_urgent: "ด่วนที่สุด", most_urgent: "ด่วนที่สุด",
 };
 
 const URGENCY_COLOR: Record<string, string> = {

@@ -48,7 +48,7 @@ interface InboundCase {
 
 const URGENCY_LABEL: Record<string, string> = {
   most_urgent: "ด่วนที่สุด",
-  very_urgent: "ด่วนมาก",
+  very_urgent: "ด่วนที่สุด",
   urgent: "ด่วน",
   normal: "ปกติ",
 };

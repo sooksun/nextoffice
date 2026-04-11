@@ -32,7 +32,7 @@ interface IntakeData {
 const URGENCY_OPTIONS = [
   { value: "normal", label: "ทั่วไป" },
   { value: "urgent", label: "ด่วน" },
-  { value: "very_urgent", label: "ด่วนมาก" },
+  { value: "very_urgent", label: "ด่วนที่สุด" },
   { value: "most_urgent", label: "ด่วนที่สุด" },
 ];
 

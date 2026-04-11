@@ -14,7 +14,7 @@ const STATUS_COLOR: Record<string, string> = {
   approved: "bg-blue-100 text-blue-800", sent: "bg-green-100 text-green-800",
 };
 const URGENCY_LABEL: Record<string, string> = {
-  normal: "ทั่วไป", urgent: "ด่วน", very_urgent: "ด่วนมาก", most_urgent: "ด่วนที่สุด",
+  normal: "ทั่วไป", urgent: "ด่วน", very_urgent: "ด่วนที่สุด", most_urgent: "ด่วนที่สุด",
 };
 const LETTER_TYPE_LABEL: Record<string, string> = {
   external_letter: "หนังสือภายนอก",
