@@ -16,7 +16,7 @@ const BLUE = 'rgb(18, 84, 177)';
 /** Vertical padding below stamp box before signature block starts */
 const SIG_GAP = 4;
 /** Signature image height (pt) */
-const SIG_IMG_H = 18;
+const SIG_IMG_H = 36;
 /** Gap between signature image bottom and name baseline (pt) */
 const SIG_IMG_VGAP = 3;
 /** Signature block height: name + position + date (in pt) */
