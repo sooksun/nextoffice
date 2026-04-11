@@ -598,11 +598,8 @@ export class CaseWorkflowService {
       } catch { /* ignore */ }
     }
 
-    // Clerk opinion: use passed-in value first, then fall back to DB query
-    let clerkOpinionText: string | undefined = clerkOpinion || undefined;
+    // Resolve assignee names
     let assigneeNames: string[] | undefined;
-
-    // Resolve assignee names from passed assignments list
     if (assignments && assignments.length > 0) {
       try {
         const assignees = await this.prisma.user.findMany({
@@ -615,29 +612,6 @@ export class CaseWorkflowService {
       }
     }
 
-    // Fallback: query DB endorsement if clerkOpinion not passed directly
-    if (!clerkOpinionText) {
-      try {
-        const clerkEndorsement = await this.prisma.caseEndorsement.findFirst({
-          where: { inboundCaseId: BigInt(caseId), stepOrder: 1 },
-        });
-        if (clerkEndorsement) {
-          clerkOpinionText = clerkEndorsement.noteText || undefined;
-          if (!assigneeNames && clerkEndorsement.assignToUserIds) {
-            const userIds: number[] = JSON.parse(clerkEndorsement.assignToUserIds);
-            if (userIds.length) {
-              const dbAssignees = await this.prisma.user.findMany({
-                where: { id: { in: userIds.map((id) => BigInt(id)) } },
-                select: { fullName: true },
-              });
-              assigneeNames = dbAssignees.map((u) => u.fullName).filter(Boolean);
-            }
-          }
-        }
-      } catch (e) {
-        this.logger.warn(`Endorsement fetch for stamp failed: ${e.message}`);
-      }
-    }
 
     const stamped = await this.pdfStamp.applyAllStamps(pdfBuffer, {
       registration: {
@@ -653,7 +627,6 @@ export class CaseWorkflowService {
         positionTitle: user?.positionTitle ?? undefined,
         stampedAt: now,
         signatureBuffer: userSigBuf ?? undefined,
-        clerkOpinion: clerkOpinionText,
         assigneeNames,
       },
       directorNote: directorNote

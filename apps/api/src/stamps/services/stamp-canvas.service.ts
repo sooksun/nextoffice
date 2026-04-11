@@ -64,13 +64,11 @@ export class StampCanvasService {
     this.ensureFonts();
     const inner = (w - 16) * SCALE;
     const font8 = `${8 * SCALE}px Sarabun`;
-    const nOpinion  = data.clerkOpinion ? Math.max(this.lines(font8, data.clerkOpinion, inner, 4).length, 1) : 0;
     const nSummary  = Math.max(this.lines(font8, data.aiSummary, inner, 4).length, 1);
     const nAction   = Math.max(this.lines(font8, data.actionSummary, inner, 4).length, 0);
     const nAssignee = data.assigneeNames?.length ? 1 : 0;
-    const opinionH  = nOpinion  ? 11 + nOpinion  * 11 + 6 : 0;
     const assigneeH = nAssignee ? 11 + 11 + 6 : 0;
-    return Math.max(14 + opinionH + 11 + nSummary * 11 + 6 + 11 + nAction * 11 + assigneeH + 8, 60);
+    return Math.max(14 + 11 + nSummary * 11 + 6 + 11 + nAction * 11 + assigneeH + 8, 60);
   }
 
   computeDirectorNoteHeight(data: DirectorNoteStampData, w: number): number {
@@ -159,18 +157,6 @@ export class StampCanvasService {
     ctx.fillText(salutation, 8, 11);
 
     let ty = 22;
-
-    // Row 1b: clerk opinion (optional)
-    if (data.clerkOpinion) {
-      ty += 3;
-      ctx.font = `bold ${8}px SarabunBold`;
-      ctx.fillText('ความเห็น :', 8, ty);
-      ty += 11;
-      const opinionLines = this.lines(`${8 * S}px Sarabun`, data.clerkOpinion, innerPx, 4);
-      ctx.font = `${8}px Sarabun`;
-      for (const line of opinionLines) { ctx.fillText(line, 8, ty); ty += 11; }
-      ty += 6;
-    }
 
     // Row 2: AI summary
     const summaryLines = this.lines(`${8 * S}px Sarabun`, data.aiSummary, innerPx, 4);
