@@ -13,23 +13,22 @@ const SCALE = 3;
 /** Stamp blue colour */
 const BLUE = 'rgb(18, 84, 177)';
 
-/** Vertical padding below stamp box before signature block starts */
+/** Vertical padding below stamp box before signature block starts (pt) */
 const SIG_GAP = 4;
 /** Signature image height (pt) */
 const SIG_IMG_H = 36;
-/**
- * Name baseline offset from sigTop when signature image is present (pt).
- * = 70% of SIG_IMG_H → name overlaps the bottom 30% of the image.
- */
-const SIG_NAME_OFFSET = Math.round(SIG_IMG_H * 0.7); // 25pt
-/** Line spacing within the sig-block text rows when image is present (pt) */
-const SIG_LINE_H = 9;
+/** Line height for name / position / date rows in the sig block (pt) */
+const SIG_LH = 10;
 /** Signature block height: name + position + date (in pt) */
 const SIG_H = 34;
-/** Total extra height below box for signature — no image (in pt) */
+/** Total extra height below box — no signature image (in pt) */
 export const SIG_TOTAL = SIG_GAP + SIG_H; // 38pt
-/** Total extra height when a signature image is present (in pt) */
-export const SIG_TOTAL_SIG = SIG_GAP + SIG_NAME_OFFSET + SIG_LINE_H * 2; // 4+25+18 = 47pt
+/**
+ * Total extra height below box — with signature image (in pt).
+ * Layout: SIG_GAP (box→image) | image SIG_IMG_H | SIG_GAP (image→name) | name+pos+date
+ * Equal gaps on both sides of the image.
+ */
+export const SIG_TOTAL_SIG = SIG_GAP + SIG_IMG_H + SIG_GAP + 9 + SIG_LH * 2; // 4+36+4+9+20 = 73pt
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
@@ -167,18 +166,19 @@ export class StampCanvasService {
     const sigTop = h + SIG_GAP;
 
     if (hasSig) {
-      // Draw signature image right-aligned; name overlaps bottom 30% of image
+      // Draw signature image right-aligned
       const sigImg = await loadImage(data.signatureBuffer!);
       const maxSigW = w - 16;
       const aspect = sigImg.width / sigImg.height;
       const sigImgW = Math.min(maxSigW, Math.round(SIG_IMG_H * aspect));
       ctx.drawImage(sigImg as any, w - sigImgW - 8, sigTop, sigImgW, SIG_IMG_H);
-      const nameY = sigTop + SIG_NAME_OFFSET;
+      // Equal gap above and below image: gap(box→image) = gap(image→name) = SIG_GAP
+      const nameY = sigTop + SIG_IMG_H + SIG_GAP + 9;
       ctx.font = `bold ${9}px SarabunBold`;
       this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, nameY, S);
       ctx.font = `${8}px Sarabun`;
-      if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, nameY + SIG_LINE_H, S);
-      this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, nameY + SIG_LINE_H * 2, S);
+      if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, nameY + SIG_LH, S);
+      this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, nameY + SIG_LH * 2, S);
     } else {
       ctx.font = `bold ${9}px SarabunBold`;
       this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, sigTop + 11, S);
@@ -236,24 +236,25 @@ export class StampCanvasService {
     ctx.fillStyle = BLUE;
 
     if (hasSig) {
-      // Draw signature image right-aligned; name overlaps bottom 30% of image
+      // Draw signature image right-aligned
       const sigImg = await loadImage(data.signatureBuffer!);
       const maxSigWpx = (w - 16) * S;
       const aspect = sigImg.width / sigImg.height;
       const sigImgHpx = SIG_IMG_H * S;
       const sigImgWpx = Math.min(maxSigWpx, Math.round(sigImgHpx * aspect));
       ctx.drawImage(sigImg as any, rightPx - sigImgWpx - padPx, sigTopPx, sigImgWpx, sigImgHpx);
-      const nameYpx = sigTopPx + SIG_NAME_OFFSET * S;
+      // Equal gap above and below image: gap(box→image) = gap(image→name) = SIG_GAP
+      const nameYpx = sigTopPx + (SIG_IMG_H + SIG_GAP + 9) * S;
       ctx.font = `bold ${9 * S}px SarabunBold`;
       const nameStr = toThaiNumerals(data.authorName);
       ctx.fillText(nameStr, rightPx - this.measurePx(ctx.font, nameStr) - padPx, nameYpx);
       ctx.font = `${8 * S}px Sarabun`;
       if (data.positionTitle) {
         const posStr = toThaiNumerals(data.positionTitle);
-        ctx.fillText(posStr, rightPx - this.measurePx(ctx.font, posStr) - padPx, nameYpx + SIG_LINE_H * S);
+        ctx.fillText(posStr, rightPx - this.measurePx(ctx.font, posStr) - padPx, nameYpx + SIG_LH * S);
       }
       const dateText = toThaiNumerals(dateStr);
-      ctx.fillText(dateText, rightPx - this.measurePx(ctx.font, dateText) - padPx, nameYpx + SIG_LINE_H * 2 * S);
+      ctx.fillText(dateText, rightPx - this.measurePx(ctx.font, dateText) - padPx, nameYpx + SIG_LH * 2 * S);
     } else {
       ctx.font = `bold ${9 * S}px SarabunBold`;
       const nameStr = toThaiNumerals(data.authorName);
