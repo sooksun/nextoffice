@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Send } from "lucide-react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import ThaiDateInput from "@/components/ui/ThaiDateInput";
 
 export default function NewTravelPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [travelDate, setTravelDate] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -17,12 +19,14 @@ export default function NewTravelPage() {
     setError(null);
 
     const form = new FormData(e.currentTarget);
+    const td = (form.get("travelDate") as string) || travelDate;
+    if (!td) { setError("กรุณาระบุวันที่ไปราชการ"); setLoading(false); return; }
 
     try {
       const travel = await apiFetch<{ id: number }>("/attendance/leave/travel", {
         method: "POST",
         body: JSON.stringify({
-          travelDate: form.get("travelDate"),
+          travelDate: td,
           destination: form.get("destination"),
           purpose: form.get("purpose"),
           departureTime: form.get("departureTime") || null,
@@ -51,8 +55,8 @@ export default function NewTravelPage() {
 
       <form onSubmit={handleSubmit} className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm p-6 space-y-4">
         <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่ไปราชการ</label>
-          <input type="date" name="travelDate" required className="input-text w-full" />
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่ไปราชการ (พ.ศ.)</label>
+          <ThaiDateInput name="travelDate" required onChange={setTravelDate} />
         </div>
 
         <div>

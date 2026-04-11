@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Send } from "lucide-react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import ThaiDateInput from "@/components/ui/ThaiDateInput";
 
 const LEAVE_TYPES = [
   { value: "sick", label: "ลาป่วย" },
@@ -19,6 +20,8 @@ export default function NewLeavePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,12 +29,14 @@ export default function NewLeavePage() {
     setError(null);
 
     const form = new FormData(e.currentTarget);
-    const startDate = form.get("startDate") as string;
-    const endDate = form.get("endDate") as string;
 
-    // Calculate total days (simple: endDate - startDate + 1)
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const sd = (form.get("startDate") as string) || startDate;
+    const ed = (form.get("endDate") as string) || endDate;
+    if (!sd || !ed) { setError("กรุณาระบุวันที่ให้ครบถ้วน"); setLoading(false); return; }
+
+    // Calculate total days
+    const start = new Date(sd);
+    const end = new Date(ed);
     const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
     try {
@@ -39,8 +44,8 @@ export default function NewLeavePage() {
         method: "POST",
         body: JSON.stringify({
           leaveType: form.get("leaveType"),
-          startDate,
-          endDate,
+          startDate: sd,
+          endDate: ed,
           totalDays,
           reason: form.get("reason"),
           contactPhone: form.get("contactPhone"),
@@ -76,15 +81,13 @@ export default function NewLeavePage() {
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่เริ่ม</label>
-            <input type="date" name="startDate" required className="input-text w-full" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่สิ้นสุด</label>
-            <input type="date" name="endDate" required className="input-text w-full" />
-          </div>
+        <div>
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่เริ่ม (พ.ศ.)</label>
+          <ThaiDateInput name="startDate" required onChange={setStartDate} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่สิ้นสุด (พ.ศ.)</label>
+          <ThaiDateInput name="endDate" required onChange={setEndDate} />
         </div>
 
         <div>
