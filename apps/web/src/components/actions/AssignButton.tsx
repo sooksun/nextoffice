@@ -187,7 +187,6 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [directorNote, setDirectorNote] = useState("");
-  const [clerkOpinion, setClerkOpinion] = useState("");
   const [routingPath, setRoutingPath] = useState<"direct" | "via_vice">("direct");
 
   // Default: "from_doc" ถ้ามีวันที่จากหนังสือ, ไม่งั้น "none"
@@ -303,7 +302,6 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
         body: JSON.stringify({
           assignments,
           directorNote: directorNote || undefined,
-          clerkOpinion: clerkOpinion || undefined,
           routingPath,
         }),
       });
@@ -514,20 +512,6 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
                     onChange={setCustomThaiDate}
                   />
                 )}
-              </div>
-
-              {/* Clerk opinion */}
-              <div>
-                <label className="text-sm font-semibold text-on-surface-variant mb-2 block">
-                  ความเห็น/ข้อความเกษียณ
-                </label>
-                <textarea
-                  value={clerkOpinion}
-                  onChange={(e) => setClerkOpinion(e.target.value)}
-                  placeholder="ความเห็นของธุรการ / ข้อความเกษียณหนังสือ..."
-                  className="w-full p-3 rounded-xl border border-outline-variant/20 bg-surface-bright text-sm resize-none"
-                  rows={3}
-                />
               </div>
 
               {/* Routing path */}
