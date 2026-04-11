@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { apiFetch, getServerToken } from "@/lib/api";
 import Link from "next/link";
-import { Send, Plus } from "lucide-react";
+import { Send } from "lucide-react";
 import { formatThaiDateShort } from "@/lib/thai-date";
 import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
 
@@ -104,13 +104,6 @@ export default async function OutboundRegistryPage({
             <p className="text-xs text-on-surface-variant">พบ {docs.length} รายการ</p>
           </div>
         </div>
-        <Link
-          href="/outbound/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
-        >
-          <Plus size={16} />
-          ส่งเอกสารใหม่
-        </Link>
       </div>
 
       {/* Letter type tabs */}
