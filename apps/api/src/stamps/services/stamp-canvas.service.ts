@@ -187,7 +187,7 @@ export class StampCanvasService {
     }
 
     // Signature block — shifted SIG_SHIFT_UP pt up into box area (when sig image present)
-    const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
+    const dateStr = `${d.day} ${d.monthTh} ${d.year}`;
     const sigTop = h + SIG_GAP - sigTopOffset;
 
     if (hasSig) {
@@ -264,7 +264,7 @@ export class StampCanvasService {
     ctx.restore(); // remove clip
 
     // ── Signature block — shifted SIG_SHIFT_UP pt up when sig image present ──
-    const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
+    const dateStr = `${d.day} ${d.monthTh} ${d.year}`;
     const sigShiftPx = hasSig ? SIG_SHIFT_UP * S : 0;
     const sigTopPx = (h + SIG_GAP) * S - sigShiftPx;
     const rightPx = w * S;
@@ -408,8 +408,8 @@ function toThaiNumerals(text: string): string {
 
 function toThaiDate(date: Date) {
   const months = [
-    'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
-    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม',
+    'ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+    'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.',
   ];
   return {
     day:     date.getDate(),
