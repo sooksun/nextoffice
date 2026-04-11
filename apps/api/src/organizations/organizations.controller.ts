@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Param, Body,
+  Controller, Get, Post, Put, Patch, Param, Body,
   ParseIntPipe, UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -8,11 +8,15 @@ import { CreateOrganizationDto, UpdateOrganizationDto } from './dto/create-organ
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { EmailService } from '../email/email.service';
 
 @ApiTags('organizations')
 @Controller('organizations')
 export class OrganizationsController {
-  constructor(private readonly svc: OrganizationsService) {}
+  constructor(
+    private readonly svc: OrganizationsService,
+    private readonly emailService: EmailService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List all organizations (incl. parent org + active year)' })
@@ -75,5 +79,56 @@ export class OrganizationsController {
     @Body('academicYearId', ParseIntPipe) academicYearId: number,
   ) {
     return this.svc.setActiveYear(id, academicYearId);
+  }
+
+  @Get(':id/smtp')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get SMTP config (password masked)' })
+  getSmtp(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.getSmtpConfig(id);
+  }
+
+  @Put(':id/smtp')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update SMTP config' })
+  updateSmtp(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: {
+      smtpHost: string;
+      smtpPort: number;
+      smtpUser: string;
+      smtpPass: string;
+      smtpFrom: string;
+      smtpSecure: boolean;
+    },
+  ) {
+    return this.svc.updateSmtpConfig(id, dto);
+  }
+
+  @Post(':id/smtp/test')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Test SMTP connection' })
+  testSmtp(@Body() dto: {
+    smtpHost: string;
+    smtpPort: number;
+    smtpUser: string;
+    smtpPass: string;
+    smtpFrom: string;
+    smtpSecure: boolean;
+  }) {
+    return this.emailService.testConnection({
+      host: dto.smtpHost,
+      port: dto.smtpPort,
+      user: dto.smtpUser,
+      pass: dto.smtpPass,
+      from: dto.smtpFrom,
+      secure: dto.smtpSecure,
+    });
   }
 }

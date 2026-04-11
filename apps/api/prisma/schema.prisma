@@ -30,6 +30,12 @@ model Organization {
   refLongitude          Float?   @map("ref_longitude")
   geofenceRadius        Int      @map("geofence_radius") @default(200) // meters
   isActive              Boolean  @map("is_active") @default(true)
+  smtpHost              String?  @map("smtp_host") @db.VarChar(255)
+  smtpPort              Int?     @map("smtp_port") @default(587)
+  smtpUser              String?  @map("smtp_user") @db.VarChar(255)
+  smtpPass              String?  @map("smtp_pass") @db.VarChar(255)
+  smtpFrom              String?  @map("smtp_from") @db.VarChar(255)
+  smtpSecure            Boolean? @map("smtp_secure") @default(false)
   createdAt             DateTime @map("created_at") @default(now())
   updatedAt             DateTime @map("updated_at") @updatedAt
 

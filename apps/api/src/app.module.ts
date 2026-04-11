@@ -28,6 +28,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { KnowledgeImportModule } from './knowledge-import/knowledge-import.module';
 import { StampsModule } from './stamps/stamps.module';
 import { StaffConfigModule } from './staff-config/staff-config.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { StaffConfigModule } from './staff-config/staff-config.module';
     KnowledgeImportModule,
     StampsModule,
     StaffConfigModule,
+    EmailModule,
   ],
 })
 export class AppModule {}

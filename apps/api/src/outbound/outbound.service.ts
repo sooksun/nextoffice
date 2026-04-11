@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
+import { QUEUE_OUTBOUND } from '../queue/queue.constants';
 
 @Injectable()
 export class OutboundService {
@@ -10,6 +13,7 @@ export class OutboundService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    @InjectQueue(QUEUE_OUTBOUND) private readonly outboundQueue: Queue,
   ) {}
 
   private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
@@ -117,10 +121,13 @@ export class OutboundService {
     return { id: Number(updated.id), documentNo };
   }
 
-  async send(id: number) {
+  async send(id: number, sentMethod?: string) {
+    const updateData: any = { status: 'sent', sentAt: new Date() };
+    if (sentMethod) updateData.sentMethod = sentMethod;
+
     const updated = await this.prisma.outboundDocument.update({
       where: { id: BigInt(id) },
-      data: { status: 'sent', sentAt: new Date() },
+      data: updateData,
     });
 
     // Auto-create a DocumentRegistry entry
@@ -150,6 +157,12 @@ export class OutboundService {
           academicYearId: currentYear?.id ?? undefined,
         },
       });
+    }
+
+    // Dispatch email job if sentMethod is email
+    if (sentMethod === 'email' && doc?.recipientEmail) {
+      await this.outboundQueue.add('send-email', { outboundDocId: id });
+      this.logger.log(`Queued email send for outbound doc #${id}`);
     }
 
     return { id: Number(updated.id), status: 'sent' };

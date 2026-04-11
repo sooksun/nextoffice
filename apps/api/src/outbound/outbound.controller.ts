@@ -77,8 +77,11 @@ export class OutboundController {
 
   @Post('documents/:id/send')
   @ApiOperation({ summary: 'Mark document as sent and create registry entry' })
-  send(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.send(id);
+  send(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { sentMethod?: string },
+  ) {
+    return this.svc.send(id, body?.sentMethod);
   }
 
   @Get(':organizationId/registry')

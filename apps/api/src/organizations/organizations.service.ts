@@ -158,6 +158,56 @@ export class OrganizationsService {
     return result;
   }
 
+  async getSmtpConfig(id: number) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: BigInt(id) },
+      select: {
+        smtpHost: true,
+        smtpPort: true,
+        smtpUser: true,
+        smtpPass: true,
+        smtpFrom: true,
+        smtpSecure: true,
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    return {
+      smtpHost: org.smtpHost ?? '',
+      smtpPort: org.smtpPort ?? 587,
+      smtpUser: org.smtpUser ?? '',
+      smtpPass: org.smtpPass ? '••••••••' : '',
+      smtpFrom: org.smtpFrom ?? '',
+      smtpSecure: org.smtpSecure ?? false,
+      configured: !!(org.smtpHost && org.smtpUser && org.smtpFrom),
+    };
+  }
+
+  async updateSmtpConfig(id: number, dto: {
+    smtpHost: string;
+    smtpPort: number;
+    smtpUser: string;
+    smtpPass: string;
+    smtpFrom: string;
+    smtpSecure: boolean;
+  }) {
+    const data: any = {
+      smtpHost: dto.smtpHost,
+      smtpPort: dto.smtpPort,
+      smtpUser: dto.smtpUser,
+      smtpFrom: dto.smtpFrom,
+      smtpSecure: dto.smtpSecure,
+    };
+    // Only update password if not the masked placeholder
+    if (dto.smtpPass && dto.smtpPass !== '••••••••') {
+      data.smtpPass = dto.smtpPass;
+    }
+    await this.prisma.organization.update({
+      where: { id: BigInt(id) },
+      data,
+    });
+    return { ok: true };
+  }
+
   private serializeRecord(record: any) {
     if (!record) return record;
     const result: any = { ...record };

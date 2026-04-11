@@ -28,6 +28,8 @@ export default function NewOutboundPage() {
     bodyText: "",
     recipientOrg: "",
     recipientName: "",
+    recipientEmail: "",
+    sentMethod: "paper",
     urgencyLevel: "normal",
     letterType: "external_letter",
     securityLevel: "normal",
@@ -59,6 +61,8 @@ export default function NewOutboundPage() {
           bodyText: form.bodyText || undefined,
           recipientOrg: form.recipientOrg || undefined,
           recipientName: form.recipientName || undefined,
+          recipientEmail: form.recipientEmail || undefined,
+          sentMethod: form.sentMethod,
           urgencyLevel: form.urgencyLevel,
           letterType: form.letterType,
           securityLevel: canSetConfidential ? form.securityLevel : "normal",
@@ -186,6 +190,43 @@ export default function NewOutboundPage() {
               placeholder="ชื่อผู้รับ"
               className="input-text w-full"
             />
+          </div>
+        </div>
+
+        {/* อีเมลผู้รับ */}
+        <div>
+          <label className="text-sm font-semibold text-on-surface-variant mb-1 block">อีเมลผู้รับ</label>
+          <input
+            type="email"
+            value={form.recipientEmail}
+            onChange={(e) => update("recipientEmail", e.target.value)}
+            placeholder="saraban@example.go.th"
+            className="input-text w-full"
+          />
+        </div>
+
+        {/* วิธีการส่ง */}
+        <div>
+          <label className="text-sm font-semibold text-on-surface-variant mb-2 block">วิธีการส่ง</label>
+          <div className="flex gap-4">
+            {[
+              { value: "email", label: "อีเมล", icon: "📧" },
+              { value: "line", label: "LINE", icon: "💬" },
+              { value: "paper", label: "ส่งเอกสาร (กระดาษ)", icon: "📄" },
+            ].map((opt) => (
+              <label key={opt.value} className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-colors ${form.sentMethod === opt.value ? "border-primary bg-primary/5 text-primary font-semibold" : "border-outline-variant/20 text-on-surface-variant hover:border-primary/30"}`}>
+                <input
+                  type="radio"
+                  name="sentMethod"
+                  value={opt.value}
+                  checked={form.sentMethod === opt.value}
+                  onChange={(e) => update("sentMethod", e.target.value)}
+                  className="sr-only"
+                />
+                <span>{opt.icon}</span>
+                <span className="text-sm">{opt.label}</span>
+              </label>
+            ))}
           </div>
         </div>
 

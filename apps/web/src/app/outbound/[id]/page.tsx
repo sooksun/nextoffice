@@ -31,6 +31,12 @@ const SECURITY_LABEL: Record<string, string> = {
   most_secret: "ลับที่สุด",
 };
 
+const SENT_METHOD_LABEL: Record<string, string> = {
+  email: "📧 อีเมล",
+  line: "💬 LINE",
+  paper: "📄 ส่งเอกสาร",
+};
+
 interface OutboundDoc {
   id: number;
   documentNo: string | null;
@@ -39,11 +45,13 @@ interface OutboundDoc {
   bodyText: string | null;
   recipientName: string | null;
   recipientOrg: string | null;
+  recipientEmail: string | null;
   urgencyLevel: string;
   securityLevel: string;
   letterType: string;
   status: string;
   sentAt: string | null;
+  sentMethod: string | null;
   approvedAt: string | null;
   createdAt: string;
   createdBy: { id: number; fullName: string } | null;
@@ -98,7 +106,7 @@ export default async function OutboundDetailPage({
       </div>
 
       {/* Actions */}
-      <OutboundActions docId={doc.id} status={doc.status} />
+      <OutboundActions docId={doc.id} status={doc.status} sentMethod={doc.sentMethod ?? null} recipientEmail={doc.recipientEmail ?? null} />
 
       {/* Document Details */}
       <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6">
@@ -143,6 +151,18 @@ export default async function OutboundDetailPage({
               <div>
                 <span className="text-on-surface-variant">ผู้อนุมัติ:</span>
                 <p className="font-medium">{doc.approvedBy.fullName}</p>
+              </div>
+            )}
+            {doc.recipientEmail && (
+              <div>
+                <span className="text-on-surface-variant">อีเมลผู้รับ:</span>
+                <p className="font-medium">{doc.recipientEmail}</p>
+              </div>
+            )}
+            {doc.sentMethod && (
+              <div>
+                <span className="text-on-surface-variant">วิธีการส่ง:</span>
+                <p className="font-medium">{SENT_METHOD_LABEL[doc.sentMethod] ?? doc.sentMethod}</p>
               </div>
             )}
             {doc.sentAt && (
