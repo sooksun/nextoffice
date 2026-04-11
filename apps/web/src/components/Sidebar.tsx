@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 
 // undefined = ทุก role เห็นได้
-type NavItem = { href: string; label: string; icon: React.ElementType; roles?: string[] };
+type NavItem = { href: string; label: string; icon: React.ElementType; roles?: string[]; children?: Omit<NavItem, 'icon' | 'children'>[] };
 
 type NavGroup = {
   id: string;
@@ -68,7 +68,20 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/outbound", label: "หนังสือออก", icon: SendHorizontal },
       { href: "/outbound/new", label: "สร้างหนังสือออก", icon: Send, roles: SARABAN },
       { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: ClipboardList, roles: SARABAN },
-      { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: ScrollText, roles: SARABAN },
+      {
+        href: "/saraban/outbound",
+        label: "ทะเบียนส่ง",
+        icon: ScrollText,
+        roles: SARABAN,
+        children: [
+          { href: "/saraban/outbound?type=external_letter", label: "หนังสือภายนอก" },
+          { href: "/saraban/outbound?type=internal_memo",   label: "หนังสือภายใน" },
+          { href: "/saraban/outbound?type=directive",       label: "หนังสือสั่งการ" },
+          { href: "/saraban/outbound?type=pr_letter",       label: "หนังสือประชาสัมพันธ์" },
+          { href: "/saraban/outbound?type=official_record", label: "หนังสือที่เจ้าหน้าที่ทำขึ้น" },
+          { href: "/saraban/outbound?type=secret_letter",   label: "หนังสือลับ", roles: SARABAN },
+        ],
+      },
     ],
   },
   {
@@ -120,7 +133,13 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 function filterItems(items: NavItem[], roleCode: string): NavItem[] {
-  return items.filter((item) => !item.roles || item.roles.includes(roleCode));
+  return items
+    .filter((item) => !item.roles || item.roles.includes(roleCode))
+    .map((item) =>
+      item.children
+        ? { ...item, children: item.children.filter((c) => !c.roles || c.roles.includes(roleCode)) }
+        : item,
+    );
 }
 
 function isGroupActive(items: NavItem[], pathname: string): boolean {
@@ -170,23 +189,49 @@ function NavGroupSection({
         )}
       >
         <div className="space-y-0.5 pb-1">
-          {visibleItems.map(({ href, label, icon: Icon }) => {
+          {visibleItems.map(({ href, label, icon: Icon, children }) => {
             const isActive =
-              pathname === href || (href !== "/" && pathname.startsWith(href));
+              pathname === href || (href !== "/" && pathname.startsWith(href.split("?")[0]));
+            const hasChildren = children && children.length > 0;
             return (
-              <Link
-                key={href}
-                href={href}
-                className={clsx(
-                  "flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary font-bold"
-                    : "text-on-surface-variant hover:text-primary hover:bg-surface-bright",
+              <div key={href}>
+                <Link
+                  href={href}
+                  className={clsx(
+                    "flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary font-bold"
+                      : "text-on-surface-variant hover:text-primary hover:bg-surface-bright",
+                  )}
+                >
+                  <Icon size={17} />
+                  {label}
+                </Link>
+                {hasChildren && (
+                  <div className="ml-8 mt-0.5 space-y-0.5">
+                    {children.map((child) => {
+                      const childActive =
+                        pathname + (typeof window !== "undefined" ? window.location.search : "") === child.href ||
+                        child.href.split("?")[0] === pathname;
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={clsx(
+                            "flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors",
+                            childActive
+                              ? "bg-primary/10 text-primary font-bold"
+                              : "text-on-surface-variant hover:text-primary hover:bg-surface-bright",
+                          )}
+                        >
+                          <span className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0" />
+                          {child.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-              >
-                <Icon size={17} />
-                {label}
-              </Link>
+              </div>
             );
           })}
         </div>

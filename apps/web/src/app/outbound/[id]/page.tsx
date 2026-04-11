@@ -16,6 +16,20 @@ const STATUS_COLOR: Record<string, string> = {
 const URGENCY_LABEL: Record<string, string> = {
   normal: "ทั่วไป", urgent: "ด่วน", very_urgent: "ด่วนมาก", most_urgent: "ด่วนที่สุด",
 };
+const LETTER_TYPE_LABEL: Record<string, string> = {
+  external_letter: "หนังสือภายนอก",
+  internal_memo:   "หนังสือภายใน",
+  directive:       "หนังสือสั่งการ",
+  pr_letter:       "หนังสือประชาสัมพันธ์",
+  official_record: "หนังสือที่เจ้าหน้าที่ทำขึ้น",
+  secret_letter:   "หนังสือลับ",
+};
+const SECURITY_LABEL: Record<string, string> = {
+  normal:      "ไม่มีชั้นความลับ",
+  secret:      "ลับ",
+  top_secret:  "ลับมาก",
+  most_secret: "ลับที่สุด",
+};
 
 interface OutboundDoc {
   id: number;
@@ -27,6 +41,7 @@ interface OutboundDoc {
   recipientOrg: string | null;
   urgencyLevel: string;
   securityLevel: string;
+  letterType: string;
   status: string;
   sentAt: string | null;
   approvedAt: string | null;
@@ -107,9 +122,19 @@ export default async function OutboundDetailPage({
               <p className="font-medium">{doc.recipientName || "—"}</p>
             </div>
             <div>
+              <span className="text-on-surface-variant">ประเภทหนังสือ:</span>
+              <p className="font-medium">{LETTER_TYPE_LABEL[doc.letterType] ?? doc.letterType}</p>
+            </div>
+            <div>
               <span className="text-on-surface-variant">ชั้นความเร็ว:</span>
               <p className="font-medium">{URGENCY_LABEL[doc.urgencyLevel]}</p>
             </div>
+            {doc.securityLevel !== "normal" && (
+              <div>
+                <span className="text-on-surface-variant">ชั้นความลับ:</span>
+                <p className="font-medium text-red-700">{SECURITY_LABEL[doc.securityLevel] ?? doc.securityLevel}</p>
+              </div>
+            )}
             <div>
               <span className="text-on-surface-variant">ผู้สร้าง:</span>
               <p className="font-medium">{doc.createdBy?.fullName || "—"}</p>

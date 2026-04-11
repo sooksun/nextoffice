@@ -10,17 +10,25 @@ export class OutboundController {
   @Get(':organizationId/documents')
   @ApiOperation({ summary: 'List outbound documents for an organization' })
   @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'letterType', required: false })
+  @ApiQuery({ name: 'roleCode', required: false })
   listDocuments(
     @Param('organizationId', ParseIntPipe) organizationId: number,
     @Query('status') status?: string,
+    @Query('letterType') letterType?: string,
+    @Query('roleCode') roleCode?: string,
   ) {
-    return this.svc.findAll(organizationId, status);
+    return this.svc.findAll(organizationId, status, letterType, roleCode);
   }
 
   @Get('documents/:id')
   @ApiOperation({ summary: 'Get outbound document by ID' })
-  getDocument(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.findOne(id);
+  @ApiQuery({ name: 'roleCode', required: false })
+  getDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('roleCode') roleCode?: string,
+  ) {
+    return this.svc.findOne(id, roleCode);
   }
 
   @Post('documents')
@@ -35,6 +43,7 @@ export class OutboundController {
     recipientEmail?: string;
     urgencyLevel?: string;
     securityLevel?: string;
+    letterType?: string;
     relatedInboundCaseId?: number;
     sentMethod?: string;
   }) {

@@ -19,7 +19,7 @@ export function getAuthToken(): string | null {
 }
 
 /** Read JWT from cookie — used by server components where localStorage is unavailable */
-async function getServerToken(): Promise<string | null> {
+export async function getServerToken(): Promise<string | null> {
   try {
     const { cookies } = await import("next/headers");
     const store = await cookies();

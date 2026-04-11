@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getServerToken } from "@/lib/api";
 import Link from "next/link";
 import { Send, Plus } from "lucide-react";
 import { formatThaiDateShort } from "@/lib/thai-date";
@@ -19,11 +19,25 @@ const STATUS_COLOR: Record<string, string> = {
   approved: "bg-blue-100 text-blue-800",
   sent: "bg-green-100 text-green-800",
 };
+const URGENCY_LABEL: Record<string, string> = {
+  normal: "ทั่วไป",
+  urgent: "ด่วน",
+  very_urgent: "ด่วนมาก",
+  most_urgent: "ด่วนที่สุด",
+};
 const URGENCY_COLOR: Record<string, string> = {
   normal: "",
   urgent: "text-yellow-700 font-semibold",
   very_urgent: "text-orange-700 font-semibold",
   most_urgent: "text-red-700 font-semibold",
+};
+const LETTER_TYPE_LABEL: Record<string, string> = {
+  external_letter: "หนังสือภายนอก",
+  internal_memo:   "หนังสือภายใน",
+  directive:       "หนังสือสั่งการ",
+  pr_letter:       "หนังสือประชาสัมพันธ์",
+  official_record: "หนังสือที่เจ้าหน้าที่ทำขึ้น",
+  secret_letter:   "หนังสือลับ",
 };
 
 interface OutboundDoc {
@@ -33,15 +47,21 @@ interface OutboundDoc {
   subject: string;
   recipientOrg: string | null;
   urgencyLevel: string;
+  securityLevel: string;
+  letterType: string;
   status: string;
   sentAt: string | null;
   createdBy: { id: number; fullName: string } | null;
 }
 
-async function getDocs(orgId: string, status?: string) {
-  const params = status ? `?status=${status}` : "";
+async function getDocs(orgId: string, status?: string, letterType?: string, roleCode?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (letterType) params.set("letterType", letterType);
+  if (roleCode) params.set("roleCode", roleCode);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   try {
-    return await apiFetch<OutboundDoc[]>(`/outbound/${orgId}/documents${params}`);
+    return await apiFetch<OutboundDoc[]>(`/outbound/${orgId}/documents${qs}`);
   } catch {
     return [];
   }
@@ -54,7 +74,23 @@ export default async function OutboundRegistryPage({
 }) {
   const sp = await searchParams;
   const orgId = sp.organizationId ?? "1";
-  const docs = await getDocs(orgId, sp.status);
+  const letterType = sp.type;
+
+  // Get user role from server token for filtering
+  let roleCode: string | undefined;
+  try {
+    const token = await getServerToken();
+    if (token) {
+      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+      roleCode = payload.roleCode;
+    }
+  } catch { /* ignore */ }
+
+  const docs = await getDocs(orgId, sp.status, letterType, roleCode);
+
+  const pageTitle = letterType
+    ? `ทะเบียนส่ง — ${LETTER_TYPE_LABEL[letterType] ?? letterType}`
+    : "ทะเบียนส่ง";
 
   return (
     <div>
@@ -64,7 +100,7 @@ export default async function OutboundRegistryPage({
             <Send size={20} className="text-secondary" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-primary tracking-tight">ทะเบียนส่ง</h1>
+            <h1 className="text-2xl font-black text-primary tracking-tight">{pageTitle}</h1>
             <p className="text-xs text-on-surface-variant">พบ {docs.length} รายการ</p>
           </div>
         </div>
@@ -77,8 +113,36 @@ export default async function OutboundRegistryPage({
         </Link>
       </div>
 
-      {/* Filter */}
+      {/* Letter type tabs */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Link
+          href="/saraban/outbound"
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${!letterType ? "bg-primary text-on-primary" : "bg-surface-bright text-on-surface-variant hover:text-primary"}`}
+        >
+          ทั้งหมด
+        </Link>
+        {Object.entries(LETTER_TYPE_LABEL).map(([v, l]) => (
+          <Link
+            key={v}
+            href={`/saraban/outbound?type=${v}`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+              letterType === v
+                ? v === "secret_letter"
+                  ? "bg-red-600 text-white"
+                  : "bg-primary text-on-primary"
+                : v === "secret_letter"
+                ? "bg-red-50 text-red-700 hover:bg-red-100"
+                : "bg-surface-bright text-on-surface-variant hover:text-primary"
+            }`}
+          >
+            {v === "secret_letter" ? "🔒 " : ""}{l}
+          </Link>
+        ))}
+      </div>
+
+      {/* Status + date filter */}
       <form method="GET" className="flex flex-wrap gap-3 mb-5">
+        {letterType && <input type="hidden" name="type" value={letterType} />}
         <select name="status" defaultValue={sp.status ?? ""} className="input-select">
           <option value="">ทุกสถานะ</option>
           {Object.entries(STATUS_LABEL).map(([v, l]) => (
@@ -89,7 +153,7 @@ export default async function OutboundRegistryPage({
           <ThaiDateRangeFilter dateFrom={sp.dateFrom} dateTo={sp.dateTo} />
         </Suspense>
         <button type="submit" className="btn-primary">กรอง</button>
-        <a href="/saraban/outbound" className="btn-ghost">ล้าง</a>
+        <a href={letterType ? `/saraban/outbound?type=${letterType}` : "/saraban/outbound"} className="btn-ghost">ล้าง</a>
       </form>
 
       <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm">
@@ -100,6 +164,7 @@ export default async function OutboundRegistryPage({
               <th className="px-4 py-3 text-left">เลขที่หนังสือ</th>
               <th className="px-4 py-3 text-left">เรื่อง</th>
               <th className="px-4 py-3 text-left">ถึง</th>
+              <th className="px-4 py-3 text-left">ประเภท</th>
               <th className="px-4 py-3 text-left">ชั้นความเร็ว</th>
               <th className="px-4 py-3 text-left">สถานะ</th>
               <th className="px-4 py-3 text-left">วันที่ส่ง</th>
@@ -109,7 +174,7 @@ export default async function OutboundRegistryPage({
           <tbody>
             {docs.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบข้อมูล</td>
+                <td colSpan={9} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบข้อมูล</td>
               </tr>
             )}
             {docs.map((d, i) => (
@@ -120,8 +185,13 @@ export default async function OutboundRegistryPage({
                   <a href={`/outbound/${d.id}`} className="hover:text-primary hover:underline line-clamp-2">{d.subject}</a>
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant">{d.recipientOrg ?? "—"}</td>
+                <td className="px-4 py-3 text-xs">
+                  <span className={`px-2 py-0.5 rounded-lg font-medium ${d.letterType === "secret_letter" ? "bg-red-50 text-red-700" : "bg-surface-bright text-on-surface-variant"}`}>
+                    {d.letterType === "secret_letter" ? "🔒 " : ""}{LETTER_TYPE_LABEL[d.letterType] ?? d.letterType}
+                  </span>
+                </td>
                 <td className={`px-4 py-3 text-xs ${URGENCY_COLOR[d.urgencyLevel] ?? ""}`}>
-                  {d.urgencyLevel === "normal" ? "ปกติ" : d.urgencyLevel === "urgent" ? "ด่วน" : d.urgencyLevel === "very_urgent" ? "ด่วนมาก" : "ด่วนที่สุด"}
+                  {URGENCY_LABEL[d.urgencyLevel] ?? d.urgencyLevel}
                 </td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[d.status] ?? STATUS_COLOR.draft}`}>

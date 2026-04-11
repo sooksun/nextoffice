@@ -885,7 +885,8 @@ model OutboundDocument {
   subject             String    @db.VarChar(500)
   bodyText            String?   @map("body_text") @db.LongText
   urgencyLevel        String    @map("urgency_level") @db.VarChar(20) @default("normal") // normal | urgent | very_urgent | most_urgent
-  securityLevel       String    @map("security_level") @db.VarChar(20) @default("normal") // normal | confidential | secret
+  securityLevel       String    @map("security_level") @db.VarChar(20) @default("normal") // normal | secret | top_secret | most_secret
+  letterType          String    @map("letter_type") @db.VarChar(30) @default("external_letter") // external_letter | internal_memo | directive | pr_letter | official_record | secret_letter
   status              String    @db.VarChar(30) @default("draft")     // draft | pending_approval | approved | sent
   relatedInboundCaseId BigInt?  @map("related_inbound_case_id")
   approvedByUserId    BigInt?   @map("approved_by_user_id")

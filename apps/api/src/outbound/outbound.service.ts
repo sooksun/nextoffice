@@ -12,9 +12,19 @@ export class OutboundService {
     private readonly configService: ConfigService,
   ) {}
 
-  async findAll(organizationId: number, status?: string) {
+  private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
+  private readonly RESTRICTED_LETTER_TYPES = ['secret_letter'];
+
+  async findAll(organizationId: number, status?: string, letterType?: string, roleCode?: string) {
     const where: any = { organizationId: BigInt(organizationId) };
     if (status) where.status = status;
+    if (letterType) where.letterType = letterType;
+
+    // Restrict secret_letter and non-normal securityLevel to privileged roles
+    if (roleCode && !this.CONFIDENTIAL_ROLES.includes(roleCode)) {
+      where.letterType = { ...where.letterType, not: 'secret_letter' };
+      where.securityLevel = 'normal';
+    }
 
     const docs = await this.prisma.outboundDocument.findMany({
       where,
@@ -28,7 +38,7 @@ export class OutboundService {
     return docs.map((d) => this.serialize(d));
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, roleCode?: string) {
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(id) },
       include: {
@@ -38,7 +48,16 @@ export class OutboundService {
         documentRegistries: { orderBy: { createdAt: 'desc' } },
       },
     });
-    return doc ? this.serialize(doc) : null;
+    if (!doc) return null;
+
+    // Block access to confidential docs for restricted roles
+    if (roleCode && !this.CONFIDENTIAL_ROLES.includes(roleCode)) {
+      if (doc.letterType === 'secret_letter' || doc.securityLevel !== 'normal') {
+        return null;
+      }
+    }
+
+    return this.serialize(doc);
   }
 
   async create(dto: {
@@ -51,6 +70,7 @@ export class OutboundService {
     recipientEmail?: string;
     urgencyLevel?: string;
     securityLevel?: string;
+    letterType?: string;
     relatedInboundCaseId?: number;
     sentMethod?: string;
   }) {
@@ -65,6 +85,7 @@ export class OutboundService {
         recipientEmail: dto.recipientEmail,
         urgencyLevel: dto.urgencyLevel ?? 'normal',
         securityLevel: dto.securityLevel ?? 'normal',
+        letterType: dto.letterType ?? 'external_letter',
         relatedInboundCaseId: dto.relatedInboundCaseId ? BigInt(dto.relatedInboundCaseId) : undefined,
         sentMethod: dto.sentMethod,
         status: 'draft',
