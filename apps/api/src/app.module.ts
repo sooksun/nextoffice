@@ -29,6 +29,7 @@ import { KnowledgeImportModule } from './knowledge-import/knowledge-import.modul
 import { StampsModule } from './stamps/stamps.module';
 import { StaffConfigModule } from './staff-config/staff-config.module';
 import { EmailModule } from './email/email.module';
+import { DigitalSignatureModule } from './digital-signature/digital-signature.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { EmailModule } from './email/email.module';
     StampsModule,
     StaffConfigModule,
     EmailModule,
+    DigitalSignatureModule,
   ],
 })
 export class AppModule {}

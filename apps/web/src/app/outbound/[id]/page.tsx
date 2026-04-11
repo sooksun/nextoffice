@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, Send } from "lucide-react";
 import OutboundActions from "./OutboundActions";
+import SignatureVerification from "@/components/SignatureVerification";
 import { formatThaiDateShort } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +108,13 @@ export default async function OutboundDetailPage({
 
       {/* Actions */}
       <OutboundActions docId={doc.id} status={doc.status} sentMethod={doc.sentMethod ?? null} recipientEmail={doc.recipientEmail ?? null} />
+
+      {/* Digital Signature Verification */}
+      {(doc.status === "approved" || doc.status === "sent") && (
+        <div className="mb-4">
+          <SignatureVerification type="outbound" id={doc.id} />
+        </div>
+      )}
 
       {/* Document Details */}
       <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6">

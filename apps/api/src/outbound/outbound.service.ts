@@ -1,10 +1,12 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_OUTBOUND } from '../queue/queue.constants';
+import { PdfSigningService } from '../digital-signature/pdf-signing.service';
+import { FileStorageService } from '../intake/services/file-storage.service';
 
 @Injectable()
 export class OutboundService {
@@ -14,6 +16,8 @@ export class OutboundService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     @InjectQueue(QUEUE_OUTBOUND) private readonly outboundQueue: Queue,
+    @Optional() private readonly pdfSigning: PdfSigningService,
+    @Optional() private readonly fileStorage: FileStorageService,
   ) {}
 
   private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
@@ -118,6 +122,18 @@ export class OutboundService {
         documentDate: new Date(),
       },
     });
+    // Apply digital signature to PDF if available
+    if (doc.storagePath && this.pdfSigning && this.fileStorage) {
+      try {
+        const pdfBuf = await this.fileStorage.getBuffer(doc.storagePath);
+        const signed = await this.pdfSigning.signPdf(pdfBuf, approvedByUserId, 'อนุมัติ (Approval)');
+        await this.fileStorage.saveBuffer(doc.storagePath, signed, 'application/pdf');
+        this.logger.log(`Digital signature applied to outbound doc #${id}`);
+      } catch (e: any) {
+        this.logger.warn(`Outbound PDF signing failed for doc #${id}: ${e.message}`);
+      }
+    }
+
     return { id: Number(updated.id), documentNo };
   }
 

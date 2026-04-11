@@ -8,6 +8,7 @@ import { WorkflowLearningService } from '../../projects/services/workflow-learni
 import { PdfStampService } from '../../stamps/services/pdf-stamp.service';
 import { StampStorageService } from '../../stamps/services/stamp-storage.service';
 import { FileStorageService } from '../../intake/services/file-storage.service';
+import { PdfSigningService } from '../../digital-signature/pdf-signing.service';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ['registered'],
@@ -33,6 +34,7 @@ export class CaseWorkflowService {
     @Optional() private readonly pdfStamp: PdfStampService,
     @Optional() private readonly stampStorage: StampStorageService,
     @Optional() private readonly fileStorage: FileStorageService,
+    @Optional() private readonly pdfSigning: PdfSigningService,
   ) {}
 
   /** Parse intake ID จาก description field (format: "intake:{id}") */
@@ -641,7 +643,19 @@ export class CaseWorkflowService {
         : undefined,
     });
 
-    await this.stampStorage.save(intakeId, stamped);
+    let finalPdf = stamped;
+
+    // Apply digital signature (PKI)
+    if (this.pdfSigning) {
+      try {
+        finalPdf = await this.pdfSigning.signPdf(stamped, assignedByUserId, 'เสนอความเห็น (Endorsement)');
+        this.logger.log(`Digital signature applied for intake #${intakeId}`);
+      } catch (e: any) {
+        this.logger.warn(`Digital signing failed for intake #${intakeId}: ${e.message}`);
+      }
+    }
+
+    await this.stampStorage.save(intakeId, finalPdf);
     this.logger.log(`All stamps applied for intake #${intakeId} (case #${caseId})`);
   }
 

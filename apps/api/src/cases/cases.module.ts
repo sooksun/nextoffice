@@ -12,9 +12,10 @@ import { ProjectsModule } from '../projects/projects.module';
 import { GeminiModule } from '../gemini/gemini.module';
 import { StampsModule } from '../stamps/stamps.module';
 import { IntakeModule } from '../intake/intake.module';
+import { DigitalSignatureModule } from '../digital-signature/digital-signature.module';
 
 @Module({
-  imports: [AuthModule, CalendarModule, NotificationsModule, forwardRef(() => AiModule), RagModule, QueueModule, ProjectsModule, GeminiModule, StampsModule, IntakeModule],
+  imports: [AuthModule, CalendarModule, NotificationsModule, forwardRef(() => AiModule), RagModule, QueueModule, ProjectsModule, GeminiModule, StampsModule, IntakeModule, DigitalSignatureModule],
   controllers: [CasesController],
   providers: [CasesService, CaseWorkflowService],
   exports: [CasesService, CaseWorkflowService],

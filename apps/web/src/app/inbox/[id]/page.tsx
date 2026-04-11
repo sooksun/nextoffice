@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, FileText, Clock, User } from "lucide-react";
 import PdfPreview from "@/components/PdfPreview";
+import SignatureVerification from "@/components/SignatureVerification";
 import { formatThaiDate, formatThaiDateShort, formatThaiDateTime } from "@/lib/thai-date";
 import RegisterButton from "@/components/actions/RegisterButton";
 import AssignButton from "@/components/actions/AssignButton";
@@ -206,6 +207,13 @@ export default async function InboxDetailPage({
             mimeType={intakeMimeType}
             fileName={intakeFileName}
           />
+        </div>
+      )}
+
+      {/* Digital Signature Verification */}
+      {caseData?.intake?.id && !['new', 'analyzing', 'proposed'].includes(caseData.status) && (
+        <div className="mb-4">
+          <SignatureVerification type="intake" id={caseData.intake.id} />
         </div>
       )}
 

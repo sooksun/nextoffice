@@ -656,6 +656,8 @@ model User {
   phone            String?   @db.VarChar(20)
   googleEmail      String?   @map("google_email") @db.VarChar(255) // for Calendar invite
   signaturePath    String?   @map("signature_path") @db.VarChar(500) // MinIO path to signature image
+  certificatePath  String?   @map("certificate_path") @db.VarChar(500) // MinIO path to X.509 cert PEM
+  privateKeyPath   String?   @map("private_key_path") @db.VarChar(500) // MinIO path to encrypted key PEM
   lineUserRef      BigInt?   @map("line_user_ref") @unique // 1:1 link to LineUser
   isActive         Boolean   @map("is_active") @default(true)
   lastLoginAt      DateTime? @map("last_login_at")

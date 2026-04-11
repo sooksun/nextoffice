@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { OutboundController } from './outbound.controller';
 import { OutboundService } from './outbound.service';
 import { QueueModule } from '../queue/queue.module';
+import { DigitalSignatureModule } from '../digital-signature/digital-signature.module';
+import { IntakeModule } from '../intake/intake.module';
 
 @Module({
-  imports: [QueueModule],
+  imports: [QueueModule, DigitalSignatureModule, IntakeModule],
   controllers: [OutboundController],
   providers: [OutboundService],
   exports: [OutboundService],
