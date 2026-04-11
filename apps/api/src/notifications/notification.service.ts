@@ -146,7 +146,7 @@ export class NotificationService {
     if (!c || !user?.lineUser?.lineUserId) return;
 
     const urgencyText = c.urgencyLevel === 'most_urgent' ? '🚨 ด่วนที่สุด' :
-                        c.urgencyLevel === 'very_urgent' ? '⚡ ด่วนมาก' :
+                        c.urgencyLevel === 'very_urgent' ? '⚡ ด่วนที่สุด' :
                         c.urgencyLevel === 'urgent' ? '⏰ ด่วน' : '📋 ปกติ';
 
     const msg = `${urgencyText}\nมีหนังสือใหม่มอบหมายให้คุณ\n\n"${c.title.substring(0, 80)}"\n\n${c.dueDate ? `กำหนด: ${c.dueDate.toLocaleDateString('th-TH')}\n` : ''}พิมพ์ "งานของฉัน" เพื่อดูรายการทั้งหมด`;
@@ -189,7 +189,7 @@ export class NotificationService {
     if (!c) return;
 
     const urgencyText = c.urgencyLevel === 'most_urgent' ? '🚨 ด่วนที่สุด' :
-                        c.urgencyLevel === 'very_urgent' ? '⚡ ด่วนมาก' :
+                        c.urgencyLevel === 'very_urgent' ? '⚡ ด่วนที่สุด' :
                         c.urgencyLevel === 'urgent' ? '⏰ ด่วน' : '📨 ทั่วไป';
 
     const flexMessage = {

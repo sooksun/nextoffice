@@ -53,7 +53,8 @@ export class FaceClientService {
         message: res.data.message,
       };
     } catch (err) {
-      this.logger.error(`Face verify failed: ${err.message}`);
+      const detail = err.response?.data?.detail ?? err.message;
+      this.logger.error(`Face verify failed: ${detail}`);
       return { matched: false, similarity: 0, confidence: 0, message: 'Face service unavailable' };
     }
   }

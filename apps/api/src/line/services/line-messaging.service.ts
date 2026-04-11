@@ -439,7 +439,7 @@ export class LineMessagingService {
         : c.urgencyLevel === 'urgent' ? '#F9A825'
         : '#43A047';
       const urgencyLabel = c.urgencyLevel === 'most_urgent' ? 'ด่วนที่สุด'
-        : c.urgencyLevel === 'very_urgent' ? 'ด่วนมาก'
+        : c.urgencyLevel === 'very_urgent' ? 'ด่วนที่สุด'
         : c.urgencyLevel === 'urgent' ? 'ด่วน'
         : 'ปกติ';
       const statusLabel = this.statusToThai(c.status);
@@ -574,7 +574,7 @@ export class LineMessagingService {
   buildCaseDetailFlex(c: any): any[] {
     const caseId = Number(c.id);
     const urgencyLabel = c.urgencyLevel === 'most_urgent' ? 'ด่วนที่สุด'
-      : c.urgencyLevel === 'very_urgent' ? 'ด่วนมาก'
+      : c.urgencyLevel === 'very_urgent' ? 'ด่วนที่สุด'
       : c.urgencyLevel === 'urgent' ? 'ด่วน'
       : 'ปกติ';
     const urgencyColor = c.urgencyLevel === 'most_urgent' ? '#D32F2F'

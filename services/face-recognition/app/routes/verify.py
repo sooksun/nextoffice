@@ -1,9 +1,12 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.face_engine import engine
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class VerifyRequest(BaseModel):
@@ -26,4 +29,5 @@ async def verify_face(req: VerifyRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error("Face verification failed for user %s: %s", req.user_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Face verification failed: {e}")
