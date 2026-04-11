@@ -271,7 +271,7 @@ export class CaseWorkflowService {
     }
 
     // Apply all 3 stamps to PDF in a single async pass (never blocks the response)
-    this.applyAllStampsAsync(caseId, updated, assignedByUserId, directorNote).catch(
+    this.applyAllStampsAsync(caseId, updated, assignedByUserId, directorNote, clerkOpinion, assignments).catch(
       (e) => this.logger.warn(`PDF stamp generation failed: ${e.message}`),
     );
 
@@ -545,6 +545,8 @@ export class CaseWorkflowService {
     updatedCase: any,
     assignedByUserId: number,
     directorNote?: string,
+    clerkOpinion?: string,
+    assignments?: { userId: number; role?: string; dueDate?: string; note?: string }[],
   ): Promise<void> {
     if (!this.pdfStamp || !this.stampStorage || !this.fileStorage) return;
 
@@ -596,28 +598,45 @@ export class CaseWorkflowService {
       } catch { /* ignore */ }
     }
 
-    // Fetch clerk endorsement (stepOrder=1) for stamp data
-    let clerkOpinionText: string | undefined;
+    // Clerk opinion: use passed-in value first, then fall back to DB query
+    let clerkOpinionText: string | undefined = clerkOpinion || undefined;
     let assigneeNames: string[] | undefined;
-    try {
-      const clerkEndorsement = await this.prisma.caseEndorsement.findFirst({
-        where: { inboundCaseId: BigInt(caseId), stepOrder: 1 },
-      });
-      if (clerkEndorsement) {
-        clerkOpinionText = clerkEndorsement.noteText || undefined;
-        if (clerkEndorsement.assignToUserIds) {
-          const userIds: number[] = JSON.parse(clerkEndorsement.assignToUserIds);
-          if (userIds.length) {
-            const assignees = await this.prisma.user.findMany({
-              where: { id: { in: userIds.map((id) => BigInt(id)) } },
-              select: { fullName: true },
-            });
-            assigneeNames = assignees.map((u) => u.fullName).filter(Boolean);
+
+    // Resolve assignee names from passed assignments list
+    if (assignments && assignments.length > 0) {
+      try {
+        const assignees = await this.prisma.user.findMany({
+          where: { id: { in: assignments.map((a) => BigInt(a.userId)) } },
+          select: { fullName: true },
+        });
+        assigneeNames = assignees.map((u) => u.fullName).filter(Boolean);
+      } catch (e) {
+        this.logger.warn(`Assignee name lookup for stamp failed: ${e.message}`);
+      }
+    }
+
+    // Fallback: query DB endorsement if clerkOpinion not passed directly
+    if (!clerkOpinionText) {
+      try {
+        const clerkEndorsement = await this.prisma.caseEndorsement.findFirst({
+          where: { inboundCaseId: BigInt(caseId), stepOrder: 1 },
+        });
+        if (clerkEndorsement) {
+          clerkOpinionText = clerkEndorsement.noteText || undefined;
+          if (!assigneeNames && clerkEndorsement.assignToUserIds) {
+            const userIds: number[] = JSON.parse(clerkEndorsement.assignToUserIds);
+            if (userIds.length) {
+              const dbAssignees = await this.prisma.user.findMany({
+                where: { id: { in: userIds.map((id) => BigInt(id)) } },
+                select: { fullName: true },
+              });
+              assigneeNames = dbAssignees.map((u) => u.fullName).filter(Boolean);
+            }
           }
         }
+      } catch (e) {
+        this.logger.warn(`Endorsement fetch for stamp failed: ${e.message}`);
       }
-    } catch (e) {
-      this.logger.warn(`Endorsement fetch for stamp failed: ${e.message}`);
     }
 
     const stamped = await this.pdfStamp.applyAllStamps(pdfBuffer, {
