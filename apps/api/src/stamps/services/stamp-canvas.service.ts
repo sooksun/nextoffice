@@ -235,9 +235,9 @@ export class StampCanvasService {
     ctx.rect(0, 0, w * S, h * S);
     ctx.clip();
 
-    // Header "เห็นชอบ/มอบ"
+    // Header "คำสั่ง"
     ctx.font = `bold ${9 * S}px SarabunBold`;
-    ctx.fillText('เห็นชอบ/มอบ', 8 * S, 12 * S);
+    ctx.fillText('คำสั่ง', 8 * S, 12 * S);
 
     // Note text — clean newlines, 8pt body, up to 6 lines
     const cleaned = data.noteText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
@@ -250,12 +250,12 @@ export class StampCanvasService {
       tyPx += 11 * S;
     }
 
-    // Assignee names — appended after note text
+    // "เห็นชอบ/มอบ" + assignee names — appended after note text
     if (data.assigneeNames?.length) {
-      const namesText = data.assigneeNames.join(', ');
-      const namesLines = this.lines(bodyFont, namesText, innerPx, 2);
+      const assigneeText = `เห็นชอบ/มอบ ${data.assigneeNames.join(', ')}`;
+      const assigneeLines = this.lines(bodyFont, assigneeText, innerPx, 2);
       ctx.font = bodyFont;
-      for (const line of namesLines) {
+      for (const line of assigneeLines) {
         ctx.fillText(line, 8 * S, tyPx);
         tyPx += 11 * S;
       }
