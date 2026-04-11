@@ -98,6 +98,16 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
     };
   }, [startCamera]);
 
+  // Ensure srcObject is set after React renders the video element
+  useEffect(() => {
+    if (streaming && videoRef.current && streamRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.play().catch(() => {});
+    }
+  }, [streaming]);
+
   // Auto-reload when user grants camera permission from the browser lock icon settings
   // (Chrome requires a full page reload for settings-changed permissions to take effect)
   useEffect(() => {
@@ -251,16 +261,16 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
     <div className="flex flex-col items-center gap-4">
       {/* Camera preview */}
       <div className="relative w-full max-w-md aspect-[4/3] rounded-2xl overflow-hidden bg-black border-2 border-outline-variant/20">
-        {cameraError ? renderCameraError() :
-         !streaming ? (
-           <div className="flex flex-col items-center justify-center h-full gap-2">
-             <Loader2 size={24} className="text-white/50 animate-spin" />
-             <p className="text-white/40 text-xs">กำลังเปิดกล้อง...</p>
-           </div>
-         ) : (
-           <video ref={videoRef} autoPlay playsInline muted
-             className="w-full h-full object-cover" style={{ transform: "scaleX(-1)" }} />
-         )}
+        {/* Always keep video in DOM so videoRef is available when stream is assigned */}
+        <video ref={videoRef} autoPlay playsInline muted
+          className={`w-full h-full object-cover ${streaming && !cameraError ? "" : "hidden"}`}
+          style={{ transform: "scaleX(-1)" }} />
+        {cameraError ? renderCameraError() : !streaming ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <Loader2 size={24} className="text-white/50 animate-spin" />
+            <p className="text-white/40 text-xs">กำลังเปิดกล้อง...</p>
+          </div>
+        ) : null}
       </div>
 
       {/* GPS status */}
