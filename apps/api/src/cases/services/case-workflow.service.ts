@@ -485,13 +485,23 @@ export class CaseWorkflowService {
       }),
       this.prisma.user.findUnique({
         where: { id: BigInt(assignedByUserId) },
-        select: { fullName: true, positionTitle: true },
+        select: { fullName: true, positionTitle: true, signaturePath: true },
       }),
       // ผู้อำนวยการโรงเรียน — ใช้เป็นผู้ลงนามตราที่ 3
       this.prisma.user.findFirst({
         where: { organizationId: updatedCase.organizationId, roleCode: 'DIRECTOR' },
-        select: { fullName: true, positionTitle: true },
+        select: { fullName: true, positionTitle: true, signaturePath: true },
       }),
+    ]);
+
+    // Load signature image buffers (silently ignore if missing)
+    const [userSigBuf, directorSigBuf] = await Promise.all([
+      user?.signaturePath
+        ? this.fileStorage.getBuffer(user.signaturePath).catch(() => null)
+        : Promise.resolve(null),
+      director?.signaturePath
+        ? this.fileStorage.getBuffer(director.signaturePath).catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     const now = new Date();
@@ -520,6 +530,7 @@ export class CaseWorkflowService {
         authorName: user?.fullName ?? 'ธุรการ',
         positionTitle: user?.positionTitle ?? undefined,
         stampedAt: now,
+        signatureBuffer: userSigBuf ?? undefined,
       },
       directorNote: directorNote
         ? {
@@ -527,6 +538,7 @@ export class CaseWorkflowService {
             authorName: director?.fullName ?? user?.fullName ?? 'ผู้อำนวยการ',
             positionTitle: director?.positionTitle ?? 'ผู้อำนวยการโรงเรียน',
             stampedAt: now,
+            signatureBuffer: directorSigBuf ?? undefined,
           }
         : undefined,
     });

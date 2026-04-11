@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
 import { EmptySpaceService } from './empty-space.service';
-import { StampCanvasService, SIG_TOTAL } from './stamp-canvas.service';
+import { StampCanvasService, SIG_TOTAL, SIG_TOTAL_SIG } from './stamp-canvas.service';
 
 // ─── Data interfaces ─────────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ export interface EndorsementStampData {
   authorName: string;
   positionTitle?: string;
   stampedAt: Date;
+  signatureBuffer?: Buffer;
 }
 
 export interface DirectorNoteStampData {
@@ -25,6 +26,7 @@ export interface DirectorNoteStampData {
   authorName: string;
   positionTitle?: string;
   stampedAt: Date;
+  signatureBuffer?: Buffer;
 }
 
 export interface AllStampsData {
@@ -74,6 +76,12 @@ export class PdfStampService {
     const h2 = Math.round(h2Orig * ss);
     const h3 = Math.round(h3Orig * ss);
 
+    // Choose correct SIG_TOTAL variant depending on whether signature images are present
+    const sigTotal2 = Math.round((data.endorsement.signatureBuffer ? SIG_TOTAL_SIG : SIG_TOTAL) * ss);
+    const sigTotal3 = data.directorNote
+      ? Math.round((data.directorNote.signatureBuffer ? SIG_TOTAL_SIG : SIG_TOTAL) * ss)
+      : sigTotal2;
+
     // ── 2. Find placement zones (pdfjs-dist text analysis) ─────────────────
     const specs = [
       { w: s1W, h: s1H, preference: 'top-right'       as const },
@@ -93,13 +101,13 @@ export class PdfStampService {
     if (zones[2]) zones[2] = { ...zones[2], y: zones[2].y + Math.round(40 * ss) };
 
     // ── 3. Render PNGs at original A4 dimensions (crisp 3× canvas) ─────────
-    // pdf-lib scales the PNG to the draw dimensions — no quality loss needed
-    // because the 3× SCALE already provides enough pixels for upscaling.
-    const png1 = this.stampCanvas.renderRegistration(data.registration, S1_W, S1_H);
-    const png2 = this.stampCanvas.renderEndorsement(data.endorsement, W2, h2Orig);
-    const png3 = data.directorNote
-      ? this.stampCanvas.renderDirectorNote(data.directorNote, W3, h3Orig)
-      : null;
+    const [png1, png2, png3] = await Promise.all([
+      Promise.resolve(this.stampCanvas.renderRegistration(data.registration, S1_W, S1_H)),
+      this.stampCanvas.renderEndorsement(data.endorsement, W2, h2Orig),
+      data.directorNote
+        ? this.stampCanvas.renderDirectorNote(data.directorNote, W3, h3Orig)
+        : Promise.resolve(null),
+    ]);
 
     // ── 4. Embed PNGs into PDF — pdf-lib is compositor only ─────────────────
     const [img1, img2] = await Promise.all([
@@ -119,18 +127,18 @@ export class PdfStampService {
       // PNG includes signature area below box
       page.drawImage(img2, {
         x:      zones[1].x,
-        y:      zones[1].y - sigTotal,
+        y:      zones[1].y - sigTotal2,
         width:  w2,
-        height: h2 + sigTotal,
+        height: h2 + sigTotal2,
       });
     }
 
     if (img3 && zones[2]) {
       page.drawImage(img3, {
         x:      zones[2].x,
-        y:      zones[2].y - sigTotal,
+        y:      zones[2].y - sigTotal3,
         width:  w3,
-        height: h3 + sigTotal,
+        height: h3 + sigTotal3,
       });
     }
 

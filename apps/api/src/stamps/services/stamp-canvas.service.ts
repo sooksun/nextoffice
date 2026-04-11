@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createCanvas, GlobalFonts, SKRSContext2D } from '@napi-rs/canvas';
+import { createCanvas, GlobalFonts, SKRSContext2D, loadImage } from '@napi-rs/canvas';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as wordcut from 'wordcut';
@@ -15,10 +15,16 @@ const BLUE = 'rgb(18, 84, 177)';
 
 /** Vertical padding below stamp box before signature block starts */
 const SIG_GAP = 4;
+/** Signature image height (pt) */
+const SIG_IMG_H = 18;
+/** Gap between signature image bottom and name baseline (pt) */
+const SIG_IMG_VGAP = 3;
 /** Signature block height: name + position + date (in pt) */
 const SIG_H = 34;
-/** Total extra height below box for signature (in pt) */
+/** Total extra height below box for signature — no image (in pt) */
 export const SIG_TOTAL = SIG_GAP + SIG_H; // 38pt
+/** Total extra height when a signature image is present (in pt) */
+export const SIG_TOTAL_SIG = SIG_GAP + SIG_IMG_H + SIG_IMG_VGAP + SIG_H; // 59pt
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
@@ -117,10 +123,11 @@ export class StampCanvasService {
     return canvas.toBuffer('image/png');
   }
 
-  renderEndorsement(data: EndorsementStampData, w: number, h: number): Buffer {
+  async renderEndorsement(data: EndorsementStampData, w: number, h: number): Promise<Buffer> {
     this.ensureFonts();
     const S = SCALE;
-    const totalH = h + SIG_TOTAL;
+    const hasSig = !!data.signatureBuffer;
+    const totalH = h + (hasSig ? SIG_TOTAL_SIG : SIG_TOTAL);
     const canvas = createCanvas(w * S, totalH * S);
     const ctx = canvas.getContext('2d') as SKRSContext2D;
     ctx.scale(S, S);
@@ -153,19 +160,37 @@ export class StampCanvasService {
     // Signature block below box
     const dateStr = `${d.day} ${d.monthTh.slice(0, 3)}. ${d.year}`;
     const sigTop = h + SIG_GAP;
-    ctx.font = `bold ${9}px SarabunBold`;
-    this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, sigTop + 11, S);
-    ctx.font = `${8}px Sarabun`;
-    if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, sigTop + 22, S);
-    this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, sigTop + 33, S);
+
+    if (hasSig) {
+      // Draw signature image right-aligned above name
+      const sigImg = await loadImage(data.signatureBuffer!);
+      const maxSigW = w - 16;
+      const aspect = sigImg.width / sigImg.height;
+      const sigImgW = Math.min(maxSigW, Math.round(SIG_IMG_H * aspect));
+      ctx.drawImage(sigImg as any, w - sigImgW - 8, sigTop, sigImgW, SIG_IMG_H);
+      // Name / position / date shifted down below image
+      const nameY = sigTop + SIG_IMG_H + SIG_IMG_VGAP + 9;
+      ctx.font = `bold ${9}px SarabunBold`;
+      this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, nameY, S);
+      ctx.font = `${8}px Sarabun`;
+      if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, nameY + 11, S);
+      this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, nameY + 22, S);
+    } else {
+      ctx.font = `bold ${9}px SarabunBold`;
+      this.drawRight(ctx, `bold ${9 * S}px SarabunBold`, data.authorName, w, sigTop + 11, S);
+      ctx.font = `${8}px Sarabun`;
+      if (data.positionTitle) this.drawRight(ctx, `${8 * S}px Sarabun`, data.positionTitle, w, sigTop + 22, S);
+      this.drawRight(ctx, `${8 * S}px Sarabun`, dateStr, w, sigTop + 33, S);
+    }
 
     return canvas.toBuffer('image/png');
   }
 
-  renderDirectorNote(data: DirectorNoteStampData, w: number, h: number): Buffer {
+  async renderDirectorNote(data: DirectorNoteStampData, w: number, h: number): Promise<Buffer> {
     this.ensureFonts();
     const S = SCALE;
-    const totalH = h + SIG_TOTAL;
+    const hasSig = !!data.signatureBuffer;
+    const totalH = h + (hasSig ? SIG_TOTAL_SIG : SIG_TOTAL);
     const canvas = createCanvas(w * S, totalH * S);
     const ctx = canvas.getContext('2d') as SKRSContext2D;
     // ── No ctx.scale(): draw in pixel-space to eliminate CTM measurement drift ──
@@ -205,17 +230,39 @@ export class StampCanvasService {
     const padPx = 8 * S;
 
     ctx.fillStyle = BLUE;
-    ctx.font = `bold ${9 * S}px SarabunBold`;
-    const nameStr = toThaiNumerals(data.authorName);
-    ctx.fillText(nameStr, rightPx - this.measurePx(ctx.font, nameStr) - padPx, sigTopPx + 11 * S);
 
-    ctx.font = `${8 * S}px Sarabun`;
-    if (data.positionTitle) {
-      const posStr = toThaiNumerals(data.positionTitle);
-      ctx.fillText(posStr, rightPx - this.measurePx(ctx.font, posStr) - padPx, sigTopPx + 22 * S);
+    if (hasSig) {
+      // Draw signature image right-aligned above name
+      const sigImg = await loadImage(data.signatureBuffer!);
+      const maxSigWpx = (w - 16) * S;
+      const aspect = sigImg.width / sigImg.height;
+      const sigImgHpx = SIG_IMG_H * S;
+      const sigImgWpx = Math.min(maxSigWpx, Math.round(sigImgHpx * aspect));
+      ctx.drawImage(sigImg as any, rightPx - sigImgWpx - padPx, sigTopPx, sigImgWpx, sigImgHpx);
+      // Name / position / date shifted down below image
+      const nameYpx = sigTopPx + (SIG_IMG_H + SIG_IMG_VGAP + 9) * S;
+      ctx.font = `bold ${9 * S}px SarabunBold`;
+      const nameStr = toThaiNumerals(data.authorName);
+      ctx.fillText(nameStr, rightPx - this.measurePx(ctx.font, nameStr) - padPx, nameYpx);
+      ctx.font = `${8 * S}px Sarabun`;
+      if (data.positionTitle) {
+        const posStr = toThaiNumerals(data.positionTitle);
+        ctx.fillText(posStr, rightPx - this.measurePx(ctx.font, posStr) - padPx, nameYpx + 11 * S);
+      }
+      const dateText = toThaiNumerals(dateStr);
+      ctx.fillText(dateText, rightPx - this.measurePx(ctx.font, dateText) - padPx, nameYpx + 22 * S);
+    } else {
+      ctx.font = `bold ${9 * S}px SarabunBold`;
+      const nameStr = toThaiNumerals(data.authorName);
+      ctx.fillText(nameStr, rightPx - this.measurePx(ctx.font, nameStr) - padPx, sigTopPx + 11 * S);
+      ctx.font = `${8 * S}px Sarabun`;
+      if (data.positionTitle) {
+        const posStr = toThaiNumerals(data.positionTitle);
+        ctx.fillText(posStr, rightPx - this.measurePx(ctx.font, posStr) - padPx, sigTopPx + 22 * S);
+      }
+      const dateText = toThaiNumerals(dateStr);
+      ctx.fillText(dateText, rightPx - this.measurePx(ctx.font, dateText) - padPx, sigTopPx + 33 * S);
     }
-    const dateText = toThaiNumerals(dateStr);
-    ctx.fillText(dateText, rightPx - this.measurePx(ctx.font, dateText) - padPx, sigTopPx + 33 * S);
 
     return canvas.toBuffer('image/png');
   }

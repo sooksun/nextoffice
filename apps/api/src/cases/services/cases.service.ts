@@ -517,7 +517,7 @@ ${ragSection}
         id: Number(t.id),
         inboundCaseId: Number(t.inboundCaseId),
         topicId: Number(t.topicId),
-        topic: t.topic ? { ...t.topic, id: Number(t.topic.id) } : null,
+        topic: t.topic ? this.serializeOrg(t.topic) : null,
       }));
     }
     return result;
