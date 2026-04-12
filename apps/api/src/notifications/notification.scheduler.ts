@@ -59,6 +59,19 @@ export class NotificationScheduler {
     await this.notificationSvc.alertRetentionExpiring();
   }
 
+  /** ทุกวัน 08:00 — ตรวจเอกสารยืมเกินกำหนดคืน */
+  @Cron('0 0 8 * * 1-5')
+  async checkOverdueLoans() {
+    this.logger.debug('Cron: checkOverdueLoans');
+    const count = await this.prisma.documentLoan.updateMany({
+      where: { status: 'active', dueDate: { lt: new Date() } },
+      data: { status: 'overdue' },
+    });
+    if (count.count > 0) {
+      this.logger.log(`Marked ${count.count} loans as overdue`);
+    }
+  }
+
   /** ทุกวัน 02:00 — backup เอกสารที่ยังไม่ได้ backup ไป Google Drive */
   @Cron('0 0 2 * * *')
   async dailyBackup() {

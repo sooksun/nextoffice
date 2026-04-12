@@ -65,6 +65,9 @@ model Organization {
   travelRequests       TravelRequest[]
   approvalChains       ApprovalChainConfig[]
   knowledgeItems       UserKnowledgeItem[]
+  handoverRecords      HandoverRecord[]
+  dispatchEntries      DispatchEntry[]
+  documentLoans        DocumentLoan[]
 
   @@index([parentOrganizationId])
   @@map("organizations")
@@ -693,6 +696,11 @@ model User {
   travelRequestsApproved TravelRequest[]   @relation("TravelApprovedBy")
   leaveBalances         LeaveBalance[]
   knowledgeItems        UserKnowledgeItem[]
+  handoversCreated      HandoverRecord[]   @relation("HandoverCreatedBy")
+  handoversApproved     HandoverRecord[]   @relation("HandoverApprovedBy")
+  dispatchesSent        DispatchEntry[]    @relation("DispatchSentBy")
+  loansBorrowed         DocumentLoan[]     @relation("LoanBorrower")
+  loansApproved         DocumentLoan[]     @relation("LoanApprovedBy")
 
   @@index([email])
   @@index([roleCode])
@@ -962,6 +970,7 @@ model DocumentRegistry {
   folderId         BigInt?   @map("folder_id")
   archivedAt       DateTime? @map("archived_at")
   retentionEndDate DateTime? @map("retention_end_date")
+  trackingCode     String?   @map("tracking_code") @db.VarChar(36) @unique
   createdAt        DateTime  @map("created_at") @default(now())
 
   organization   Organization      @relation(fields: [organizationId], references: [id])
@@ -970,6 +979,9 @@ model DocumentRegistry {
   academicYear   AcademicYear?     @relation(fields: [academicYearId], references: [id])
   folder         DocumentFolder?   @relation(fields: [folderId], references: [id])
   destructionItems DestructionItem[]
+  handoverItems    HandoverItem[]
+  dispatchEntries  DispatchEntry[]
+  documentLoans    DocumentLoan[]
 
   @@index([organizationId, registryType])
   @@index([academicYearId])
@@ -982,12 +994,13 @@ model RegistrationCounter {
   id             BigInt   @id @default(autoincrement())
   organizationId BigInt   @map("organization_id")
   year           Int      // ค.ศ. (Gregorian) — used as key only; display uses พ.ศ.
+  counterType    String   @map("counter_type") @db.VarChar(30) @default("inbound") // inbound | handover | dispatch | loan
   lastSeq        Int      @map("last_seq") @default(0)
   updatedAt      DateTime @map("updated_at") @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id])
 
-  @@unique([organizationId, year])
+  @@unique([organizationId, year, counterType])
   @@map("registration_counters")
 }
 
@@ -1577,4 +1590,99 @@ model UserKnowledgeItem {
   @@index([organizationId, status])
   @@index([uploadedByUserId])
   @@map("user_knowledge_items")
+}
+
+// ─────────────────────────────────────────────
+// SARABAN: Handover / Dispatch / Loans
+// ─────────────────────────────────────────────
+
+model HandoverRecord {
+  id               BigInt    @id @default(autoincrement())
+  organizationId   BigInt    @map("organization_id")
+  handoverNo       String    @map("handover_no") @db.VarChar(20)
+  handoverDate     DateTime  @map("handover_date")
+  recipientOrg     String    @map("recipient_org") @db.VarChar(255)
+  recipientName    String    @map("recipient_name") @db.VarChar(255)
+  description      String?   @db.Text
+  createdByUserId  BigInt    @map("created_by_user_id")
+  approvedByUserId BigInt?   @map("approved_by_user_id")
+  status           String    @db.VarChar(30) @default("draft") // draft | approved | completed
+  approvedAt       DateTime? @map("approved_at")
+  completedAt      DateTime? @map("completed_at")
+  remarks          String?   @db.Text
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  createdBy    User            @relation("HandoverCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy   User?           @relation("HandoverApprovedBy", fields: [approvedByUserId], references: [id])
+  items        HandoverItem[]
+
+  @@index([organizationId])
+  @@map("handover_records")
+}
+
+model HandoverItem {
+  id                 BigInt @id @default(autoincrement())
+  handoverRecordId   BigInt @map("handover_record_id")
+  documentRegistryId BigInt @map("document_registry_id")
+
+  handoverRecord   HandoverRecord   @relation(fields: [handoverRecordId], references: [id])
+  documentRegistry DocumentRegistry @relation(fields: [documentRegistryId], references: [id])
+
+  @@map("handover_items")
+}
+
+model DispatchEntry {
+  id             BigInt    @id @default(autoincrement())
+  organizationId BigInt    @map("organization_id")
+  dispatchNo     String    @map("dispatch_no") @db.VarChar(20)
+  dispatchDate   DateTime  @map("dispatch_date")
+  registryId     BigInt    @map("registry_id")
+  recipientOrg   String    @map("recipient_org") @db.VarChar(255)
+  recipientName  String?   @map("recipient_name") @db.VarChar(255)
+  deliveryMethod String    @map("delivery_method") @db.VarChar(30) // messenger | post | pickup
+  sentByUserId   BigInt    @map("sent_by_user_id")
+  receivedBy     String?   @map("received_by") @db.VarChar(255)
+  receivedAt     DateTime? @map("received_at")
+  remarks        String?   @db.Text
+  status         String    @db.VarChar(30) @default("pending") // pending | delivered | returned
+  createdAt      DateTime  @map("created_at") @default(now())
+  updatedAt      DateTime  @map("updated_at") @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  registry     DocumentRegistry @relation(fields: [registryId], references: [id])
+  sentBy       User             @relation("DispatchSentBy", fields: [sentByUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([registryId])
+  @@map("dispatch_entries")
+}
+
+model DocumentLoan {
+  id               BigInt    @id @default(autoincrement())
+  organizationId   BigInt    @map("organization_id")
+  loanNo           String    @map("loan_no") @db.VarChar(20)
+  registryId       BigInt    @map("registry_id")
+  borrowerUserId   BigInt    @map("borrower_user_id")
+  borrowDate       DateTime  @map("borrow_date")
+  dueDate          DateTime  @map("due_date")
+  returnDate       DateTime? @map("return_date")
+  purpose          String?   @db.Text
+  status           String    @db.VarChar(30) @default("active") // active | returned | overdue
+  approvedByUserId BigInt?   @map("approved_by_user_id")
+  remarks          String?   @db.Text
+  createdAt        DateTime  @map("created_at") @default(now())
+  updatedAt        DateTime  @map("updated_at") @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  registry     DocumentRegistry @relation(fields: [registryId], references: [id])
+  borrower     User             @relation("LoanBorrower", fields: [borrowerUserId], references: [id])
+  approvedBy   User?            @relation("LoanApprovedBy", fields: [approvedByUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([registryId])
+  @@index([borrowerUserId])
+  @@index([status])
+  @@map("document_loans")
 }

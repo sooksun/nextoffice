@@ -490,8 +490,8 @@ export class CaseWorkflowService {
 
     // Atomic upsert keyed by Buddhist year (พ.ศ.) — shared by web and LINE
     const counter = await this.prisma.registrationCounter.upsert({
-      where: { organizationId_year: { organizationId, year: buddhistYear } },
-      create: { organizationId, year: buddhistYear, lastSeq: 1 },
+      where: { organizationId_year_counterType: { organizationId, year: buddhistYear, counterType: 'inbound' } },
+      create: { organizationId, year: buddhistYear, counterType: 'inbound', lastSeq: 1 },
       update: { lastSeq: { increment: 1 } },
     });
 

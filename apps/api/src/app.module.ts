@@ -32,6 +32,10 @@ import { EmailModule } from './email/email.module';
 import { DigitalSignatureModule } from './digital-signature/digital-signature.module';
 import { ArchiveModule } from './archive/archive.module';
 import { TemplatesModule } from './templates/templates.module';
+import { TrackingModule } from './tracking/tracking.module';
+import { DispatchModule } from './dispatch/dispatch.module';
+import { LoansModule } from './loans/loans.module';
+import { HandoverModule } from './handover/handover.module';
 
 @Module({
   imports: [
@@ -70,6 +74,10 @@ import { TemplatesModule } from './templates/templates.module';
     DigitalSignatureModule,
     ArchiveModule,
     TemplatesModule,
+    TrackingModule,
+    DispatchModule,
+    LoansModule,
+    HandoverModule,
   ],
 })
 export class AppModule {}
