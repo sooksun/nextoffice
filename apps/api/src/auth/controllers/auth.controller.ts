@@ -37,6 +37,13 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'เข้าสู่ระบบด้วย Google (ID Token)' })
+  async googleLogin(@Body() body: { idToken: string }) {
+    return this.authService.loginWithGoogle(body.idToken);
+  }
+
   @Post('register')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'DIRECTOR')

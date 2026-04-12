@@ -41,6 +41,22 @@ export async function login(
   return data;
 }
 
+export async function loginWithGoogle(
+  idToken: string,
+): Promise<LoginResponse> {
+  const data = await apiFetch<LoginResponse>("/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+  });
+  if (typeof window !== "undefined") {
+    localStorage.setItem("token", data.token.trim());
+    localStorage.setItem("user", JSON.stringify(data.user));
+    const maxAge = 7 * 24 * 3600;
+    document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
+  }
+  return data;
+}
+
 export function logout() {
   if (typeof window !== "undefined") {
     localStorage.removeItem("token");

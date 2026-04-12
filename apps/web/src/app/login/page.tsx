@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/auth";
+import { login, loginWithGoogle } from "@/lib/auth";
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,6 +42,27 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
+
+  async function handleGoogleSuccess(credentialResponse: any) {
+    const idToken = credentialResponse?.credential;
+    if (!idToken) return;
+    setError("");
+    setLoading(true);
+    try {
+      await loginWithGoogle(idToken);
+      router.replace("/");
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message.includes("401")
+          ? "ไม่พบบัญชีในระบบ กรุณาติดต่อผู้ดูแล"
+          : "เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   return (
     <div className="min-h-screen w-full flex flex-col" style={{ backgroundColor: "#7DCB77" }}>
@@ -134,6 +156,25 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {googleClientId && (
+            <>
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400">หรือ</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google")}
+                  text="signin_with"
+                  shape="rectangular"
+                  width="400"
+                />
+              </div>
+            </>
+          )}
         </div>
         </div>
       </div>

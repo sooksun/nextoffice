@@ -12,6 +12,7 @@ import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 
 @Injectable()
 export class AuthService {
@@ -49,6 +50,53 @@ export class AuthService {
       token,
       user: this.serializeUser(user),
     };
+  }
+
+  // ─── Google Login ───────────────────────────────────────────────────────────
+
+  async loginWithGoogle(idToken: string) {
+    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+    if (!clientId) {
+      throw new BadRequestException('Google login is not configured');
+    }
+
+    const client = new OAuth2Client(clientId);
+    let payload: any;
+    try {
+      const ticket = await client.verifyIdToken({ idToken, audience: clientId });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Google token ไม่ถูกต้อง');
+    }
+
+    const googleEmail = payload?.email;
+    if (!googleEmail) {
+      throw new UnauthorizedException('ไม่สามารถอ่านอีเมลจาก Google ได้');
+    }
+
+    // Find user by email or googleEmail field
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: googleEmail },
+          { googleEmail: googleEmail },
+        ],
+        isActive: true,
+      },
+      include: { organization: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('ไม่พบบัญชีในระบบ กรุณาติดต่อผู้ดูแล');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const token = this.signToken(user);
+    return { token, user: this.serializeUser(user) };
   }
 
   // ─── Register ───────────────────────────────────────────────────────────────
