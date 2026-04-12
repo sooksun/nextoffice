@@ -72,6 +72,17 @@ export class CaseWorkflowService {
     const c = await this.findCaseOrThrow(caseId);
     this.assertTransition(c.status, 'registered');
 
+    // Security: validate user belongs to same organization as the case
+    const registerUser = await this.prisma.user.findUnique({
+      where: { id: BigInt(userId) },
+      select: { organizationId: true },
+    });
+    if (registerUser && registerUser.organizationId !== c.organizationId) {
+      throw new BadRequestException(
+        'ไม่สามารถลงรับหนังสือข้ามหน่วยงานได้ — กรุณาตรวจสอบบัญชีผู้ใช้',
+      );
+    }
+
     const regNo = await this.generateRegistrationNo(c.organizationId);
 
     const updated = await this.prisma.inboundCase.update({
@@ -129,6 +140,15 @@ export class CaseWorkflowService {
       throw new BadRequestException(
         `ไม่สามารถมอบหมายได้ — สถานะปัจจุบัน: ${c.status} (ต้องเป็น registered หรือ assigned)`,
       );
+    }
+
+    // Security: validate caller belongs to same organization
+    const caller = await this.prisma.user.findUnique({
+      where: { id: BigInt(assignedByUserId) },
+      select: { organizationId: true },
+    });
+    if (caller && caller.organizationId !== c.organizationId) {
+      throw new BadRequestException('ไม่สามารถเสนอเอกสารข้ามหน่วยงานได้');
     }
 
     const primaryAssignment = assignments.find((a) => a.role === 'responsible') || assignments[0];

@@ -343,9 +343,9 @@ export class LinePairingService {
       data: { organizationId: null, roleCode: null },
     });
 
-    // Close any open pairing sessions
+    // Close ALL open sessions (pairing, intake, and any other types)
     await this.prisma.lineConversationSession.updateMany({
-      where: { lineUserIdRef: lineUser.id, status: 'open' },
+      where: { lineUserIdRef: lineUser.id, status: { in: ['open', 'active'] } },
       data: { status: 'expired' },
     });
 
