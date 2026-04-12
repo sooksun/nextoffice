@@ -116,6 +116,15 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/organizations", label: "หน่วยงาน", icon: Building2, roles: ["ADMIN"] },
     ],
   },
+  {
+    id: "help",
+    label: "ช่วยเหลือ & ข้อมูล",
+    items: [
+      { href: "/terms", label: "ข้อกำหนดการใช้บริการ", icon: ScrollText },
+      { href: "/privacy", label: "นโยบายความเป็นส่วนตัว", icon: Shield },
+      { href: "/help", label: "ศูนย์ช่วยเหลือ", icon: HelpCircle },
+    ],
+  },
 ];
 
 function filterItems(items: NavItem[], roleCode: string): NavItem[] {
@@ -291,30 +300,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-3 py-4 mt-auto border-t border-outline-variant/20 space-y-0.5">
-        <Link
-          href="/terms"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"
-        >
-          <ScrollText size={16} />
-          ข้อกำหนดการใช้บริการ
-        </Link>
-        <Link
-          href="/privacy"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"
-        >
-          <Shield size={16} />
-          นโยบายความเป็นส่วนตัว
-        </Link>
-        <Link
-          href="/help"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"
-        >
-          <HelpCircle size={16} />
-          ศูนย์ช่วยเหลือ
-        </Link>
-      </div>
     </aside>
   );
 }
