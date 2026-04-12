@@ -56,6 +56,8 @@ model Organization {
   outboundDocuments    OutboundDocument[]
   documentRegistries   DocumentRegistry[]
   registrationCounters RegistrationCounter[]
+  documentFolders      DocumentFolder[]
+  destructionRequests  DestructionRequest[]
   projects             Project[]
   faceRegistrations    FaceRegistration[]
   attendanceRecords    AttendanceRecord[]
@@ -558,6 +560,7 @@ model DocumentIntake {
   fileExtension       String?   @map("file_extension") @db.VarChar(20)
   fileSize            BigInt?   @map("file_size")
   storagePath         String?   @map("storage_path") @db.VarChar(500)
+  standardFileName    String?   @map("standard_file_name") @db.VarChar(255) // ปี_รหัส_ลำดับ.pdf
   sha256              String?   @db.VarChar(64)
   googleDriveFileId   String?   @map("google_drive_file_id") @db.VarChar(255)
   googleDriveFolderId String?   @map("google_drive_folder_id") @db.VarChar(255)
@@ -677,6 +680,8 @@ model User {
   staffAssignments      StaffAssignment[]
   outboundApprovals     OutboundDocument[] @relation("OutboundApprovedBy")
   outboundCreated       OutboundDocument[] @relation("OutboundCreatedBy")
+  destructionRequested  DestructionRequest[] @relation("DestructionRequested")
+  destructionApproved   DestructionRequest[] @relation("DestructionApproved")
   projectsResponsible   Project[]          @relation("ProjectResponsible")
   faceRegistrations     FaceRegistration[]
   attendanceRecords     AttendanceRecord[]
@@ -951,18 +956,25 @@ model DocumentRegistry {
   urgencyLevel   String?  @map("urgency_level") @db.VarChar(20)
   actionTaken    String?  @map("action_taken") @db.Text
   remarks        String?  @db.Text
-  inboundCaseId  BigInt?  @map("inbound_case_id")
-  outboundDocId  BigInt?  @map("outbound_doc_id")
-  academicYearId BigInt?  @map("academic_year_id")
-  createdAt      DateTime @map("created_at") @default(now())
+  inboundCaseId    BigInt?   @map("inbound_case_id")
+  outboundDocId    BigInt?   @map("outbound_doc_id")
+  academicYearId   BigInt?   @map("academic_year_id")
+  folderId         BigInt?   @map("folder_id")
+  archivedAt       DateTime? @map("archived_at")
+  retentionEndDate DateTime? @map("retention_end_date")
+  createdAt        DateTime  @map("created_at") @default(now())
 
   organization   Organization      @relation(fields: [organizationId], references: [id])
   inboundCase    InboundCase?      @relation(fields: [inboundCaseId], references: [id])
   outboundDoc    OutboundDocument? @relation(fields: [outboundDocId], references: [id])
   academicYear   AcademicYear?     @relation(fields: [academicYearId], references: [id])
+  folder         DocumentFolder?   @relation(fields: [folderId], references: [id])
+  destructionItems DestructionItem[]
 
   @@index([organizationId, registryType])
   @@index([academicYearId])
+  @@index([folderId])
+  @@index([retentionEndDate])
   @@map("document_registries")
 }
 
@@ -977,6 +989,55 @@ model RegistrationCounter {
 
   @@unique([organizationId, year])
   @@map("registration_counters")
+}
+
+model DocumentFolder {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  name           String   @db.VarChar(255)
+  code           String   @db.VarChar(50)
+  parentId       BigInt?  @map("parent_id")
+  retentionYears Int      @map("retention_years") @default(10)
+  description    String?  @db.Text
+  createdAt      DateTime @map("created_at") @default(now())
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  parent       DocumentFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children     DocumentFolder[] @relation("FolderHierarchy")
+  registries   DocumentRegistry[]
+
+  @@unique([organizationId, code])
+  @@map("document_folders")
+}
+
+model DestructionRequest {
+  id                BigInt    @id @default(autoincrement())
+  organizationId    BigInt    @map("organization_id")
+  requestedByUserId BigInt    @map("requested_by_user_id")
+  status            String    @db.VarChar(30) @default("pending") // pending | approved | destroyed
+  approvedByUserId  BigInt?   @map("approved_by_user_id")
+  approvedAt        DateTime? @map("approved_at")
+  destroyedAt       DateTime? @map("destroyed_at")
+  remarks           String?   @db.Text
+  createdAt         DateTime  @map("created_at") @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  requestedBy  User         @relation("DestructionRequested", fields: [requestedByUserId], references: [id])
+  approvedBy   User?        @relation("DestructionApproved", fields: [approvedByUserId], references: [id])
+  items        DestructionItem[]
+
+  @@map("destruction_requests")
+}
+
+model DestructionItem {
+  id                   BigInt @id @default(autoincrement())
+  destructionRequestId BigInt @map("destruction_request_id")
+  documentRegistryId   BigInt @map("document_registry_id")
+
+  destructionRequest DestructionRequest @relation(fields: [destructionRequestId], references: [id])
+  documentRegistry   DocumentRegistry   @relation(fields: [documentRegistryId], references: [id])
+
+  @@map("destruction_items")
 }
 
 // ─────────────────────────────────────────────

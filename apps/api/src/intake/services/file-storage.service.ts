@@ -79,4 +79,23 @@ export class FileStorageService {
     const ext = mimeType.includes('pdf') ? 'pdf' : 'jpg';
     return `${sourceChannel}/${year}/${month}/${intakeId}.${ext}`;
   }
+
+  /**
+   * Build standard filename per Thai saraban regulation (ฉบับที่ 4):
+   * Format: {buddhistYear}_{orgCode}_{sequence}.{ext}
+   * Example: 2568_SKN_0001.pdf
+   */
+  buildStandardFileName(opts: {
+    orgCode: string;
+    registrationNo: string;
+    mimeType?: string;
+  }): string {
+    const ext = opts.mimeType?.includes('pdf') ? 'pdf' : 'pdf';
+    // registrationNo format: "001/2568" → extract seq and year
+    const parts = opts.registrationNo.split('/');
+    const seq = parts[0] ?? '0001';
+    const year = parts[1] ?? String(new Date().getFullYear() + 543);
+    const code = opts.orgCode || 'ORG';
+    return `${year}_${code}_${seq.padStart(4, '0')}.${ext}`;
+  }
 }

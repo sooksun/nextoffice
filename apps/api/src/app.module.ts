@@ -30,6 +30,8 @@ import { StampsModule } from './stamps/stamps.module';
 import { StaffConfigModule } from './staff-config/staff-config.module';
 import { EmailModule } from './email/email.module';
 import { DigitalSignatureModule } from './digital-signature/digital-signature.module';
+import { ArchiveModule } from './archive/archive.module';
+import { TemplatesModule } from './templates/templates.module';
 
 @Module({
   imports: [
@@ -66,6 +68,8 @@ import { DigitalSignatureModule } from './digital-signature/digital-signature.mo
     StaffConfigModule,
     EmailModule,
     DigitalSignatureModule,
+    ArchiveModule,
+    TemplatesModule,
   ],
 })
 export class AppModule {}

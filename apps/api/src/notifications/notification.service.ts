@@ -341,4 +341,53 @@ export class NotificationService {
       this.logger.warn(`Failed to push LINE message to ${lineUserId}: ${err.message}`);
     }
   }
+
+  /** เตือนเอกสารครบกำหนดเก็บรักษาภายใน 30 วัน */
+  async alertRetentionExpiring() {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + 30);
+
+    const expiring = await this.prisma.documentRegistry.findMany({
+      where: {
+        retentionEndDate: { lte: cutoff, not: null },
+        archivedAt: { not: null },
+        registryType: { not: 'destroy' },
+      },
+      include: { organization: { select: { id: true, name: true } } },
+    });
+
+    if (expiring.length === 0) return;
+
+    // Group by org
+    const byOrg = new Map<string, typeof expiring>();
+    for (const doc of expiring) {
+      const orgId = doc.organizationId.toString();
+      if (!byOrg.has(orgId)) byOrg.set(orgId, []);
+      byOrg.get(orgId)!.push(doc);
+    }
+
+    for (const [orgId, docs] of byOrg) {
+      const admins = await this.prisma.user.findMany({
+        where: {
+          organizationId: BigInt(orgId),
+          roleCode: { in: ['ADMIN', 'DIRECTOR'] },
+          isActive: true,
+          lineUserRef: { not: null },
+        },
+        include: { lineUser: { select: { lineUserId: true } } },
+      });
+
+      const orgName = docs[0]?.organization?.name ?? 'หน่วยงาน';
+      const text = `📋 แจ้งเตือน: มีเอกสาร ${docs.length} รายการ ของ${orgName} จะครบกำหนดเก็บรักษาภายใน 30 วัน กรุณาตรวจสอบและดำเนินการทำลายหรือขอเก็บต่อ`;
+
+      for (const admin of admins) {
+        const lineUserId = (admin as any).lineUser?.lineUserId;
+        if (lineUserId) {
+          await this.sendLineNotification(lineUserId, text);
+        }
+      }
+    }
+
+    this.logger.log(`Retention alert sent for ${expiring.length} documents`);
+  }
 }

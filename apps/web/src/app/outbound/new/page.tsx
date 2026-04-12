@@ -14,6 +14,7 @@ const LETTER_TYPE_LABEL: Record<string, string> = {
   directive:       "หนังสือสั่งการ (คำสั่ง/ระเบียบ)",
   pr_letter:       "หนังสือประชาสัมพันธ์",
   official_record: "หนังสือที่เจ้าหน้าที่ทำขึ้น",
+  stamp_letter:    "หนังสือประทับตรา",
   secret_letter:   "หนังสือลับ",
 };
 

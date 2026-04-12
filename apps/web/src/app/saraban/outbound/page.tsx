@@ -38,6 +38,7 @@ const LETTER_TYPE_LABEL: Record<string, string> = {
   directive:       "หนังสือสั่งการ",
   pr_letter:       "หนังสือประชาสัมพันธ์",
   official_record: "หนังสือที่เจ้าหน้าที่ทำขึ้น",
+  stamp_letter:    "หนังสือประทับตรา",
   secret_letter:   "หนังสือลับ",
 };
 const SENT_METHOD_LABEL: Record<string, string> = {

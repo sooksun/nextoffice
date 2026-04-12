@@ -1,12 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { NotificationService } from './notification.service';
+import { QueueDispatcherService } from '../queue/services/queue-dispatcher.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class NotificationScheduler {
   private readonly logger = new Logger(NotificationScheduler.name);
 
-  constructor(private readonly notificationSvc: NotificationService) {}
+  constructor(
+    private readonly notificationSvc: NotificationService,
+    private readonly prisma: PrismaService,
+    @Optional() private readonly dispatcher: QueueDispatcherService,
+  ) {}
 
   /** ทุก 30 นาที — ตรวจหนังสือด่วนที่สุดยังไม่ลงรับ */
   @Cron('0 */30 * * * *')
@@ -44,5 +50,33 @@ export class NotificationScheduler {
   async weeklyReport() {
     this.logger.debug('Cron: weeklyReport');
     await this.notificationSvc.sendWeeklyOverdueReport();
+  }
+
+  /** ทุกวันจันทร์ 09:30 — เตือนเอกสารครบกำหนดเก็บรักษา */
+  @Cron('0 30 9 * * 1')
+  async retentionAlert() {
+    this.logger.debug('Cron: retentionAlert');
+    await this.notificationSvc.alertRetentionExpiring();
+  }
+
+  /** ทุกวัน 02:00 — backup เอกสารที่ยังไม่ได้ backup ไป Google Drive */
+  @Cron('0 0 2 * * *')
+  async dailyBackup() {
+    if (!this.dispatcher) return;
+    this.logger.debug('Cron: dailyBackup');
+    const pending = await this.prisma.documentIntake.findMany({
+      where: {
+        uploadStatus: { notIn: ['backed_up', 'backup_failed'] },
+        storagePath: { not: null },
+      },
+      select: { id: true },
+      take: 50,
+    });
+    for (const intake of pending) {
+      await this.dispatcher.dispatchDriveBackup(intake.id);
+    }
+    if (pending.length > 0) {
+      this.logger.log(`Dispatched backup for ${pending.length} intakes`);
+    }
   }
 }
