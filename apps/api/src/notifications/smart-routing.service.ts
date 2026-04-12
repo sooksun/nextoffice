@@ -277,11 +277,8 @@ export class SmartRoutingService {
         },
       });
 
-      if (this.notifications) {
-        this.notifications.notifyNewCaseAssigned(caseId, topUser.userId).catch((e) =>
-          this.logger.warn(`notify failed: ${e.message}`),
-        );
-      }
+      // NOTE: Do NOT notify assignee here — they will be notified
+      // after ผอ. signs stamp 3 (via notifyAssigneesDirectorSigned)
     }
 
     return { found: true, suggestion };

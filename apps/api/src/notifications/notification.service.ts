@@ -412,28 +412,88 @@ export class NotificationService {
     });
     if (!c) return;
 
-    const message = this.messaging.buildTextMessage(
+    const dueLabel = c.dueDate
+      ? c.dueDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+      : 'ไม่ระบุ';
+
+    // Flex message with director command — sent to assignees
+    const assigneeFlexMessage: any = {
+      type: 'flex',
+      altText: `📌 คำสั่ง ผอ.: ${c.title.substring(0, 30)}`,
+      contents: {
+        type: 'bubble',
+        size: 'kilo',
+        header: {
+          type: 'box', layout: 'vertical', backgroundColor: '#1B5E20', paddingAll: 'md',
+          contents: [
+            { type: 'text', text: '📌 คำสั่งผู้อำนวยการโรงเรียน', weight: 'bold', size: 'sm', color: '#ffffff' },
+          ],
+        },
+        body: {
+          type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md',
+          contents: [
+            { type: 'text', text: c.title.substring(0, 60), size: 'sm', weight: 'bold', wrap: true },
+            { type: 'separator', margin: 'sm' },
+            { type: 'box', layout: 'vertical', margin: 'sm', spacing: 'xs', contents: [
+              { type: 'box', layout: 'horizontal', contents: [
+                { type: 'text', text: 'เลขรับ', size: 'xs', color: '#888888', flex: 2 },
+                { type: 'text', text: c.registrationNo || '-', size: 'xs', color: '#333333', flex: 3, weight: 'bold' },
+              ]},
+              { type: 'box', layout: 'horizontal', contents: [
+                { type: 'text', text: 'กำหนดส่ง', size: 'xs', color: '#888888', flex: 2 },
+                { type: 'text', text: dueLabel, size: 'xs', color: '#333333', flex: 3 },
+              ]},
+              { type: 'box', layout: 'horizontal', contents: [
+                { type: 'text', text: 'ลงนามโดย', size: 'xs', color: '#888888', flex: 2 },
+                { type: 'text', text: directorName, size: 'xs', color: '#333333', flex: 3 },
+              ]},
+            ]},
+            { type: 'separator', margin: 'sm' },
+            { type: 'text', text: 'คำสั่ง:', size: 'xs', color: '#888888', margin: 'sm' },
+            { type: 'text', text: (noteText || 'ทราบ').substring(0, 200), size: 'sm', color: '#1B5E20', wrap: true, weight: 'bold' },
+          ],
+        },
+        footer: {
+          type: 'box', layout: 'horizontal', spacing: 'sm', paddingAll: 'md',
+          contents: [
+            {
+              type: 'button', style: 'primary', height: 'sm', color: '#1B5E20', flex: 1,
+              action: { type: 'message', label: '✓ รับทราบ', text: `รับทราบ #${caseId}` },
+            },
+            {
+              type: 'button', style: 'secondary', height: 'sm', flex: 1,
+              action: { type: 'message', label: 'ดูรายละเอียด', text: `ดูเรื่อง #${caseId}` },
+            },
+          ],
+        },
+      },
+    };
+
+    // Simple text for clerk
+    const clerkMessage = this.messaging.buildTextMessage(
       `✅ ผอ. ลงนามเกษียณแล้ว\n\n` +
       `เรื่อง: ${c.title}\n` +
-      `คำสั่ง: ${(noteText || '').substring(0, 80)}\n` +
-      `ลงนามโดย: ${directorName}\n\n` +
-      `พิมพ์ "งานของฉัน" เพื่อดูรายการงาน`,
+      `เลขรับ: ${c.registrationNo || '-'}\n` +
+      `คำสั่ง: ${(noteText || 'ทราบ').substring(0, 80)}\n` +
+      `ลงนามโดย: ${directorName}`,
     );
 
+    // Notify all assignees with Flex (director command + action buttons)
     const notified = new Set<string>();
     for (const a of c.assignments) {
       const lineId = a.assignedTo?.lineUser?.lineUserId;
       if (lineId && !notified.has(lineId)) {
-        await this.messaging.push(lineId, [message]);
+        await this.messaging.push(lineId, [assigneeFlexMessage]);
         notified.add(lineId);
       }
     }
 
+    // Notify clerk with simple text
     const clerkLineId = c.registeredBy?.lineUser?.lineUserId;
     if (clerkLineId && !notified.has(clerkLineId)) {
-      await this.messaging.push(clerkLineId, [message]);
+      await this.messaging.push(clerkLineId, [clerkMessage]);
     }
-    this.logger.log(`notifyAssigneesDirectorSigned: case #${caseId} notified ${notified.size} users`);
+    this.logger.log(`notifyAssigneesDirectorSigned: case #${caseId} notified ${notified.size} assignees + clerk`);
   }
 
   private async sendLineNotification(lineUserId: string, text: string) {

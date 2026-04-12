@@ -309,30 +309,13 @@ export class LineWorkflowService {
       // Reload case after assign
       const updatedCase = await this.prisma.inboundCase.findUnique({ where: { id: BigInt(caseId) } });
 
-      // Notify all assigned users via LINE
+      // Get assignee names (for reply message only — DO NOT notify them yet)
+      // Assignees will be notified AFTER ผอ. signs stamp 3
       const targetUsers = await this.prisma.user.findMany({
         where: { id: { in: targetUserIds.map((id) => BigInt(id)) } },
-        include: { lineUser: true },
+        select: { fullName: true },
       });
-
-      const assigneeNames: string[] = [];
-      for (const tu of targetUsers) {
-        assigneeNames.push(tu.fullName);
-        if (tu.lineUser) {
-          const assignmentRecord = result.assignments?.find(
-            (a: any) => Number(a.assignedToUserId) === Number(tu.id),
-          );
-          const notifyMessages = this.messaging.buildAssignmentNotification({
-            caseTitle: c.title,
-            registrationNo: updatedCase?.registrationNo || '-',
-            directorNote: updatedCase?.directorNote || '',
-            dueDate: c.dueDate ? c.dueDate.toLocaleDateString('th-TH') : '-',
-            assignedByName: user.fullName,
-            assignmentId: assignmentRecord?.id,
-          });
-          await this.messaging.push(tu.lineUser.lineUserId, notifyMessages);
-        }
-      }
+      const assigneeNames = targetUsers.map((tu) => tu.fullName);
 
       await this.messaging.reply(replyToken, [
         this.messaging.buildTextMessage(
@@ -341,7 +324,7 @@ export class LineWorkflowService {
           `เลขรับ: ${updatedCase?.registrationNo || '-'}\n` +
           `มอบหมายให้: ${assigneeNames.join(', ') || '-'} (${targetUserIds.length} คน)\n\n` +
           `📌 แจ้ง ผอ./รอง ผอ. ทาง LINE แล้ว\n` +
-          `⏳ สถานะ: รอ ผอ. ลงนามเกษียณ`,
+          `⏳ รอ ผอ. ลงนาม → ระบบจะแจ้งผู้รับมอบหมายอัตโนมัติ`,
         ),
       ]);
     } catch (err) {
