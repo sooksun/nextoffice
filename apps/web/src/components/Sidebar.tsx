@@ -55,14 +55,6 @@ const APPROVER = ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"];
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    id: "overview",
-    label: "ภาพรวม",
-    items: [
-      { href: "/director", label: "แดชบอร์ด", icon: LayoutDashboard, roles: MANAGER },
-      { href: "/notifications", label: "การแจ้งเตือน", icon: BellRing },
-    ],
-  },
-  {
     id: "document",
     label: "รับ-ส่งเอกสาร",
     items: [
@@ -70,20 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/outbound", label: "หนังสือออก", icon: SendHorizontal },
       { href: "/outbound/new", label: "สร้างหนังสือออก", icon: Send, roles: SARABAN },
       { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: ClipboardList, roles: SARABAN },
-      {
-        href: "/saraban/outbound",
-        label: "ทะเบียนส่ง",
-        icon: ScrollText,
-        roles: SARABAN,
-        children: [
-          { href: "/saraban/outbound?type=external_letter", label: "หนังสือภายนอก" },
-          { href: "/saraban/outbound?type=internal_memo",   label: "หนังสือภายใน" },
-          { href: "/saraban/outbound?type=directive",       label: "หนังสือสั่งการ" },
-          { href: "/saraban/outbound?type=pr_letter",       label: "หนังสือประชาสัมพันธ์" },
-          { href: "/saraban/outbound?type=official_record", label: "หนังสือที่เจ้าหน้าที่ทำขึ้น" },
-          { href: "/saraban/outbound?type=secret_letter",   label: "หนังสือลับ", roles: SARABAN },
-        ],
-      },
+      { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: ScrollText, roles: SARABAN },
       { href: "/saraban/dispatch", label: "สมุดส่ง/ใบรับ", icon: Send, roles: SARABAN },
       { href: "/saraban/loans", label: "ยืม-คืนเอกสาร", icon: BookOpen, roles: SARABAN },
       { href: "/saraban/handover", label: "บัญชีส่งมอบ 20 ปี", icon: Archive, roles: SARABAN },
