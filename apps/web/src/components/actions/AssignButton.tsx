@@ -305,12 +305,12 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
           routingPath,
         }),
       });
-      toastSuccess("มอบหมายงานสำเร็จ" + (dueDate ? " — บันทึก Google Calendar แล้ว" : ""));
+      toastSuccess("เสนอผู้อำนวยการสำเร็จ" + (dueDate ? " — บันทึก Google Calendar แล้ว" : ""));
       setOpen(false);
       window.dispatchEvent(new CustomEvent("assign-success"));
       router.refresh();
     } catch (err: unknown) {
-      toastError((err as Error).message || "มอบหมายไม่สำเร็จ");
+      toastError((err as Error).message || "เสนอไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
@@ -350,7 +350,7 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
         className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary rounded-xl text-sm font-bold shadow-md transition-transform active:scale-95"
       >
         <UserPlus size={16} />
-        มอบหมายงาน
+        เสนอผู้อำนวยการ
       </button>
 
       {open && (
@@ -364,7 +364,7 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
           >
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
-              <h3 className="text-lg font-bold text-on-surface">มอบหมายงาน</h3>
+              <h3 className="text-lg font-bold text-on-surface">เสนอผู้อำนวยการ</h3>
               <button onClick={() => setOpen(false)} className="p-1 hover:bg-surface-bright rounded-lg">
                 <X size={20} />
               </button>
@@ -576,7 +576,7 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
                 disabled={loading || selected.size === 0}
                 className="btn-primary disabled:opacity-50"
               >
-                {loading ? "กำลังมอบหมาย..." : `มอบหมาย (${selected.size})`}
+                {loading ? "กำลังเสนอ..." : `เสนอผู้อำนวยการ (${selected.size})`}
               </button>
             </div>
           </div>

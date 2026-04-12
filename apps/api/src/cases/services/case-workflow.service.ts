@@ -272,10 +272,13 @@ export class CaseWorkflowService {
       }
     }
 
-    // Apply all 3 stamps to PDF in a single async pass (never blocks the response)
-    this.applyAllStampsAsync(caseId, updated, assignedByUserId, directorNote, clerkOpinion, assignments).catch(
-      (e) => this.logger.warn(`PDF stamp generation failed: ${e.message}`),
-    );
+    // Apply stamps 1+2 synchronously — wait for completion before responding
+    // so frontend can refresh PDF immediately without artificial delay
+    try {
+      await this.applyAllStampsAsync(caseId, updated, assignedByUserId, directorNote, clerkOpinion, assignments);
+    } catch (e: any) {
+      this.logger.warn(`PDF stamp generation failed: ${e.message}`);
+    }
 
     return {
       case: this.serialize(updated),
