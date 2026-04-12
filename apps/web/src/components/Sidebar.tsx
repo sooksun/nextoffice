@@ -39,6 +39,7 @@ import {
   Archive,
   QrCode,
   PenLine,
+  MessageCircle,
 } from "lucide-react";
 
 // undefined = ทุก role เห็นได้
@@ -116,6 +117,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/settings/staff", label: "บุคลากรผู้ลงนาม", icon: Users, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/settings/prompts", label: "ตั้งค่า AI Prompts", icon: SlidersHorizontal, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/organizations", label: "หน่วยงาน", icon: Building2, roles: ["ADMIN"] },
+      { href: "/settings/line-accounts", label: "เชื่อมต่อ LINE", icon: MessageCircle, roles: ["ADMIN", "DIRECTOR"] },
     ],
   },
   {

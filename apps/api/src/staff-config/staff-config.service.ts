@@ -45,6 +45,77 @@ export class StaffConfigService {
     }));
   }
 
+  /** รายชื่อ user ทั้งหมดพร้อมสถานะ LINE */
+  async listUsersWithLineStatus(orgId: number) {
+    const users = await this.prisma.user.findMany({
+      where: { organizationId: BigInt(orgId), isActive: true },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        roleCode: true,
+        positionTitle: true,
+        lineUserRef: true,
+        lineUser: {
+          select: { lineUserId: true, displayName: true, pictureUrl: true },
+        },
+        pairingCodes: {
+          where: { usedAt: null, expiresAt: { gt: new Date() } },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { code: true, expiresAt: true },
+        },
+      },
+      orderBy: [{ roleCode: 'asc' }, { fullName: 'asc' }],
+    });
+
+    return users.map((u) => ({
+      id: Number(u.id),
+      fullName: u.fullName,
+      email: u.email,
+      roleCode: u.roleCode,
+      positionTitle: u.positionTitle ?? null,
+      lineConnected: !!u.lineUserRef,
+      lineDisplayName: u.lineUser?.displayName ?? null,
+      linePictureUrl: u.lineUser?.pictureUrl ?? null,
+      lastPairingCode: u.pairingCodes[0]?.code ?? null,
+      lastPairingExpiry: u.pairingCodes[0]?.expiresAt ?? null,
+    }));
+  }
+
+  /** ยกเลิกการเชื่อมต่อ LINE ของ user */
+  async unlinkLine(userId: number, orgId: number) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: BigInt(userId), organizationId: BigInt(orgId) },
+      select: { lineUserRef: true },
+    });
+    if (!user) throw new NotFoundException('ไม่พบผู้ใช้');
+    if (!user.lineUserRef) throw new BadRequestException('ผู้ใช้ไม่ได้เชื่อมต่อ LINE');
+
+    const lineUserRef = user.lineUserRef;
+
+    // Unlink user
+    await this.prisma.user.update({
+      where: { id: BigInt(userId) },
+      data: { lineUserRef: null },
+    });
+
+    // Reset LINE user metadata
+    await this.prisma.lineUser.update({
+      where: { id: lineUserRef },
+      data: { organizationId: null, roleCode: null },
+    });
+
+    // Expire all open sessions
+    await this.prisma.lineConversationSession.updateMany({
+      where: { lineUserIdRef: lineUserRef, status: { in: ['open', 'active'] } },
+      data: { status: 'expired' },
+    });
+
+    this.logger.log(`LINE unlinked for user #${userId} by admin`);
+    return { ok: true };
+  }
+
   /** อัปเดต positionTitle ของ user */
   async updatePosition(userId: number, orgId: number, positionTitle: string) {
     const user = await this.prisma.user.findFirst({

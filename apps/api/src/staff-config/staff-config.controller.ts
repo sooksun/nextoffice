@@ -4,6 +4,8 @@ import {
   UseGuards, UseInterceptors,
   ParseIntPipe, Res, HttpCode,
 } from '@nestjs/common';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
@@ -22,6 +24,26 @@ export class StaffConfigController {
   @ApiOperation({ summary: 'รายชื่อ DIRECTOR / VICE_DIRECTOR / CLERK ขององค์กร' })
   listStaff(@CurrentUser() user: any) {
     return this.svc.listStaff(Number(user.organizationId));
+  }
+
+  @Get('line-status')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: 'รายชื่อบุคลากรพร้อมสถานะ LINE' })
+  listLineStatus(@CurrentUser() user: any) {
+    return this.svc.listUsersWithLineStatus(Number(user.organizationId));
+  }
+
+  @Post(':id/line-unlink')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'ยกเลิกการเชื่อมต่อ LINE ของ user' })
+  unlinkLine(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    return this.svc.unlinkLine(id, Number(user.organizationId));
   }
 
   @Patch(':id/position')
