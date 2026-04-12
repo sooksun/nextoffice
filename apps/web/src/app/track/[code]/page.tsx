@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { toThaiNumerals } from "@/lib/thai-date";
 import { notFound } from "next/navigation";
 
 interface TrackingData {
@@ -43,7 +44,8 @@ const ACTION_LABEL: Record<string, string> = {
 
 function formatThaiDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+  const str = d.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
+  return toThaiNumerals(str);
 }
 
 export default async function TrackPage({ params }: { params: Promise<{ code: string }> }) {
@@ -64,8 +66,8 @@ export default async function TrackPage({ params }: { params: Promise<{ code: st
 
           <div className="space-y-3 mb-6">
             <InfoRow label="ประเภท" value={TYPE_LABEL[data.registryType] || data.registryType} />
-            <InfoRow label="ทะเบียนเลขที่" value={data.registryNo} />
-            <InfoRow label="เลขที่หนังสือ" value={data.documentNo} />
+            <InfoRow label="ทะเบียนเลขที่" value={data.registryNo ? toThaiNumerals(data.registryNo) : null} />
+            <InfoRow label="เลขที่หนังสือ" value={data.documentNo ? toThaiNumerals(data.documentNo) : null} />
             <InfoRow label="เรื่อง" value={data.subject} />
             <InfoRow label="จาก" value={data.fromOrg} />
             <InfoRow label="ถึง" value={data.toOrg} />
@@ -75,7 +77,7 @@ export default async function TrackPage({ params }: { params: Promise<{ code: st
             <InfoRow label="หน่วยงาน" value={data.organizationName} />
             {data.documentDate && <InfoRow label="ลงวันที่" value={formatThaiDate(data.documentDate)} />}
             <InfoRow label="วันที่รับเข้า" value={formatThaiDate(data.createdAt)} />
-            {data.folder && <InfoRow label="แฟ้ม" value={`${data.folder.code} — ${data.folder.name}`} />}
+            {data.folder && <InfoRow label="แฟ้ม" value={`${toThaiNumerals(data.folder.code)} — ${data.folder.name}`} />}
             {data.caseStatus && <InfoRow label="สถานะ" value={data.caseStatus} />}
           </div>
 

@@ -17,7 +17,12 @@ const MONTHS_LONG: Record<number, string> = {
   9: "กันยายน", 10: "ตุลาคม", 11: "พฤศจิกายน", 12: "ธันวาคม",
 };
 
-/** Format a date string or Date as "D เดือน พ.ศ." (BE, full month name) */
+/** แปลงเลขอารบิค 0-9 เป็นเลขไทย ๐-๙ */
+export function toThaiNumerals(text: string | number): string {
+  return String(text).replace(/[0-9]/g, (d) => "๐๑๒๓๔๕๖๗๘๙"[+d]);
+}
+
+/** Format a date string or Date as "D เดือน พ.ศ." (BE, full month name) — Thai numerals */
 export function formatThaiDate(raw: string | Date | null | undefined): string {
   if (!raw) return "—";
   const d = typeof raw === "string" ? new Date(raw) : raw;
@@ -25,10 +30,10 @@ export function formatThaiDate(raw: string | Date | null | undefined): string {
   const day = d.getDate();
   const month = MONTHS_LONG[d.getMonth() + 1];
   const year = d.getFullYear() + BE_OFFSET;
-  return `${day} ${month} ${year}`;
+  return toThaiNumerals(`${day} ${month} ${year}`);
 }
 
-/** Format as "D ม.ค. 67" (short month, 2-digit BE year) */
+/** Format as "D ม.ค. 67" (short month, 2-digit BE year) — Thai numerals */
 export function formatThaiDateShort(raw: string | Date | null | undefined): string {
   if (!raw) return "—";
   const d = typeof raw === "string" ? new Date(raw) : raw;
@@ -36,18 +41,18 @@ export function formatThaiDateShort(raw: string | Date | null | undefined): stri
   const day = d.getDate();
   const month = MONTHS_SHORT[d.getMonth() + 1];
   const year = String(d.getFullYear() + BE_OFFSET).slice(-2);
-  return `${day} ${month} ${year}`;
+  return toThaiNumerals(`${day} ${month} ${year}`);
 }
 
-/** Format as "D/M/พ.ศ." e.g. "15/1/2567" */
+/** Format as "D/M/พ.ศ." e.g. "๑๕/๑/๒๕๖๗" — Thai numerals */
 export function formatThaiDateNumeric(raw: string | Date | null | undefined): string {
   if (!raw) return "—";
   const d = typeof raw === "string" ? new Date(raw) : raw;
   if (isNaN(d.getTime())) return "—";
-  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + BE_OFFSET}`;
+  return toThaiNumerals(`${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + BE_OFFSET}`);
 }
 
-/** Format as datetime: "15 ม.ค. 67, 10:30" */
+/** Format as datetime: "๑๕ ม.ค. ๖๗, ๑๐:๓๐" — Thai numerals */
 export function formatThaiDateTime(raw: string | Date | null | undefined): string {
   if (!raw) return "—";
   const d = typeof raw === "string" ? new Date(raw) : raw;
@@ -55,7 +60,7 @@ export function formatThaiDateTime(raw: string | Date | null | undefined): strin
   const date = formatThaiDateShort(d);
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${date}, ${hh}:${mm}`;
+  return `${date}, ${toThaiNumerals(`${hh}:${mm}`)}`;
 }
 
 /** Parse a CE date string "YYYY-MM-DD" to a Date (for form inputs) */

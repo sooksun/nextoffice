@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { SendHorizontal, Plus, CheckCircle, Clock, Send, FileEdit } from "lucide-react";
-import { formatThaiDateTime } from "@/lib/thai-date";
+import { formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "ร่าง",
@@ -73,7 +73,7 @@ export default function OutboundListPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-primary tracking-tight">หนังสือออก</h1>
-            <p className="text-xs text-on-surface-variant">พบ {docs.length} รายการ</p>
+            <p className="text-xs text-on-surface-variant">พบ {toThaiNumerals(docs.length)} รายการ</p>
           </div>
         </div>
         <Link
@@ -140,7 +140,7 @@ export default function OutboundListPage() {
             )}
             {docs.map((d, i) => (
               <tr key={d.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
-                <td className="px-4 py-3 text-on-surface-variant">{i + 1}</td>
+                <td className="px-4 py-3 text-on-surface-variant">{toThaiNumerals(i + 1)}</td>
                 <td className="px-4 py-3 max-w-xs">
                   <Link href={`/outbound/${d.id}`} className="hover:text-primary hover:underline line-clamp-2 font-medium">
                     {d.subject}
@@ -150,7 +150,7 @@ export default function OutboundListPage() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant">{d.recipientOrg || "—"}</td>
-                <td className="px-4 py-3 text-xs font-mono text-on-surface-variant">{d.documentNo || "—"}</td>
+                <td className="px-4 py-3 text-xs font-mono text-on-surface-variant">{d.documentNo ? toThaiNumerals(d.documentNo) : "—"}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold ${URGENCY_COLOR[d.urgencyLevel] ?? URGENCY_COLOR.normal}`}>
                     {URGENCY_LABEL[d.urgencyLevel] ?? d.urgencyLevel}

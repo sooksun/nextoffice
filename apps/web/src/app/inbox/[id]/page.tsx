@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, FileText, Clock, User } from "lucide-react";
 import PdfPreview from "@/components/PdfPreview";
 import SignatureVerification from "@/components/SignatureVerification";
-import { formatThaiDate, formatThaiDateShort, formatThaiDateTime } from "@/lib/thai-date";
+import { formatThaiDate, formatThaiDateShort, formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
 import RegisterButton from "@/components/actions/RegisterButton";
 import AssignButton from "@/components/actions/AssignButton";
 import AcknowledgeButton from "@/components/actions/AcknowledgeButton";
@@ -179,7 +179,7 @@ export default async function InboxDetailPage({
             </span>
             {caseData.registrationNo && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-mono font-bold text-primary bg-primary/5">
-                เลขรับ {caseData.registrationNo}
+                เลขรับ {toThaiNumerals(caseData.registrationNo!)}
               </span>
             )}
           </div>
@@ -236,7 +236,7 @@ export default async function InboxDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">ที่หนังสือ:</span>
-              <p className="font-medium font-mono">{thaiToArabic(documentCode) || "—"}</p>
+              <p className="font-medium font-mono">{documentCode ? toThaiNumerals(thaiToArabic(documentCode)) : "—"}</p>
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">วันที่หนังสือ:</span>
@@ -245,7 +245,7 @@ export default async function InboxDetailPage({
             <div>
               <span className="text-on-surface-variant text-xs">เลขทะเบียนรับ:</span>
               {caseData.registrationNo
-                ? <p className="font-bold font-mono text-primary text-base">{caseData.registrationNo}</p>
+                ? <p className="font-bold font-mono text-primary text-base">{toThaiNumerals(caseData.registrationNo!)}</p>
                 : <p className="text-on-surface-variant italic text-xs">ยังไม่ได้ลงรับ</p>
               }
             </div>
@@ -287,7 +287,7 @@ export default async function InboxDetailPage({
           <div className="p-5">
             <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-4">
               <User size={14} className="inline mr-1" />
-              การมอบหมายงาน ({assignments.length})
+              การมอบหมายงาน ({toThaiNumerals(assignments.length)})
             </h2>
             <div className="space-y-3">
               {assignments.map((a) => (
@@ -341,7 +341,7 @@ export default async function InboxDetailPage({
                       {a.user && <span className="text-on-surface-variant font-normal"> โดย {a.user.fullName}</span>}
                     </p>
                     {!!a.detail?.registrationNo && (
-                      <p className="text-xs text-on-surface-variant">เลขรับ: {String(a.detail.registrationNo)}</p>
+                      <p className="text-xs text-on-surface-variant">เลขรับ: {toThaiNumerals(String(a.detail.registrationNo))}</p>
                     )}
                     {!!a.detail?.from && !!a.detail?.to && (
                       <p className="text-xs text-on-surface-variant">{String(a.detail.from)} &rarr; {String(a.detail.to)}</p>

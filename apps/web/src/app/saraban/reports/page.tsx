@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { toThaiNumerals } from "@/lib/thai-date";
 import { BarChart3, AlertTriangle, Users, TrendingUp } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -53,10 +54,10 @@ export default async function ReportsPage({
       {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="หนังสือรับทั้งหมด" value={summary.inbound.total} color="text-primary" />
-          <StatCard label="หนังสือส่งทั้งหมด" value={summary.outbound.total} color="text-secondary" />
-          <StatCard label="งานค้างเกิน deadline" value={summary.inbound.overdue} color="text-red-600" highlight={summary.inbound.overdue > 0} />
-          <StatCard label="ทะเบียนรับ/ส่ง" value={`${summary.registry.inbound} / ${summary.registry.outbound}`} color="text-tertiary" />
+          <StatCard label="หนังสือรับทั้งหมด" value={toThaiNumerals(summary.inbound.total)} color="text-primary" />
+          <StatCard label="หนังสือส่งทั้งหมด" value={toThaiNumerals(summary.outbound.total)} color="text-secondary" />
+          <StatCard label="งานค้างเกิน deadline" value={toThaiNumerals(summary.inbound.overdue)} color="text-red-600" highlight={summary.inbound.overdue > 0} />
+          <StatCard label="ทะเบียนรับ/ส่ง" value={`${toThaiNumerals(summary.registry.inbound)} / ${toThaiNumerals(summary.registry.outbound)}`} color="text-tertiary" />
         </div>
       )}
 
@@ -78,7 +79,7 @@ export default async function ReportsPage({
                       style={{ width: `${summary.inbound.total ? (count / summary.inbound.total) * 100 : 0}%` }}
                     />
                   </div>
-                  <span className="text-xs font-bold text-on-surface w-8 text-right">{count}</span>
+                  <span className="text-xs font-bold text-on-surface w-8 text-right">{toThaiNumerals(count)}</span>
                 </div>
               ))}
             </div>
@@ -93,7 +94,7 @@ export default async function ReportsPage({
               {Object.entries(summary.inbound.byStatus).map(([status, count]) => (
                 <div key={status} className="flex justify-between items-center text-sm">
                   <span className="text-on-surface-variant text-xs capitalize">{status}</span>
-                  <span className="font-bold text-on-surface">{count}</span>
+                  <span className="font-bold text-on-surface">{toThaiNumerals(count)}</span>
                 </div>
               ))}
             </div>
@@ -115,18 +116,18 @@ export default async function ReportsPage({
                   <div
                     className="flex-1 bg-primary/60 rounded-t"
                     style={{ height: `${(m.inbound / maxTrend) * 100}%` }}
-                    title={`รับ ${m.inbound}`}
+                    title={`รับ ${toThaiNumerals(m.inbound)}`}
                   />
                   <div
                     className="flex-1 bg-secondary/60 rounded-t"
                     style={{ height: `${(m.outbound / maxTrend) * 100}%` }}
-                    title={`ส่ง ${m.outbound}`}
+                    title={`ส่ง ${toThaiNumerals(m.outbound)}`}
                   />
                   {m.urgent > 0 && (
                     <div
                       className="flex-1 bg-red-400/60 rounded-t"
                       style={{ height: `${(m.urgent / maxTrend) * 100}%` }}
-                      title={`ด่วน ${m.urgent}`}
+                      title={`ด่วน ${toThaiNumerals(m.urgent)}`}
                     />
                   )}
                 </div>
@@ -158,7 +159,7 @@ export default async function ReportsPage({
                 <span className="flex-1 text-sm text-on-surface">{w.fullName}</span>
                 <span className="text-xs text-on-surface-variant">{w.roleCode}</span>
                 <span className={`text-sm font-bold ${w.activeCases > 5 ? "text-red-600" : "text-on-surface"}`}>
-                  {w.activeCases} งาน
+                  {toThaiNumerals(w.activeCases)} งาน
                 </span>
               </div>
             ))}

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, Send } from "lucide-react";
 import OutboundActions from "./OutboundActions";
 import SignatureVerification from "@/components/SignatureVerification";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +100,7 @@ export default async function OutboundDetailPage({
             </span>
             {doc.documentNo && (
               <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-mono font-bold text-primary bg-primary/5">
-                {doc.documentNo}
+                {toThaiNumerals(doc.documentNo)}
               </span>
             )}
           </div>
@@ -124,7 +124,7 @@ export default async function OutboundDetailPage({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-on-surface-variant">เลขที่หนังสือ:</span>
-              <p className="font-medium font-mono">{doc.documentNo || "รอการอนุมัติ"}</p>
+              <p className="font-medium font-mono">{doc.documentNo ? toThaiNumerals(doc.documentNo) : "รอการอนุมัติ"}</p>
             </div>
             <div>
               <span className="text-on-surface-variant">วันที่หนังสือ:</span>
@@ -191,7 +191,7 @@ export default async function OutboundDetailPage({
             <div className="mt-4 pt-4 border-t border-outline-variant/10">
               <span className="text-on-surface-variant text-sm">หนังสือเข้าที่เกี่ยวข้อง:</span>
               <Link href={`/inbox/${doc.relatedInboundCase.id}`} className="text-primary hover:underline text-sm block mt-1">
-                {doc.relatedInboundCase.registrationNo ? `#${doc.relatedInboundCase.registrationNo} ` : ""}
+                {doc.relatedInboundCase.registrationNo ? `#${toThaiNumerals(doc.relatedInboundCase.registrationNo)} ` : ""}
                 {doc.relatedInboundCase.title}
               </Link>
             </div>

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { Inbox, Plus } from "lucide-react";
-import { formatThaiDateTime } from "@/lib/thai-date";
+import { formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
 import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +76,7 @@ export default async function InboxPage({
           </div>
           <div>
             <h1 className="text-2xl font-black text-primary tracking-tight">เอกสารเข้า</h1>
-            <p className="text-xs text-on-surface-variant">พบ {total} รายการ</p>
+            <p className="text-xs text-on-surface-variant">พบ {toThaiNumerals(total)} รายการ</p>
           </div>
         </div>
         <Link
@@ -129,7 +129,7 @@ export default async function InboxPage({
             )}
             {data.map((c, i) => (
               <tr key={c.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
-                <td className="px-4 py-3 text-on-surface-variant">{i + 1}</td>
+                <td className="px-4 py-3 text-on-surface-variant">{toThaiNumerals(i + 1)}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold ${URGENCY_COLOR[c.urgencyLevel] ?? URGENCY_COLOR.normal}`}>
                     {URGENCY_LABEL[c.urgencyLevel] ?? c.urgencyLevel}
@@ -145,7 +145,7 @@ export default async function InboxPage({
                 </td>
                 <td className="px-4 py-3 text-xs whitespace-nowrap">
                   {c.registrationNo
-                    ? <span className="font-mono font-bold text-primary">{c.registrationNo}</span>
+                    ? <span className="font-mono font-bold text-primary">{toThaiNumerals(c.registrationNo)}</span>
                     : <span className="text-on-surface-variant">—</span>
                   }
                 </td>

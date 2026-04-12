@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,7 @@ export default async function CasesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-black text-primary tracking-tight">เคส</h1>
-        <span className="text-sm text-on-surface-variant">{total} รายการ</span>
+        <span className="text-sm text-on-surface-variant">{toThaiNumerals(total)} รายการ</span>
       </div>
       {cases.length === 0 ? (
         <div className="bg-surface-lowest rounded-2xl border border-outline-variant/10 p-12 text-center text-outline shadow-sm">
@@ -74,7 +74,7 @@ export default async function CasesPage() {
                 <tr key={c.id} className="hover:bg-surface-low transition-colors">
                   <td className="px-4 py-3">
                     <Link href={`/inbox/${c.id}`} className="text-primary hover:text-secondary font-mono text-xs font-bold">
-                      {c.registrationNo ?? `#${c.id}`}
+                      {c.registrationNo ? toThaiNumerals(c.registrationNo) : `#${c.id}`}
                     </Link>
                   </td>
                   <td className="px-4 py-3 max-w-xs">

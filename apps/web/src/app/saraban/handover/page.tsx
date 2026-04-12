@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser, AuthUser } from "@/lib/auth";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 import { Archive, Plus, CheckCircle, FileCheck, Printer } from "lucide-react";
 
 interface HandoverItem {
@@ -168,7 +168,7 @@ export default function HandoverPage() {
           </div>
 
           <div>
-            <h3 className="text-sm font-medium mb-2">เอกสารที่ครบกำหนดเก็บรักษา ({eligible.length} รายการ)</h3>
+            <h3 className="text-sm font-medium mb-2">เอกสารที่ครบกำหนดเก็บรักษา ({toThaiNumerals(eligible.length)} รายการ)</h3>
             {eligible.length === 0 ? (
               <p className="text-sm text-gray-400">ไม่มีเอกสารที่ครบกำหนด</p>
             ) : (
@@ -189,8 +189,8 @@ export default function HandoverPage() {
                         <td className="px-2 py-1.5">
                           <input type="checkbox" checked={selectedIds.includes(doc.id)} readOnly />
                         </td>
-                        <td className="px-2 py-1.5">{doc.registryNo || "-"}</td>
-                        <td className="px-2 py-1.5">{doc.documentNo || "-"}</td>
+                        <td className="px-2 py-1.5">{doc.registryNo ? toThaiNumerals(doc.registryNo) : "-"}</td>
+                        <td className="px-2 py-1.5">{doc.documentNo ? toThaiNumerals(doc.documentNo) : "-"}</td>
                         <td className="px-2 py-1.5">{doc.subject || "-"}</td>
                         <td className="px-2 py-1.5">{doc.retentionEndDate ? formatThaiDateShort(doc.retentionEndDate) : "-"}</td>
                       </tr>
@@ -199,7 +199,7 @@ export default function HandoverPage() {
                 </table>
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1">เลือกแล้ว {selectedIds.length} รายการ</p>
+            <p className="text-xs text-gray-500 mt-1">เลือกแล้ว {toThaiNumerals(selectedIds.length)} รายการ</p>
           </div>
 
           <button onClick={handleCreate} className="px-4 py-2 bg-primary text-white rounded-xl text-sm hover:opacity-90">
@@ -224,13 +224,13 @@ export default function HandoverPage() {
           <tbody className="divide-y">
             {records.map((r) => (
               <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-3 py-2 font-mono">{r.handoverNo}</td>
+                <td className="px-3 py-2 font-mono">{toThaiNumerals(r.handoverNo)}</td>
                 <td className="px-3 py-2">{formatThaiDateShort(r.handoverDate)}</td>
                 <td className="px-3 py-2">
                   <div>{r.recipientOrg}</div>
                   <div className="text-xs text-gray-500">{r.recipientName}</div>
                 </td>
-                <td className="px-3 py-2">{r.itemCount} รายการ</td>
+                <td className="px-3 py-2">{toThaiNumerals(r.itemCount)} รายการ</td>
                 <td className="px-3 py-2">{r.createdByName}</td>
                 <td className="px-3 py-2">
                   <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[r.status] || "bg-gray-100"}`}>

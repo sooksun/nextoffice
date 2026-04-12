@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser } from "@/lib/auth";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 import { Send, Plus, CheckCircle, Printer } from "lucide-react";
 
 interface DispatchItem {
@@ -193,11 +193,11 @@ export default function DispatchPage() {
           <tbody className="divide-y">
             {items.map((d) => (
               <tr key={d.id} className="hover:bg-gray-50">
-                <td className="px-3 py-2 font-mono">{d.dispatchNo}</td>
+                <td className="px-3 py-2 font-mono">{toThaiNumerals(d.dispatchNo)}</td>
                 <td className="px-3 py-2">{formatThaiDateShort(d.dispatchDate)}</td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{d.registrySubject || "-"}</div>
-                  <div className="text-xs text-gray-500">{d.registryDocNo}</div>
+                  <div className="text-xs text-gray-500">{d.registryDocNo ? toThaiNumerals(d.registryDocNo) : ""}</div>
                 </td>
                 <td className="px-3 py-2">{d.recipientOrg}</td>
                 <td className="px-3 py-2">{METHOD_LABEL[d.deliveryMethod] || d.deliveryMethod}</td>

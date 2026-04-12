@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser } from "@/lib/auth";
 import { FolderOpen, Plus, Archive, AlertTriangle, Trash2 } from "lucide-react";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 import Link from "next/link";
 
 interface Folder {
@@ -155,13 +155,13 @@ export default function ArchivePage() {
               )}
 
               <button onClick={() => setSelectedFolder(null)} className={`w-full text-left px-3 py-2 rounded-xl text-xs mb-1 ${!selectedFolder ? "bg-primary/10 text-primary font-bold" : "hover:bg-surface-bright"}`}>
-                ทั้งหมด ({docs.length})
+                ทั้งหมด ({toThaiNumerals(docs.length)})
               </button>
               {folders.map((f) => (
                 <button key={f.id} onClick={() => setSelectedFolder(f.id)} className={`w-full text-left px-3 py-2 rounded-xl text-xs mb-1 ${selectedFolder === f.id ? "bg-primary/10 text-primary font-bold" : "hover:bg-surface-bright"}`}>
                   <FolderOpen size={12} className="inline mr-1" />
-                  {f.code} {f.name} ({f.documentCount})
-                  <span className="text-on-surface-variant ml-1">({f.retentionYears} ปี)</span>
+                  {toThaiNumerals(f.code)} {f.name} ({toThaiNumerals(f.documentCount)})
+                  <span className="text-on-surface-variant ml-1">({toThaiNumerals(f.retentionYears)} ปี)</span>
                 </button>
               ))}
             </div>
@@ -187,12 +187,12 @@ export default function ArchivePage() {
                   )}
                   {filteredDocs.map((d, i) => (
                     <tr key={d.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50">
-                      <td className="px-3 py-2 text-on-surface-variant">{i + 1}</td>
-                      <td className="px-3 py-2 text-xs font-mono">{d.documentNo || d.registryNo || "—"}</td>
+                      <td className="px-3 py-2 text-on-surface-variant">{toThaiNumerals(i + 1)}</td>
+                      <td className="px-3 py-2 text-xs font-mono">{d.documentNo ? toThaiNumerals(d.documentNo) : d.registryNo ? toThaiNumerals(d.registryNo) : "—"}</td>
                       <td className="px-3 py-2 text-xs max-w-[200px] truncate">
                         {d.subject || d.inboundCase?.title || d.outboundDoc?.subject || "—"}
                       </td>
-                      <td className="px-3 py-2 text-xs">{d.folder ? `${d.folder.code} ${d.folder.name}` : "—"}</td>
+                      <td className="px-3 py-2 text-xs">{d.folder ? `${toThaiNumerals(d.folder.code)} ${d.folder.name}` : "—"}</td>
                       <td className="px-3 py-2 text-xs">{formatThaiDateShort(d.archivedAt)}</td>
                       <td className="px-3 py-2 text-xs">
                         {d.retentionEndDate ? (
@@ -230,7 +230,7 @@ export default function ArchivePage() {
               )}
               {destructions.map((d, i) => (
                 <tr key={d.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50">
-                  <td className="px-4 py-2 text-on-surface-variant">{i + 1}</td>
+                  <td className="px-4 py-2 text-on-surface-variant">{toThaiNumerals(i + 1)}</td>
                   <td className="px-4 py-2">
                     <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[d.status] ?? ""}`}>
                       {STATUS_LABEL[d.status] ?? d.status}
@@ -238,7 +238,7 @@ export default function ArchivePage() {
                   </td>
                   <td className="px-4 py-2 text-xs">{d.requestedBy}</td>
                   <td className="px-4 py-2 text-xs">{d.approvedBy ?? "—"}</td>
-                  <td className="px-4 py-2 text-center text-xs font-bold">{d.itemCount}</td>
+                  <td className="px-4 py-2 text-center text-xs font-bold">{toThaiNumerals(d.itemCount)}</td>
                   <td className="px-4 py-2 text-xs">{formatThaiDateShort(d.createdAt)}</td>
                 </tr>
               ))}

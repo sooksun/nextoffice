@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { toThaiNumerals } from "@/lib/thai-date";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
 
@@ -116,7 +117,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
         <div className="flex items-center gap-4 mt-2 text-xs text-outline flex-wrap">
           {c.registrationNo && (
             <span className="font-mono bg-surface-low px-2 py-0.5 rounded-full border border-outline-variant/20">
-              เลขรับ {c.registrationNo}
+              เลขรับ {toThaiNumerals(c.registrationNo)}
             </span>
           )}
           <span>{URGENCY_LABEL[c.urgencyLevel] ?? c.urgencyLevel}</span>
@@ -141,7 +142,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             {c.intake?.documentNo && (
               <>
                 <dt className="text-on-surface-variant">เลขที่หนังสือ</dt>
-                <dd className="font-medium text-on-surface">{c.intake.documentNo}</dd>
+                <dd className="font-medium text-on-surface">{toThaiNumerals(c.intake.documentNo)}</dd>
               </>
             )}
             {c.intake?.issuingAuthority && (
@@ -188,7 +189,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <ul className="space-y-1.5">
               {c.intake.nextActions.map((action, i) => (
                 <li key={i} className="flex gap-2 text-sm text-on-surface-variant">
-                  <span className="text-primary font-bold shrink-0">{i + 1}.</span>
+                  <span className="text-primary font-bold shrink-0">{toThaiNumerals(i + 1)}.</span>
                   {action}
                 </li>
               ))}
@@ -223,7 +224,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
                     <p className="font-bold text-sm text-on-surface">{opt.title}</p>
                     {opt.overallScore !== null && (
                       <span className="text-[10px] bg-primary/8 text-primary px-2.5 py-0.5 rounded-full shrink-0 font-bold">
-                        {(opt.overallScore * 100).toFixed(0)}%
+                        {toThaiNumerals((opt.overallScore * 100).toFixed(0))}%
                       </span>
                     )}
                   </div>

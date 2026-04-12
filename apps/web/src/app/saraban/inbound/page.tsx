@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { apiFetch } from "@/lib/api";
 import { FileText, Printer } from "lucide-react";
-import { formatThaiDateShort, formatThaiDateTime } from "@/lib/thai-date";
+import { formatThaiDateShort, formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
 import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
 import PrintButton from "./PrintButton";
 
@@ -71,7 +71,7 @@ function buildActionSummary(c: Case): string {
       .map((a) => a.assignedTo!.fullName)
       .slice(0, 2);
     if (names.length > 0) {
-      const suffix = c.assignments.length > 2 ? ` +${c.assignments.length - 2}` : "";
+      const suffix = c.assignments.length > 2 ? ` +${toThaiNumerals(c.assignments.length - 2)}` : "";
       parts.push(`มอบ ${names.join(", ")}${suffix}`);
     }
   }
@@ -113,7 +113,7 @@ export default async function InboundRegistryPage({
           <div>
             <h1 className="text-2xl font-black text-primary tracking-tight print-title">ทะเบียนรับ</h1>
             <p className="text-xs text-on-surface-variant no-print">
-              แบบที่ 12 ตามระเบียบสำนักนายกรัฐมนตรี — พบ {total} รายการ
+              แบบที่ ๑๒ ตามระเบียบสำนักนายกรัฐมนตรี — พบ {toThaiNumerals(total)} รายการ
             </p>
           </div>
         </div>
@@ -171,15 +171,15 @@ export default async function InboundRegistryPage({
               const docDate = c.documentDate ?? c.sourceDocument?.publishedAt;
               return (
                 <tr key={c.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
-                  <td className="px-3 py-2 text-center text-on-surface-variant">{i + 1}</td>
+                  <td className="px-3 py-2 text-center text-on-surface-variant">{toThaiNumerals(i + 1)}</td>
                   <td className="px-3 py-2 text-xs text-on-surface-variant whitespace-nowrap">
                     {formatThaiDateTime(c.receivedAt)}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs font-bold text-primary whitespace-nowrap">
-                    {c.registrationNo ?? "—"}
+                    {c.registrationNo ? toThaiNumerals(c.registrationNo) : "—"}
                   </td>
                   <td className="px-3 py-2 text-xs text-on-surface-variant whitespace-nowrap">
-                    {c.documentNo || c.sourceDocument?.documentCode || "—"}
+                    {c.documentNo ? toThaiNumerals(c.documentNo) : c.sourceDocument?.documentCode ? toThaiNumerals(c.sourceDocument.documentCode) : "—"}
                   </td>
                   <td className="px-3 py-2 text-xs text-on-surface-variant whitespace-nowrap">
                     {formatThaiDateShort(docDate)}

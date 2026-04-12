@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { apiFetch, getServerToken } from "@/lib/api";
 import Link from "next/link";
 import { Send } from "lucide-react";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
 import PrintButton from "../inbound/PrintButton";
 
@@ -111,7 +111,7 @@ export default async function OutboundRegistryPage({
           <div>
             <h1 className="text-2xl font-black text-primary tracking-tight print-title">{pageTitle}</h1>
             <p className="text-xs text-on-surface-variant no-print">
-              แบบที่ 13 ตามระเบียบสำนักนายกรัฐมนตรี — พบ {docs.length} รายการ
+              แบบที่ ๑๓ ตามระเบียบสำนักนายกรัฐมนตรี — พบ {toThaiNumerals(docs.length)} รายการ
             </p>
           </div>
         </div>
@@ -193,9 +193,9 @@ export default async function OutboundRegistryPage({
 
               return (
                 <tr key={d.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
-                  <td className="px-3 py-2 text-center text-on-surface-variant">{i + 1}</td>
+                  <td className="px-3 py-2 text-center text-on-surface-variant">{toThaiNumerals(i + 1)}</td>
                   <td className="px-3 py-2 font-mono text-xs font-bold text-primary whitespace-nowrap">
-                    {d.documentNo ?? "—"}
+                    {d.documentNo ? toThaiNumerals(d.documentNo) : "—"}
                   </td>
                   <td className="px-3 py-2 text-xs text-on-surface-variant whitespace-nowrap">
                     {formatThaiDateShort(d.documentDate)}

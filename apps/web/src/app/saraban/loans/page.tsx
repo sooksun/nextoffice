@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser } from "@/lib/auth";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 import { BookOpen, Plus, RotateCcw, AlertTriangle } from "lucide-react";
 
 interface LoanItem {
@@ -162,10 +162,10 @@ export default function LoansPage() {
           <tbody className="divide-y">
             {items.map((l) => (
               <tr key={l.id} className={`hover:bg-gray-50 ${l.status === "overdue" ? "bg-red-50" : ""}`}>
-                <td className="px-3 py-2 font-mono">{l.loanNo}</td>
+                <td className="px-3 py-2 font-mono">{toThaiNumerals(l.loanNo)}</td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{l.registrySubject || "-"}</div>
-                  <div className="text-xs text-gray-500">{l.registryDocNo}</div>
+                  <div className="text-xs text-gray-500">{l.registryDocNo ? toThaiNumerals(l.registryDocNo) : ""}</div>
                 </td>
                 <td className="px-3 py-2">{l.borrowerName}</td>
                 <td className="px-3 py-2">{formatThaiDateShort(l.borrowDate)}</td>
