@@ -122,7 +122,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/terms", label: "ข้อกำหนดการใช้บริการ", icon: ScrollText },
       { href: "/privacy", label: "นโยบายความเป็นส่วนตัว", icon: Shield },
-      { href: "/help", label: "ศูนย์ช่วยเหลือ", icon: HelpCircle },
       { href: "/about", label: "เกี่ยวกับ Next Office", icon: Building2 },
     ],
   },
@@ -300,6 +299,17 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Standalone bottom link */}
+      <div className="px-3 pb-4 pt-2 border-t border-outline-variant/20">
+        <Link
+          href="/help"
+          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"
+        >
+          <HelpCircle size={16} />
+          ศูนย์ช่วยเหลือ
+        </Link>
+      </div>
 
     </aside>
   );
