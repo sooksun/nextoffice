@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Param, Query, ParseIntPipe, NotFoundException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Param, Query, ParseIntPipe, NotFoundException, UseGuards, ForbiddenException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NoteGeneratorService } from '../services/note-generator.service';
 import { KnowledgeGraphService } from '../services/knowledge-graph.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @ApiTags('vault/notes')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('vault/notes')
 export class KnowledgeNotesController {
   constructor(
@@ -17,20 +21,18 @@ export class KnowledgeNotesController {
   @ApiOperation({ summary: 'List knowledge notes with filters' })
   @ApiQuery({ name: 'noteType', required: false })
   @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'organizationId', required: false, type: Number })
   @ApiQuery({ name: 'take', required: false, type: Number })
   @ApiQuery({ name: 'skip', required: false, type: Number })
   async listNotes(
+    @CurrentUser() user: any,
     @Query('noteType') noteType?: string,
     @Query('status') status?: string,
-    @Query('organizationId') organizationId?: string,
     @Query('take') take?: string,
     @Query('skip') skip?: string,
   ) {
-    const where: any = {};
+    const where: any = { organizationId: BigInt(Number(user.organizationId)) };
     if (noteType) where.noteType = noteType;
     if (status) where.status = status;
-    if (organizationId) where.organizationId = BigInt(Number(organizationId));
 
     const [notes, total] = await Promise.all([
       this.prisma.knowledgeNote.findMany({
@@ -47,17 +49,21 @@ export class KnowledgeNotesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get knowledge note detail with Markdown content' })
-  async getNote(@Param('id', ParseIntPipe) id: number) {
+  async getNote(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
     const note = await this.prisma.knowledgeNote.findUnique({
       where: { id: BigInt(id) },
     });
     if (!note) throw new NotFoundException(`Note #${id} not found`);
+    if (note.organizationId && Number(note.organizationId) !== Number(user.organizationId)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
+    }
     return this.serialize(note);
   }
 
   @Post(':id/review')
   @ApiOperation({ summary: 'Mark note as reviewed' })
-  async reviewNote(@Param('id', ParseIntPipe) id: number) {
+  async reviewNote(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    await this.assertNoteOwnership(id, user);
     const note = await this.prisma.knowledgeNote.update({
       where: { id: BigInt(id) },
       data: { status: 'reviewed' },
@@ -67,7 +73,8 @@ export class KnowledgeNotesController {
 
   @Post(':id/publish')
   @ApiOperation({ summary: 'Mark note as published' })
-  async publishNote(@Param('id', ParseIntPipe) id: number) {
+  async publishNote(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    await this.assertNoteOwnership(id, user);
     const note = await this.prisma.knowledgeNote.update({
       where: { id: BigInt(id) },
       data: { status: 'published' },
@@ -77,7 +84,8 @@ export class KnowledgeNotesController {
 
   @Post(':id/archive')
   @ApiOperation({ summary: 'Mark note as archived' })
-  async archiveNote(@Param('id', ParseIntPipe) id: number) {
+  async archiveNote(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    await this.assertNoteOwnership(id, user);
     const note = await this.prisma.knowledgeNote.update({
       where: { id: BigInt(id) },
       data: { status: 'archived' },
@@ -87,14 +95,25 @@ export class KnowledgeNotesController {
 
   @Post('generate/case/:caseId')
   @ApiOperation({ summary: 'Generate knowledge note from an InboundCase' })
-  async generateFromCase(@Param('caseId', ParseIntPipe) caseId: number) {
-    return this.noteGenerator.generateFromCase(caseId);
+  async generateFromCase(@Param('caseId', ParseIntPipe) caseId: number, @CurrentUser() user: any) {
+    return this.noteGenerator.generateFromCase(caseId, Number(user.organizationId));
   }
 
   @Post('generate/agenda/:agendaId')
   @ApiOperation({ summary: 'Generate knowledge note from a HorizonAgenda' })
-  async generateFromAgenda(@Param('agendaId', ParseIntPipe) agendaId: number) {
-    return this.noteGenerator.generateFromAgenda(agendaId);
+  async generateFromAgenda(@Param('agendaId', ParseIntPipe) agendaId: number, @CurrentUser() user: any) {
+    return this.noteGenerator.generateFromAgenda(agendaId, Number(user.organizationId));
+  }
+
+  private async assertNoteOwnership(id: number, user: any) {
+    const note = await this.prisma.knowledgeNote.findUnique({
+      where: { id: BigInt(id) },
+      select: { organizationId: true },
+    });
+    if (!note) throw new NotFoundException(`Note #${id} not found`);
+    if (note.organizationId && Number(note.organizationId) !== Number(user.organizationId)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
+    }
   }
 
   private serialize(note: any) {

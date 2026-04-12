@@ -292,18 +292,24 @@ export class IntakeService {
     };
   }
 
-  async findById(id: number) {
+  async findById(id: number, organizationId?: number) {
     const intake = await this.prisma.documentIntake.findUnique({
       where: { id: BigInt(id) },
       include: { aiResult: true },
     });
     if (!intake) throw new NotFoundException(`DocumentIntake #${id} not found`);
+    if (organizationId && intake.organizationId && Number(intake.organizationId) !== organizationId) {
+      throw new NotFoundException(`DocumentIntake #${id} not found`);
+    }
     return this.serialize(intake);
   }
 
-  async getFileBuffer(id: number): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
+  async getFileBuffer(id: number, organizationId?: number): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
     const intake = await this.prisma.documentIntake.findUnique({ where: { id: BigInt(id) } });
     if (!intake) throw new NotFoundException(`DocumentIntake #${id} not found`);
+    if (organizationId && intake.organizationId && Number(intake.organizationId) !== organizationId) {
+      throw new NotFoundException(`DocumentIntake #${id} not found`);
+    }
     if (!intake.storagePath) throw new NotFoundException('ไม่พบไฟล์ต้นฉบับ');
     // storagePath stored as "bucket/path" or just "path"
     const objectPath = intake.storagePath.startsWith(`${this.storage['bucket']}/`)
@@ -317,12 +323,15 @@ export class IntakeService {
     };
   }
 
-  async getResult(id: number) {
+  async getResult(id: number, organizationId?: number) {
     const intake = await this.prisma.documentIntake.findUnique({
       where: { id: BigInt(id) },
       include: { aiResult: true },
     });
     if (!intake) throw new NotFoundException(`DocumentIntake #${id} not found`);
+    if (organizationId && intake.organizationId && Number(intake.organizationId) !== organizationId) {
+      throw new NotFoundException(`DocumentIntake #${id} not found`);
+    }
     const result = intake.aiResult;
     if (!result) return { documentIntakeId: id, status: intake.aiStatus, result: null };
 
@@ -343,10 +352,12 @@ export class IntakeService {
     dateTo?: string;
     page?: number;
     limit?: number;
+    organizationId?: number;
   }) {
     const page = Number(filters.page) || 1;
     const limit = Number(filters.limit) || 20;
     const where: any = {};
+    if (filters.organizationId) where.organizationId = BigInt(filters.organizationId);
     if (filters.status) where.aiStatus = filters.status;
     if (filters.sourceChannel) where.sourceChannel = filters.sourceChannel;
     if (filters.classificationLabel) {

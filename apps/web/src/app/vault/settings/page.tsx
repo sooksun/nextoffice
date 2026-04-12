@@ -35,7 +35,7 @@ export default function VaultSettingsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await apiFetch<VaultConfig>(`/vault/config/${orgId}`);
+        const data = await apiFetch<VaultConfig>(`/vault/config`);
         setConfig(data);
       } catch {
         // keep defaults
@@ -50,7 +50,7 @@ export default function VaultSettingsPage() {
     setSaving(true);
     setSaveSuccess(false);
     try {
-      await apiFetch(`/vault/config/${orgId}`, {
+      await apiFetch(`/vault/config`, {
         method: "PUT",
         body: JSON.stringify({
           vaultPath: config.vaultPath,
@@ -73,12 +73,12 @@ export default function VaultSettingsPage() {
     try {
       await apiFetch("/vault/sync", {
         method: "POST",
-        body: JSON.stringify({ organizationId: Number(orgId) }),
+        body: JSON.stringify({}),
       });
       setSyncSuccess(true);
       setTimeout(() => setSyncSuccess(false), 3000);
       // reload config to get updated lastSyncAt
-      const data = await apiFetch<VaultConfig>(`/vault/config/${orgId}`);
+      const data = await apiFetch<VaultConfig>(`/vault/config`);
       setConfig(data);
     } catch {
       // silently handle

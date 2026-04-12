@@ -36,8 +36,8 @@ interface Assignment {
 
 async function getData(orgId: string) {
   const [groups, assignments] = await Promise.allSettled([
-    apiFetch<WorkGroup[]>(`/work-groups?organizationId=${orgId}`),
-    apiFetch<Assignment[]>(`/work-groups/assignments/${orgId}`),
+    apiFetch<WorkGroup[]>(`/work-groups`),
+    apiFetch<Assignment[]>(`/work-groups/assignments/my-org`),
   ]);
   return {
     groups: groups.status === "fulfilled" ? (Array.isArray(groups.value) ? groups.value : []) : [],

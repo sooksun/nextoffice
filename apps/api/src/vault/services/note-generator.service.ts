@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
 
@@ -11,7 +11,7 @@ export class NoteGeneratorService {
     private readonly gemini: GeminiApiService,
   ) {}
 
-  async generateFromCase(caseId: number) {
+  async generateFromCase(caseId: number, callerOrgId?: number) {
     const inboundCase = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(caseId) },
       include: {
@@ -22,6 +22,9 @@ export class NoteGeneratorService {
       },
     });
     if (!inboundCase) throw new NotFoundException(`Case #${caseId} not found`);
+    if (callerOrgId && inboundCase.organizationId && Number(inboundCase.organizationId) !== callerOrgId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
+    }
 
     const topicTags = inboundCase.topics
       ?.map((t: any) => t.topic?.topicCode || t.topicCode)
@@ -59,7 +62,7 @@ export class NoteGeneratorService {
     return this.serialize(note);
   }
 
-  async generateFromAgenda(agendaId: number) {
+  async generateFromAgenda(agendaId: number, _callerOrgId?: number) {
     const agenda = await this.prisma.horizonAgenda.findUnique({
       where: { id: BigInt(agendaId) },
       include: {

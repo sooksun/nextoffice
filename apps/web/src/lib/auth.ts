@@ -36,7 +36,7 @@ export async function login(
     localStorage.setItem("user", JSON.stringify(data.user));
     // Also set cookie so server-side components can read JWT
     const maxAge = 7 * 24 * 3600;
-    document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
   }
   return data;
 }
@@ -97,7 +97,7 @@ export async function impersonate(targetUserId: number): Promise<void> {
   const maxAge = 7 * 24 * 3600;
   localStorage.setItem("token", data.token.trim());
   localStorage.setItem("user", JSON.stringify(data.user));
-  document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
   window.location.assign("/");
 }
 
@@ -108,7 +108,7 @@ export function stopImpersonate(): void {
     const maxAge = 7 * 24 * 3600;
     localStorage.setItem("token", adminToken);
     if (adminUser) localStorage.setItem("user", adminUser);
-    document.cookie = `token=${adminToken}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    document.cookie = `token=${adminToken}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
   }
   localStorage.removeItem("adminToken");
   localStorage.removeItem("adminUser");

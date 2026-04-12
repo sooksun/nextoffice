@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Put, Param, Query, Body, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Param, Query, Body, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VaultSyncService } from '../services/vault-sync.service';
 import { KnowledgeGraphService } from '../services/knowledge-graph.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @ApiTags('vault')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('vault')
 export class VaultController {
   constructor(
@@ -15,13 +19,14 @@ export class VaultController {
 
   @Post('sync')
   @ApiOperation({ summary: 'Trigger vault sync for an organization' })
-  async triggerSync(@Body() body: { organizationId: number }) {
-    return this.syncService.syncAll(body.organizationId);
+  async triggerSync(@CurrentUser() user: any) {
+    return this.syncService.syncAll(Number(user.organizationId));
   }
 
-  @Get('config/:organizationId')
-  @ApiOperation({ summary: 'Get vault config for an organization' })
-  async getConfig(@Param('organizationId', ParseIntPipe) organizationId: number) {
+  @Get('config')
+  @ApiOperation({ summary: 'Get vault config for current organization' })
+  async getConfig(@CurrentUser() user: any) {
+    const organizationId = Number(user.organizationId);
     const config = await this.prisma.knowledgeVaultConfig.findUnique({
       where: { organizationId: BigInt(organizationId) },
     });
@@ -31,10 +36,10 @@ export class VaultController {
     return this.serializeConfig(config);
   }
 
-  @Put('config/:organizationId')
-  @ApiOperation({ summary: 'Update or create vault config for an organization' })
+  @Put('config')
+  @ApiOperation({ summary: 'Update or create vault config for current organization' })
   async upsertConfig(
-    @Param('organizationId', ParseIntPipe) organizationId: number,
+    @CurrentUser() user: any,
     @Body() body: {
       vaultPath?: string;
       syncEnabled?: boolean;
@@ -42,6 +47,7 @@ export class VaultController {
       configJson?: any;
     },
   ) {
+    const organizationId = Number(user.organizationId);
     const data: any = {};
     if (body.vaultPath !== undefined) data.vaultPath = body.vaultPath;
     if (body.syncEnabled !== undefined) data.syncEnabled = body.syncEnabled;
@@ -68,12 +74,9 @@ export class VaultController {
   }
 
   @Get('graph')
-  @ApiOperation({ summary: 'Get knowledge graph edges for visualization' })
-  @ApiQuery({ name: 'organizationId', required: false, type: Number })
-  async getGraph(@Query('organizationId') organizationId?: string) {
-    return this.graphService.getGraph(
-      organizationId ? Number(organizationId) : undefined,
-    );
+  @ApiOperation({ summary: 'Get knowledge graph edges for current organization' })
+  async getGraph(@CurrentUser() user: any) {
+    return this.graphService.getGraph(Number(user.organizationId));
   }
 
   private serializeConfig(config: any) {

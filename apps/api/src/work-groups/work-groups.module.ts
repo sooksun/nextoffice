@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { WorkGroupsController } from './work-groups.controller';
 import { WorkGroupsService } from './work-groups.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
+  imports: [AuthModule],
   controllers: [WorkGroupsController],
   providers: [WorkGroupsService],
   exports: [WorkGroupsService],

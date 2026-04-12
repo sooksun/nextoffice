@@ -63,7 +63,10 @@ export class AuthController {
     @CurrentUser() user: any,
     @Query('organizationId') orgId?: string,
   ) {
-    return this.authService.listUsers(orgId ? Number(orgId) : Number(user.organizationId));
+    const effectiveOrgId = (user.roleCode === 'ADMIN' && orgId)
+      ? Number(orgId)
+      : Number(user.organizationId);
+    return this.authService.listUsers(effectiveOrgId);
   }
 
   @Post('users/:userId/pairing-code')
