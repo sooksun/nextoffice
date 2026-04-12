@@ -15,7 +15,7 @@ interface PendingCase {
   directorNote: string | null;
   assignedTo: { id: number; fullName: string } | null;
   sourceDocument: { documentCode: string | null; issuingAuthority: string | null } | null;
-  assignments: { user: { id: number; fullName: string } }[];
+  assignments: { assignedTo: { id: number; fullName: string } | null }[];
 }
 
 const URGENCY_LABEL: Record<string, string> = {
@@ -98,7 +98,7 @@ export default function DirectorSigningPage() {
                   )}
                   {c.assignments.length > 0 && (
                     <p className="text-xs text-on-surface-variant mt-1">
-                      มอบหมาย: {c.assignments.map((a) => a.user.fullName).join(", ")}
+                      มอบหมาย: {c.assignments.map((a) => a.assignedTo?.fullName).filter(Boolean).join(", ")}
                     </p>
                   )}
                 </div>
