@@ -402,6 +402,71 @@ export class CaseWorkflowService {
     }));
   }
 
+  async getTrackingData(caseId: number): Promise<any> {
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      select: {
+        id: true, title: true, registrationNo: true, status: true,
+        urgencyLevel: true, directorNote: true, directorStampStatus: true,
+        directorStampedAt: true, dueDate: true,
+        directorStampedBy: { select: { id: true, fullName: true } },
+      },
+    });
+    if (!c) throw new NotFoundException(`Case #${caseId} not found`);
+
+    const assignments = await this.prisma.caseAssignment.findMany({
+      where: { inboundCaseId: BigInt(caseId) },
+      include: {
+        assignedTo: { select: { id: true, fullName: true, roleCode: true, department: true } },
+        assignedBy: { select: { id: true, fullName: true, roleCode: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const mapped = assignments.map((a) => ({
+      id: Number(a.id),
+      role: a.role,
+      status: a.status,
+      dueDate: a.dueDate,
+      note: a.note,
+      completedAt: a.completedAt,
+      createdAt: a.createdAt,
+      assignedTo: { id: Number(a.assignedTo.id), fullName: a.assignedTo.fullName, roleCode: a.assignedTo.roleCode, department: a.assignedTo.department },
+      assignedBy: { id: Number(a.assignedBy.id), fullName: a.assignedBy.fullName, roleCode: a.assignedBy.roleCode },
+    }));
+
+    const total = mapped.length;
+    const acknowledged = mapped.filter((a) => a.status !== 'pending').length;
+    const inProgress = mapped.filter((a) => a.status === 'in_progress').length;
+    const completed = mapped.filter((a) => a.status === 'completed').length;
+
+    return {
+      case: {
+        id: Number(c.id),
+        title: c.title,
+        registrationNo: c.registrationNo,
+        status: c.status,
+        urgencyLevel: c.urgencyLevel,
+        directorNote: c.directorNote,
+        directorStampStatus: c.directorStampStatus,
+        directorStampedAt: c.directorStampedAt,
+        dueDate: c.dueDate,
+        directorStampedBy: c.directorStampedBy
+          ? { id: Number(c.directorStampedBy.id), fullName: c.directorStampedBy.fullName }
+          : null,
+      },
+      assignments: mapped,
+      summary: {
+        total,
+        acknowledged,
+        inProgress,
+        completed,
+        acknowledgmentPercent: total > 0 ? Math.round((acknowledged / total) * 100) : 0,
+        completionPercent: total > 0 ? Math.round((completed / total) * 100) : 0,
+      },
+    };
+  }
+
   async getAssignments(caseId: number): Promise<any[]> {
     const assignments = await this.prisma.caseAssignment.findMany({
       where: { inboundCaseId: BigInt(caseId) },

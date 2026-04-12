@@ -107,6 +107,57 @@ export class LineInquiryService {
     await this.messaging.reply(replyToken, messages);
   }
 
+  // ─── สถานะรับทราบ / ติดตาม ───────────────────────────
+
+  async handleTrackingStatus(lineUserId: string, caseId: number, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      select: {
+        id: true, title: true, registrationNo: true, directorNote: true, dueDate: true,
+        directorStampedBy: { select: { fullName: true } },
+      },
+    });
+
+    if (!c) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(`ไม่พบเรื่อง #${caseId}`),
+      ]);
+      return;
+    }
+
+    const assignments = await this.prisma.caseAssignment.findMany({
+      where: { inboundCaseId: BigInt(caseId) },
+      include: { assignedTo: { select: { fullName: true, roleCode: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const total = assignments.length;
+    const acknowledged = assignments.filter((a) => a.status !== 'pending').length;
+    const completed = assignments.filter((a) => a.status === 'completed').length;
+
+    const webUrl = this.config.get<string>('WEB_URL') || this.config.get<string>('NEXT_PUBLIC_API_URL')?.replace(/:\d+/, ':9910') || '';
+    const messages = this.messaging.buildTrackingFlex({
+      caseId,
+      title: c.title,
+      registrationNo: c.registrationNo,
+      directorNote: c.directorNote,
+      directorName: c.directorStampedBy?.fullName || null,
+      dueDate: c.dueDate,
+      assignments: assignments.map((a) => ({
+        fullName: a.assignedTo.fullName,
+        roleCode: a.assignedTo.roleCode,
+        status: a.status,
+      })),
+      summary: { total, acknowledged, completed },
+      webUrl,
+    });
+
+    await this.messaging.reply(replyToken, messages);
+  }
+
   // ─── ค้นหาเคส ────────────────────────────────────────
 
   async handleSearchCases(lineUserId: string, keyword: string, replyToken: string): Promise<void> {

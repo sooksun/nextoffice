@@ -764,6 +764,121 @@ export class LineMessagingService {
     ];
   }
 
+  // ─── Tracking Status Flex ──────────────────────────
+
+  buildTrackingFlex(data: {
+    caseId: number;
+    title: string;
+    registrationNo: string | null;
+    directorNote: string | null;
+    directorName: string | null;
+    dueDate: Date | null;
+    assignments: { fullName: string; roleCode: string; status: string }[];
+    summary: { total: number; acknowledged: number; completed: number };
+    webUrl: string;
+  }): any[] {
+    const statusIcon: Record<string, string> = {
+      pending: '⏳', accepted: '✅', in_progress: '🔄', completed: '✔',
+    };
+
+    const { caseId, title, registrationNo, directorNote, assignments, summary, webUrl } = data;
+    const displayTitle = title.length > 50 ? title.substring(0, 50) + '…' : title;
+
+    const bodyContents: any[] = [
+      this.flexRow('เลขรับ', registrationNo || 'ยังไม่ลงรับ'),
+    ];
+
+    if (directorNote) {
+      bodyContents.push(
+        this.flexRow('คำสั่ง', directorNote.substring(0, 150) + (directorNote.length > 150 ? '…' : '')),
+      );
+    }
+    if (data.directorName) {
+      bodyContents.push(this.flexRow('ลงนามโดย', data.directorName));
+    }
+    if (data.dueDate) {
+      bodyContents.push(this.flexRow('กำหนดเสร็จ', new Date(data.dueDate).toLocaleDateString('th-TH')));
+    }
+
+    bodyContents.push(
+      { type: 'separator', margin: 'md' },
+      {
+        type: 'text',
+        text: `รับทราบ ${summary.acknowledged}/${summary.total} คน | เสร็จ ${summary.completed}/${summary.total} คน`,
+        size: 'sm', weight: 'bold', color: '#1565C0', margin: 'md', wrap: true,
+      },
+      { type: 'separator', margin: 'md' },
+    );
+
+    const shown = assignments.slice(0, 10);
+    for (const a of shown) {
+      const icon = statusIcon[a.status] || '❓';
+      const statusText = this.assignmentStatusThai(a.status);
+      bodyContents.push({
+        type: 'box',
+        layout: 'horizontal',
+        margin: 'sm',
+        contents: [
+          { type: 'text', text: `${icon} ${a.fullName}`, size: 'xs', flex: 5, wrap: true },
+          { type: 'text', text: statusText, size: 'xs', color: '#888888', flex: 3, align: 'end' },
+        ],
+      });
+    }
+    if (assignments.length > 10) {
+      bodyContents.push({
+        type: 'text', text: `...และอีก ${assignments.length - 10} คน`, size: 'xs', color: '#888888', margin: 'sm',
+      });
+    }
+
+    const footerContents: any[] = [];
+    if (webUrl) {
+      footerContents.push({
+        type: 'button',
+        style: 'primary',
+        height: 'sm',
+        color: '#1565C0',
+        action: { type: 'uri', label: 'ดูรายละเอียด', uri: `${webUrl}/cases/${caseId}/tracking` },
+      });
+    }
+
+    return [
+      {
+        type: 'flex',
+        altText: `สถานะรับทราบ #${caseId}: ${summary.acknowledged}/${summary.total} รับทราบแล้ว`,
+        contents: {
+          type: 'bubble',
+          size: 'giga',
+          header: {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#00695C',
+            paddingAll: '16px',
+            contents: [
+              { type: 'text', text: `สถานะรับทราบ #${caseId}`, color: '#FFFFFF', size: 'xs', weight: 'bold' },
+              { type: 'text', text: displayTitle, color: '#FFFFFF', size: 'md', weight: 'bold', wrap: true, maxLines: 3 },
+            ],
+          },
+          body: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            paddingAll: '16px',
+            contents: bodyContents,
+          },
+          ...(footerContents.length > 0 ? {
+            footer: {
+              type: 'box',
+              layout: 'vertical',
+              spacing: 'sm',
+              paddingAll: '16px',
+              contents: footerContents,
+            },
+          } : {}),
+        },
+      },
+    ];
+  }
+
   // ─── V2: Dashboard Flex ────────────────────────────
 
   buildDashboardFlex(data: {

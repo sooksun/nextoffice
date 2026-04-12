@@ -119,6 +119,7 @@ export class LineWebhookController {
             const sarabanOutboundMatch = /^ทะเบียนส่ง$/.test(text);
             const outboundApproveMatch = text.match(/^อนุมัติส่ง\s*#(\d+)$/);
             const pendingOutboundMatch = /^(รออนุมัติ|หนังสือรออนุมัติ|รายการรออนุมัติ)$/.test(text);
+            const trackingMatch = text.match(/^(สถานะรับทราบ|ติดตาม)\s*#(\d+)$/);
             const caseDetailMatch = text.match(/^ดูเรื่อง\s*#(\d+)$/);
             const searchMatch = text.match(/^ค้นหา\s+(.+)$/);
             const dashboardMatch = /^(ภาพรวม|แดชบอร์ด|สรุปวันนี้)$/.test(text);
@@ -189,6 +190,8 @@ export class LineWebhookController {
               await this.inquirySvc.handlePendingOutbound(uid, rt);
             } else if (sarabanOutboundMatch && uid && rt) {
               await this.inquirySvc.handleSarabanOutbound(uid, rt);
+            } else if (trackingMatch && uid && rt) {
+              await this.inquirySvc.handleTrackingStatus(uid, Number(trackingMatch[2]), rt);
             } else if (caseDetailMatch && uid && rt) {
               await this.inquirySvc.handleCaseDetail(uid, Number(caseDetailMatch[1]), rt);
             } else if (searchMatch && uid && rt) {

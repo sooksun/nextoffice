@@ -154,6 +154,12 @@ export class CasesController {
     return this.svc.findById(id);
   }
 
+  @Get(':id/tracking')
+  @ApiOperation({ summary: 'สถานะรับทราบ/ดำเนินการ รายบุคคล' })
+  getTracking(@Param('id', ParseIntPipe) id: number) {
+    return this.workflow.getTrackingData(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get case by ID' })
   findOne(@Param('id', ParseIntPipe) id: number) {
