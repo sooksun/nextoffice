@@ -323,10 +323,12 @@ export class LineWorkflowService {
 
       await this.messaging.reply(replyToken, [
         this.messaging.buildTextMessage(
-          `เสนอผู้อำนวยการสำเร็จ — รอ ผอ. ลงนาม\n\n` +
+          `✅ เสนอผู้อำนวยการโรงเรียนสำเร็จ\n\n` +
           `เรื่อง: ${c.title}\n` +
-          `มอบหมายให้: ${targetUser?.fullName || `User #${targetUserId}`}\n` +
-          `สถานะ: รอดำเนินการ`,
+          `เลขรับ: ${updatedCase?.registrationNo || '-'}\n` +
+          `มอบหมายให้: ${targetUser?.fullName || `User #${targetUserId}`}\n\n` +
+          `📌 แจ้ง ผอ./รอง ผอ. ทาง LINE แล้ว\n` +
+          `⏳ สถานะ: รอ ผอ. ลงนามเกษียณ`,
         ),
       ]);
     } catch (err) {
