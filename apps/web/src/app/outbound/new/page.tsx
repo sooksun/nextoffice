@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastError, toastWarning } from "@/lib/toast";
 import Link from "next/link";
-import { ArrowLeft, SendHorizontal } from "lucide-react";
+import { ArrowLeft, SendHorizontal, Upload, Loader2, FileText, Paperclip, CheckCircle } from "lucide-react";
 import { getUser } from "@/lib/auth";
 
 const LETTER_TYPE_LABEL: Record<string, string> = {
@@ -24,6 +24,10 @@ export default function NewOutboundPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [roleCode, setRoleCode] = useState<string>("TEACHER");
+  const [uploading, setUploading] = useState(false);
+  const [uploadedIntakeId, setUploadedIntakeId] = useState<number | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
   const [form, setForm] = useState({
     subject: "",
     bodyText: "",
@@ -47,6 +51,28 @@ export default function NewOutboundPage() {
 
   const canSetConfidential = CONFIDENTIAL_ROLES.includes(roleCode);
 
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${apiBase}/intake/web-upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setUploadedIntakeId(data.id);
+      setUploadedFileName(data.originalFileName || file.name);
+    } catch {
+      toastError("อัปโหลดไฟล์ไม่สำเร็จ");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.subject.trim()) { toastWarning("กรุณากรอกชื่อเรื่อง"); return; }
@@ -67,6 +93,7 @@ export default function NewOutboundPage() {
           urgencyLevel: form.urgencyLevel,
           letterType: form.letterType,
           securityLevel: canSetConfidential ? form.securityLevel : "normal",
+          intakeId: uploadedIntakeId || undefined,
         }),
       });
       router.push(`/outbound/${res.id}`);
@@ -241,6 +268,56 @@ export default function NewOutboundPage() {
             className="w-full p-3 rounded-xl border border-outline-variant/20 bg-surface-bright text-sm resize-none"
             rows={5}
           />
+        </div>
+
+        {/* File attachment */}
+        <div>
+          <label className="text-sm font-semibold text-on-surface-variant mb-1 block">แนบไฟล์เอกสาร</label>
+          {uploadedFileName ? (
+            <div className="flex items-center gap-3 p-3 rounded-xl border bg-blue-50 border-blue-200">
+              <FileText size={18} className="text-blue-600 shrink-0" />
+              <span className="text-sm font-medium text-on-surface flex-1 truncate">{uploadedFileName}</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold flex items-center gap-1">
+                <CheckCircle size={10} /> แนบแล้ว
+              </span>
+              {uploadedIntakeId && (
+                <a
+                  href={`${apiBase}/intake/${uploadedIntakeId}/file`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700"
+                >
+                  <Paperclip size={10} /> เปิด
+                </a>
+              )}
+            </div>
+          ) : (
+            <label className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+              uploading ? "border-primary/50 bg-primary/5" : "border-gray-300 hover:border-primary/40 hover:bg-primary/5"
+            }`}>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.docx"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileUpload(f);
+                }}
+              />
+              {uploading ? (
+                <>
+                  <Loader2 size={24} className="animate-spin text-primary" />
+                  <span className="text-sm text-primary font-semibold">กำลังอัปโหลด...</span>
+                </>
+              ) : (
+                <>
+                  <Upload size={24} className="text-gray-400" />
+                  <span className="text-xs text-gray-400">PDF, รูปภาพ หรือ Word (ไม่เกิน 10MB)</span>
+                </>
+              )}
+            </label>
+          )}
         </div>
 
         <button

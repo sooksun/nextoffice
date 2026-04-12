@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { toastError, toastWarning } from "@/lib/toast";
 import Link from "next/link";
 import {
-  ArrowLeft, FilePlus, FileText, Paperclip, CheckCircle, Loader2,
+  ArrowLeft, FilePlus, FileText, Paperclip, CheckCircle, Loader2, Upload,
 } from "lucide-react";
 import ThaiDatePicker from "@/components/ui/ThaiDatePicker";
 
@@ -70,6 +70,8 @@ function NewInboxForm() {
   const [loading, setLoading] = useState(false);
   const [loadingIntake, setLoadingIntake] = useState(!!intakeId);
   const [intake, setIntake] = useState<IntakeData | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedIntakeId, setUploadedIntakeId] = useState<number | null>(intakeId ? Number(intakeId) : null);
   const [form, setForm] = useState({
     title: "",
     documentNo: "",
@@ -115,6 +117,28 @@ function NewInboxForm() {
     if (intakeId) loadIntake(intakeId);
   }, [intakeId, loadIntake]);
 
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${apiBase}/intake/web-upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setUploadedIntakeId(data.id);
+      await loadIntake(String(data.id));
+    } catch {
+      toastError("อัปโหลดไฟล์ไม่สำเร็จ");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) { toastWarning("กรุณากรอกชื่อเรื่อง"); return; }
@@ -131,7 +155,7 @@ function NewInboxForm() {
           urgencyLevel: form.urgencyLevel,
           dueDate: form.dueDate || undefined,
           description: form.description || undefined,
-          intakeId: intakeId ? Number(intakeId) : undefined,
+          intakeId: uploadedIntakeId || (intakeId ? Number(intakeId) : undefined),
         }),
       });
       router.push(`/inbox/${res.caseId}`);
@@ -205,6 +229,36 @@ function NewInboxForm() {
             )}
           </div>
         </div>
+      )}
+
+      {/* File upload area — show when no file attached yet */}
+      {!intake && (
+        <label className={`flex flex-col items-center gap-2 p-6 rounded-2xl border-2 border-dashed cursor-pointer mb-5 transition-colors ${
+          uploading ? "border-primary/50 bg-primary/5" : "border-gray-300 hover:border-primary/40 hover:bg-primary/5"
+        }`}>
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            className="sr-only"
+            disabled={uploading}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFileUpload(f);
+            }}
+          />
+          {uploading ? (
+            <>
+              <Loader2 size={28} className="animate-spin text-primary" />
+              <span className="text-sm text-primary font-semibold">กำลังอัปโหลดและวิเคราะห์ด้วย AI...</span>
+            </>
+          ) : (
+            <>
+              <Upload size={28} className="text-gray-400" />
+              <span className="text-sm text-gray-600 font-semibold">แนบไฟล์หนังสือเข้า</span>
+              <span className="text-xs text-gray-400">PDF, รูปภาพ หรือ Word (ไม่เกิน 10MB) — AI จะสกัดข้อมูลอัตโนมัติ</span>
+            </>
+          )}
+        </label>
       )}
 
       <form onSubmit={handleSubmit} className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm p-6 space-y-5">

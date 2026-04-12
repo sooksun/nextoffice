@@ -36,6 +36,8 @@ import {
   MapPin,
   CheckSquare,
   ChevronDown,
+  Archive,
+  QrCode,
 } from "lucide-react";
 
 // undefined = ทุก role เห็นได้
@@ -82,6 +84,11 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/saraban/outbound?type=secret_letter",   label: "หนังสือลับ", roles: SARABAN },
         ],
       },
+      { href: "/saraban/dispatch", label: "สมุดส่ง/ใบรับ", icon: Send, roles: SARABAN },
+      { href: "/saraban/loans", label: "ยืม-คืนเอกสาร", icon: BookOpen, roles: SARABAN },
+      { href: "/saraban/handover", label: "บัญชีส่งมอบ 20 ปี", icon: Archive, roles: SARABAN },
+      { href: "/saraban/archive", label: "คลังเอกสาร/ทำลาย", icon: FolderOpen, roles: SARABAN },
+      { href: "/track", label: "ติดตาม QR Code", icon: QrCode },
     ],
   },
   {
