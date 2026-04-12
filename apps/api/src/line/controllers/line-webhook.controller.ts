@@ -102,7 +102,7 @@ export class LineWebhookController {
             const pendingSignMatch = /^(รอลงนาม|สรุปรอลงนาม)$/.test(text);
             const reportMatch = text.match(/^รายงาน\s*#(\d+)\s+(.+)$/s);
             const assignShowMatch = text.match(/^มอบหมาย\s*#(\d+)$/);
-            const assignToMatch = text.match(/^มอบหมายให้\s*#(\d+)\s*@(\d+)$/);
+            const assignToMatch = text.match(/^มอบหมายให้\s*#(\d+)\s+((?:@\d+\s*)+)$/);
             const acceptMatch = text.match(/^รับทราบ\s*#(\d+)$/);
             const completeMatch = text.match(/^เสร็จแล้ว\s*#(\d+)$/);
             const myTasksMatch = /^(งานของฉัน|สถานะงาน)$/.test(text);
@@ -142,7 +142,8 @@ export class LineWebhookController {
             } else if (registerMatch && uid) {
               await this.workflowSvc.handleRegister(uid, Number(registerMatch[1]), rt);
             } else if (assignToMatch && uid) {
-              await this.workflowSvc.handleAssignTo(uid, Number(assignToMatch[1]), Number(assignToMatch[2]), rt);
+              const targetUserIds = assignToMatch[2].match(/@(\d+)/g)!.map((m: string) => Number(m.slice(1)));
+              await this.workflowSvc.handleAssignTo(uid, Number(assignToMatch[1]), targetUserIds, rt);
             } else if (signMatch && uid) {
               await this.workflowSvc.handleDirectorSign(uid, Number(signMatch[1]), rt);
             } else if (pendingSignMatch && uid && rt) {

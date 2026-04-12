@@ -271,7 +271,7 @@ export class LineWorkflowService {
   async handleAssignTo(
     lineUserId: string,
     caseId: number,
-    targetUserId: number,
+    targetUserIds: number[],
     replyToken: string,
   ): Promise<void> {
     const user = await this.findLinkedUser(lineUserId);
@@ -294,31 +294,44 @@ export class LineWorkflowService {
         await this.workflow.register(caseId, Number(user.id));
       }
 
+      // Build assignments for all target users
+      const assignments = targetUserIds.map((uid, i) => ({
+        userId: uid,
+        role: i === 0 ? 'responsible' : 'informed',
+      }));
+
       const result = await this.workflow.assign(
         caseId,
         Number(user.id),
-        [{ userId: targetUserId, role: 'responsible' }],
+        assignments,
       );
 
-      // Reload case after assign to get updated fields
+      // Reload case after assign
       const updatedCase = await this.prisma.inboundCase.findUnique({ where: { id: BigInt(caseId) } });
 
-      // Push notification to assigned user
-      const targetUser = await this.prisma.user.findUnique({
-        where: { id: BigInt(targetUserId) },
+      // Notify all assigned users via LINE
+      const targetUsers = await this.prisma.user.findMany({
+        where: { id: { in: targetUserIds.map((id) => BigInt(id)) } },
         include: { lineUser: true },
       });
 
-      if (targetUser?.lineUser) {
-        const notifyMessages = this.messaging.buildAssignmentNotification({
-          caseTitle: c.title,
-          registrationNo: updatedCase?.registrationNo || '-',
-          directorNote: updatedCase?.directorNote || '',
-          dueDate: c.dueDate ? c.dueDate.toLocaleDateString('th-TH') : '-',
-          assignedByName: user.fullName,
-          assignmentId: result.assignments[0]?.id,
-        });
-        await this.messaging.push(targetUser.lineUser.lineUserId, notifyMessages);
+      const assigneeNames: string[] = [];
+      for (const tu of targetUsers) {
+        assigneeNames.push(tu.fullName);
+        if (tu.lineUser) {
+          const assignmentRecord = result.assignments?.find(
+            (a: any) => Number(a.assignedToUserId) === Number(tu.id),
+          );
+          const notifyMessages = this.messaging.buildAssignmentNotification({
+            caseTitle: c.title,
+            registrationNo: updatedCase?.registrationNo || '-',
+            directorNote: updatedCase?.directorNote || '',
+            dueDate: c.dueDate ? c.dueDate.toLocaleDateString('th-TH') : '-',
+            assignedByName: user.fullName,
+            assignmentId: assignmentRecord?.id,
+          });
+          await this.messaging.push(tu.lineUser.lineUserId, notifyMessages);
+        }
       }
 
       await this.messaging.reply(replyToken, [
@@ -326,14 +339,14 @@ export class LineWorkflowService {
           `✅ เสนอผู้อำนวยการโรงเรียนสำเร็จ\n\n` +
           `เรื่อง: ${c.title}\n` +
           `เลขรับ: ${updatedCase?.registrationNo || '-'}\n` +
-          `มอบหมายให้: ${targetUser?.fullName || `User #${targetUserId}`}\n\n` +
+          `มอบหมายให้: ${assigneeNames.join(', ') || '-'} (${targetUserIds.length} คน)\n\n` +
           `📌 แจ้ง ผอ./รอง ผอ. ทาง LINE แล้ว\n` +
           `⏳ สถานะ: รอ ผอ. ลงนามเกษียณ`,
         ),
       ]);
     } catch (err) {
       await this.messaging.reply(replyToken, [
-        this.messaging.buildTextMessage(err.message || 'เกิดข้อผิดพลาดในการมอบหมาย'),
+        this.messaging.buildTextMessage(err.message || 'เกิดข้อผิดพลาดในการเสนอ'),
       ]);
     }
   }

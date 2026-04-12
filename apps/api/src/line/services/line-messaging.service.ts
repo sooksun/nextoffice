@@ -348,17 +348,66 @@ export class LineMessagingService {
       return [this.buildTextMessage('ไม่พบบุคลากรในระบบ กรุณาเพิ่มผู้ใช้ก่อน')];
     }
 
-    const prompt = `เลือกผู้รับมอบหมาย:${headerNote || ''}`;
+    // Build staff list as Flex message with individual + multi-select buttons
+    const staffRows = staffList.slice(0, 10).map((s) => ({
+      type: 'box' as const,
+      layout: 'horizontal' as const,
+      spacing: 'sm',
+      margin: 'sm',
+      contents: [
+        {
+          type: 'text' as const,
+          text: `@${s.userId} ${s.fullName}`,
+          size: 'xs' as const,
+          color: '#333333',
+          flex: 4,
+          wrap: true,
+        },
+        {
+          type: 'button' as const,
+          style: 'primary' as const,
+          height: 'sm' as const,
+          flex: 2,
+          action: {
+            type: 'message' as const,
+            label: 'เลือก',
+            text: `มอบหมายให้ #${caseId} @${s.userId}`,
+          },
+        },
+      ],
+    }));
 
-    return [
-      this.buildQuickReply(
-        prompt,
-        staffList.slice(0, 13).map((s) => ({
-          label: s.fullName.substring(0, 20),
-          text: `มอบหมายให้ #${caseId} @${s.userId}`,
-        })),
-      ),
-    ];
+    const flexMessage = {
+      type: 'flex' as const,
+      altText: `เลือกผู้รับมอบหมาย เรื่อง #${caseId}`,
+      contents: {
+        type: 'bubble' as const,
+        size: 'mega' as const,
+        header: {
+          type: 'box', layout: 'vertical', backgroundColor: '#1565C0', paddingAll: 'md',
+          contents: [
+            { type: 'text', text: `📋 เสนอ ผอ. — เรื่อง #${caseId}`, weight: 'bold', size: 'sm', color: '#ffffff' },
+            ...(headerNote ? [{ type: 'text', text: headerNote.trim(), size: 'xs', color: '#ffffffcc' }] : []),
+          ],
+        },
+        body: {
+          type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md',
+          contents: [
+            { type: 'text', text: 'เลือกผู้รับผิดชอบ (กดเลือก 1 คน หรือพิมพ์เลือกหลายคน)', size: 'xs', color: '#888888', wrap: true },
+            { type: 'separator', margin: 'sm' },
+            ...staffRows,
+          ],
+        },
+      },
+    };
+
+    // Quick reply hint for multi-select
+    const hintMessage = {
+      type: 'text' as const,
+      text: `💡 เลือกหลายคน:\nพิมพ์ มอบหมายให้ #${caseId} @ID1 @ID2 @ID3\n\nตัวอย่าง:\nมอบหมายให้ #${caseId} ${staffList.slice(0, 2).map((s) => `@${s.userId}`).join(' ')}`,
+    };
+
+    return [flexMessage, hintMessage];
   }
 
   private flexRow(label: string, value: string): any {
