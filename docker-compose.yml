@@ -112,6 +112,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:9911}
+        - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     restart: unless-stopped
     environment:
       NODE_ENV: production
