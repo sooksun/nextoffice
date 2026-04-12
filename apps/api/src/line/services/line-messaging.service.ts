@@ -153,7 +153,7 @@ export class LineMessagingService {
                 type: 'button',
                 style: 'primary',
                 color: '#1565C0',
-                action: { type: 'message', label: 'มอบหมายงาน', text: caseId ? `มอบหมาย #${caseId}` : 'มอบหมายงาน' },
+                action: { type: 'message', label: 'เสนอ ผอ.', text: caseId ? `มอบหมาย #${caseId}` : 'มอบหมาย' },
               },
               {
                 type: 'box',
@@ -394,7 +394,7 @@ export class LineMessagingService {
       extract_key: '🔑 สาระสำคัญ',
       draft_reply: '✉️ ร่างตอบ',
       create_memo: '📄 บันทึกเสนอ',
-      assign_task: '📋 มอบหมายงาน',
+      assign_task: '📋 เสนอ ผอ.',
       freeform: '💬 ผลลัพธ์',
     };
     const label = actionLabels[actionCode] ?? '💬 ผลลัพธ์';
@@ -407,7 +407,7 @@ export class LineMessagingService {
       this.buildQuickReply('ต้องการดำเนินการอะไรต่อ?', [
         { label: '🔑 ดึงสาระสำคัญ', text: 'ดึงสาระสำคัญ' },
         { label: '✉️ ร่างตอบ', text: 'ร่างตอบ' },
-        { label: '📋 มอบหมายงาน', text: 'มอบหมายงาน' },
+        { label: '📋 เสนอ ผอ.', text: 'มอบหมาย' },
       ]),
     ];
   }
@@ -675,7 +675,7 @@ export class LineMessagingService {
                     style: 'primary',
                     height: 'sm',
                     color: '#1565C0',
-                    action: { type: 'message', label: 'มอบหมาย', text: `มอบหมาย #${caseId}` },
+                    action: { type: 'message', label: 'เสนอ ผอ.', text: `มอบหมาย #${caseId}` },
                     flex: 1,
                   },
                 ],
@@ -858,7 +858,7 @@ export class LineMessagingService {
               style: 'primary',
               height: 'sm',
               color: '#1B5E20',
-              action: { type: 'message', label: 'มอบหมาย', text: `มอบหมาย #${caseId}` },
+              action: { type: 'message', label: 'เสนอ ผอ.', text: `มอบหมาย #${caseId}` },
               flex: 1,
             },
           ],

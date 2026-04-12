@@ -209,10 +209,10 @@ export class LineWorkflowService {
       return;
     }
 
-    // Only DIRECTOR / VICE_DIRECTOR / ADMIN can assign
-    if (!['DIRECTOR', 'VICE_DIRECTOR', 'ADMIN'].includes(user.roleCode)) {
+    // DIRECTOR / VICE_DIRECTOR / CLERK / ADMIN can propose to director
+    if (!['DIRECTOR', 'VICE_DIRECTOR', 'CLERK', 'ADMIN'].includes(user.roleCode)) {
       await this.messaging.reply(replyToken, [
-        this.messaging.buildTextMessage('เฉพาะผู้อำนวยการ/รอง ผอ. เท่านั้นที่สามารถมอบหมายงานได้'),
+        this.messaging.buildTextMessage('เฉพาะผู้อำนวยการ/รอง ผอ./ธุรการ เท่านั้นที่สามารถเสนอผู้อำนวยการได้'),
       ]);
       return;
     }
@@ -280,9 +280,9 @@ export class LineWorkflowService {
       return;
     }
 
-    if (!['DIRECTOR', 'VICE_DIRECTOR', 'ADMIN'].includes(user.roleCode)) {
+    if (!['DIRECTOR', 'VICE_DIRECTOR', 'CLERK', 'ADMIN'].includes(user.roleCode)) {
       await this.messaging.reply(replyToken, [
-        this.messaging.buildTextMessage('เฉพาะผู้อำนวยการ/รอง ผอ. เท่านั้นที่สามารถมอบหมายงานได้'),
+        this.messaging.buildTextMessage('เฉพาะผู้อำนวยการ/รอง ผอ./ธุรการ เท่านั้นที่สามารถเสนอผู้อำนวยการได้'),
       ]);
       return;
     }
