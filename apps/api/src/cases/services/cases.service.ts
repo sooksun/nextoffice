@@ -527,6 +527,7 @@ ${ragSection}
       registeredByUserId: c.registeredByUserId ? Number(c.registeredByUserId) : null,
       assignedToUserId: c.assignedToUserId ? Number(c.assignedToUserId) : null,
       selectedOptionId: c.selectedOptionId ? Number(c.selectedOptionId) : null,
+      directorStampedByUserId: c.directorStampedByUserId ? Number(c.directorStampedByUserId) : null,
     };
     if (c.organization) {
       result.organization = this.serializeOrg(c.organization);
