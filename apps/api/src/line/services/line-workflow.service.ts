@@ -152,21 +152,21 @@ export class LineWorkflowService {
         },
         {
           type: 'action',
-          action: { type: 'message', label: '📋 มอบหมาย', text: `มอบหมาย #${caseId}` },
+          action: { type: 'message', label: '📋 เสนอ ผอ.', text: `มอบหมาย #${caseId}` },
         },
       ],
     };
 
     const flexMessage = {
       type: 'flex',
-      altText: `📋 ลงรับแล้ว: ${result.title.substring(0, 40)} — กรุณามอบหมายงาน`,
+      altText: `📋 ลงรับแล้ว: ${result.title.substring(0, 40)} — กรุณาเสนอผู้อำนวยการ`,
       contents: {
         type: 'bubble',
         size: 'kilo',
         header: {
           type: 'box', layout: 'vertical', backgroundColor: '#1a73e8',
           contents: [
-            { type: 'text', text: '📋 ลงรับแล้ว — กรุณามอบหมายงาน', weight: 'bold', size: 'sm', color: '#ffffff' },
+            { type: 'text', text: '📋 ลงรับแล้ว — กรุณาเสนอผู้อำนวยการ', weight: 'bold', size: 'sm', color: '#ffffff' },
           ],
           paddingAll: 'md',
         },
@@ -179,7 +179,7 @@ export class LineWorkflowService {
           contents: [
             {
               type: 'button', style: 'primary', height: 'sm', flex: 1,
-              action: { type: 'message', label: '📌 มอบหมาย', text: `มอบหมาย #${caseId}` },
+              action: { type: 'message', label: '📌 เสนอ ผอ.', text: `มอบหมาย #${caseId}` },
             },
             {
               type: 'button', style: 'secondary', height: 'sm', flex: 1,
@@ -323,7 +323,7 @@ export class LineWorkflowService {
 
       await this.messaging.reply(replyToken, [
         this.messaging.buildTextMessage(
-          `มอบหมายงานสำเร็จ\n\n` +
+          `เสนอผู้อำนวยการสำเร็จ — รอ ผอ. ลงนาม\n\n` +
           `เรื่อง: ${c.title}\n` +
           `มอบหมายให้: ${targetUser?.fullName || `User #${targetUserId}`}\n` +
           `สถานะ: รอดำเนินการ`,
@@ -422,6 +422,107 @@ export class LineWorkflowService {
 
     const messages = this.messaging.buildMyTasksList(tasks);
     await this.messaging.reply(replyToken, messages);
+  }
+
+  async handleDirectorSign(lineUserId: string, caseId: number, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    if (!['DIRECTOR', 'VICE_DIRECTOR', 'ADMIN'].includes(user.roleCode)) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage('เฉพาะผู้อำนวยการ/รอง ผอ. เท่านั้นที่สามารถลงนามได้'),
+      ]);
+      return;
+    }
+
+    try {
+      const c = await this.prisma.inboundCase.findUnique({
+        where: { id: BigInt(caseId) },
+        select: { title: true, directorNote: true, directorStampStatus: true },
+      });
+      if (!c) throw new Error('ไม่พบเอกสาร');
+      if (c.directorStampStatus !== 'pending') throw new Error('เอกสารนี้ไม่ได้อยู่ในสถานะรอลงนาม');
+
+      await this.workflow.applyDirectorStampAsync(
+        caseId,
+        Number(user.id),
+        c.directorNote || 'ทราบ',
+        undefined,
+      );
+
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(
+          `ลงนามเกษียณหนังสือสำเร็จ ✓\n\n` +
+          `เรื่อง: ${c.title}\n` +
+          `คำสั่ง: ${(c.directorNote || 'ทราบ').substring(0, 80)}\n` +
+          `โดย: ${user.fullName}\n\n` +
+          `ระบบประทับตราและลายเซ็นอิเล็กทรอนิกส์เรียบร้อยแล้ว`,
+        ),
+      ]);
+    } catch (err) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(err.message || 'เกิดข้อผิดพลาดในการลงนาม'),
+      ]);
+    }
+  }
+
+  async handleReport(lineUserId: string, caseId: number, reportText: string, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    try {
+      const assignment = await this.prisma.caseAssignment.findFirst({
+        where: {
+          inboundCase: { id: BigInt(caseId) },
+          assignedToUserId: user.id,
+        },
+        include: { inboundCase: true },
+      });
+      if (!assignment) throw new Error('ไม่พบงานที่มอบหมายให้คุณสำหรับเรื่อง #' + caseId);
+
+      if (assignment.status === 'pending' || assignment.status === 'accepted') {
+        await this.prisma.caseAssignment.update({
+          where: { id: assignment.id },
+          data: { status: 'in_progress' },
+        });
+      }
+
+      await this.prisma.caseActivity.create({
+        data: {
+          inboundCaseId: BigInt(caseId),
+          userId: user.id,
+          action: 'report',
+          detail: JSON.stringify({ reportText, reportedBy: user.fullName }),
+        },
+      });
+
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(
+          `บันทึกรายงานสำเร็จ ✓\n\n` +
+          `เรื่อง: ${assignment.inboundCase.title}\n` +
+          `รายงาน: ${reportText.substring(0, 100)}\n` +
+          `โดย: ${user.fullName}`,
+        ),
+      ]);
+
+      const assigner = await this.prisma.user.findUnique({
+        where: { id: assignment.assignedByUserId },
+        include: { lineUser: true },
+      });
+      if (assigner?.lineUser) {
+        await this.messaging.push(assigner.lineUser.lineUserId, [
+          this.messaging.buildTextMessage(
+            `📝 รายงานผลจาก ${user.fullName}\n\n` +
+            `เรื่อง: ${assignment.inboundCase.title}\n` +
+            `รายงาน: ${reportText.substring(0, 100)}`,
+          ),
+        ]);
+      }
+    } catch (err) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(err.message || 'เกิดข้อผิดพลาด'),
+      ]);
+    }
   }
 
   // ─── Helpers ───

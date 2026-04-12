@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LineMessagingService } from './line-messaging.service';
 
@@ -9,6 +10,7 @@ export class LineInquiryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly messaging: LineMessagingService,
+    private readonly config: ConfigService,
   ) {}
 
   // ─── ทะเบียนรับ ─────────────────────────────────────────
@@ -449,6 +451,79 @@ export class LineInquiryService {
     await this.messaging.reply(replyToken, [
       this.messaging.buildTextMessage(draft),
     ]);
+  }
+
+  // ─── รอลงนาม (DIRECTOR) ─────────────────────────────────
+
+  async handlePendingSigning(lineUserId: string, replyToken: string): Promise<void> {
+    const user = await this.findLinkedUser(lineUserId);
+    if (!user) { await this.replyNotLinked(replyToken); return; }
+
+    if (!['DIRECTOR', 'VICE_DIRECTOR', 'ADMIN'].includes(user.roleCode)) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage('เฉพาะผู้อำนวยการ/รอง ผอ. เท่านั้น'),
+      ]);
+      return;
+    }
+
+    const where: any = { directorStampStatus: 'pending' };
+    if (user.organizationId) where.organizationId = user.organizationId;
+
+    const cases = await this.prisma.inboundCase.findMany({
+      where,
+      include: { sourceDocument: { select: { issuingAuthority: true } } },
+      orderBy: { registeredAt: 'desc' },
+      take: 10,
+    });
+
+    if (cases.length === 0) {
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage('ไม่มีหนังสือรอลงนามในขณะนี้'),
+      ]);
+      return;
+    }
+
+    const webUrl = this.config.get('WEB_URL') || 'https://nextoffice.cnppai.com';
+    const bubbles = cases.map((c) => ({
+      type: 'bubble' as const,
+      size: 'kilo' as const,
+      header: {
+        type: 'box' as const, layout: 'vertical' as const, backgroundColor: '#7c3aed', paddingAll: 'sm',
+        contents: [
+          { type: 'text' as const, text: '✍ รอลงนาม', size: 'xs' as const, color: '#ffffff', weight: 'bold' as const },
+        ],
+      },
+      body: {
+        type: 'box' as const, layout: 'vertical' as const, spacing: 'xs' as const, paddingAll: 'md',
+        contents: [
+          { type: 'text' as const, text: c.title.substring(0, 50), size: 'sm' as const, weight: 'bold' as const, wrap: true, maxLines: 2 },
+          { type: 'text' as const, text: `เลขรับ: ${c.registrationNo || '-'}`, size: 'xs' as const, color: '#888888' },
+          ...(c.sourceDocument?.issuingAuthority
+            ? [{ type: 'text' as const, text: `จาก: ${c.sourceDocument.issuingAuthority.substring(0, 30)}`, size: 'xs' as const, color: '#888888' }]
+            : []),
+        ],
+      },
+      footer: {
+        type: 'box' as const, layout: 'horizontal' as const, spacing: 'sm' as const, paddingAll: 'sm',
+        contents: [
+          {
+            type: 'button' as const, style: 'primary' as const, height: 'sm' as const, flex: 1,
+            color: '#7c3aed',
+            action: { type: 'uri' as const, label: '✍ ลงนาม', uri: `${webUrl}/director/signing/${Number(c.id)}` },
+          },
+          {
+            type: 'button' as const, style: 'secondary' as const, height: 'sm' as const, flex: 1,
+            action: { type: 'message' as const, label: 'ลงนามเร็ว', text: `ลงนาม #${Number(c.id)}` },
+          },
+        ],
+      },
+    }));
+
+    await this.messaging.reply(replyToken, [{
+      type: 'flex',
+      altText: `มี ${cases.length} เรื่องรอลงนาม`,
+      contents: bubbles.length === 1 ? bubbles[0] : { type: 'carousel', contents: bubbles.slice(0, 10) },
+    }]);
   }
 
   // ─── Helpers ────────────────────────────────────────────

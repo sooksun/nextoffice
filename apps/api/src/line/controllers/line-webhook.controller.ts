@@ -98,6 +98,9 @@ export class LineWebhookController {
             const pairingMatch = text.match(/^ผูกบัญชี\s*(\d{6})$/);
             const pairingHelpMatch = /^ผูกบัญชี/.test(text) && !pairingMatch;
             const registerMatch = text.match(/^ลงรับ\s*#(\d+)$/);
+            const signMatch = text.match(/^ลงนาม\s*#(\d+)$/);
+            const pendingSignMatch = /^(รอลงนาม|สรุปรอลงนาม)$/.test(text);
+            const reportMatch = text.match(/^รายงาน\s*#(\d+)\s+(.+)$/s);
             const assignShowMatch = text.match(/^มอบหมาย\s*#(\d+)$/);
             const assignToMatch = text.match(/^มอบหมายให้\s*#(\d+)\s*@(\d+)$/);
             const acceptMatch = text.match(/^รับทราบ\s*#(\d+)$/);
@@ -140,6 +143,12 @@ export class LineWebhookController {
               await this.workflowSvc.handleRegister(uid, Number(registerMatch[1]), rt);
             } else if (assignToMatch && uid) {
               await this.workflowSvc.handleAssignTo(uid, Number(assignToMatch[1]), Number(assignToMatch[2]), rt);
+            } else if (signMatch && uid) {
+              await this.workflowSvc.handleDirectorSign(uid, Number(signMatch[1]), rt);
+            } else if (pendingSignMatch && uid && rt) {
+              await this.inquirySvc.handlePendingSigning(uid, rt);
+            } else if (reportMatch && uid) {
+              await this.workflowSvc.handleReport(uid, Number(reportMatch[1]), reportMatch[2].trim(), rt);
             } else if (assignShowMatch && uid) {
               await this.workflowSvc.handleShowStaffList(uid, Number(assignShowMatch[1]), rt);
             } else if (acceptMatch && uid) {

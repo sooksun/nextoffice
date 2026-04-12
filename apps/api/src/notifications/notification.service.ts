@@ -326,6 +326,116 @@ export class NotificationService {
     this.logger.log(`sendExecutiveSnapshot: sent to ${orgs.length} orgs`);
   }
 
+  /** Notify director(s) when stamps 1+2 are applied and signing is pending */
+  async notifyDirectorPendingSigning(caseId: number, proposedByName: string): Promise<void> {
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        organization: {
+          include: {
+            users: {
+              where: { roleCode: { in: ['DIRECTOR', 'VICE_DIRECTOR'] }, isActive: true },
+              include: { lineUser: { select: { lineUserId: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!c) return;
+
+    const directors = c.organization.users.filter(u => u.lineUser?.lineUserId);
+    const webUrl = this.config.get('WEB_URL') || 'https://nextoffice.cnppai.com';
+    const urgencyEmoji = c.urgencyLevel === 'most_urgent' ? '🚨' : c.urgencyLevel === 'urgent' ? '⏰' : '📋';
+
+    for (const director of directors) {
+      await this.messaging.push(director.lineUser.lineUserId, [{
+        type: 'flex',
+        altText: `${urgencyEmoji} หนังสือรอลงนาม: ${c.title.substring(0, 30)}`,
+        contents: {
+          type: 'bubble',
+          size: 'kilo',
+          header: {
+            type: 'box', layout: 'vertical', backgroundColor: '#7c3aed', paddingAll: 'md',
+            contents: [
+              { type: 'text', text: `${urgencyEmoji} หนังสือรอลงนามเกษียณ`, weight: 'bold', size: 'sm', color: '#ffffff' },
+            ],
+          },
+          body: {
+            type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: 'md',
+            contents: [
+              { type: 'text', text: c.title.substring(0, 60), size: 'sm', weight: 'bold', wrap: true },
+              { type: 'separator', margin: 'sm' },
+              { type: 'box', layout: 'vertical', margin: 'sm', spacing: 'xs', contents: [
+                { type: 'box', layout: 'horizontal', contents: [
+                  { type: 'text', text: 'เลขรับ', size: 'xs', color: '#888888', flex: 2 },
+                  { type: 'text', text: c.registrationNo || '-', size: 'xs', color: '#333333', flex: 3, weight: 'bold' },
+                ]},
+                { type: 'box', layout: 'horizontal', contents: [
+                  { type: 'text', text: 'เสนอโดย', size: 'xs', color: '#888888', flex: 2 },
+                  { type: 'text', text: proposedByName, size: 'xs', color: '#333333', flex: 3 },
+                ]},
+              ]},
+            ],
+          },
+          footer: {
+            type: 'box', layout: 'horizontal', spacing: 'sm', paddingAll: 'md',
+            contents: [
+              {
+                type: 'button', style: 'primary', height: 'sm', flex: 1,
+                color: '#7c3aed',
+                action: { type: 'uri', label: '✍ ลงนาม', uri: `${webUrl}/director/signing/${caseId}` },
+              },
+              {
+                type: 'button', style: 'secondary', height: 'sm', flex: 1,
+                action: { type: 'message', label: 'ลงนามเร็ว', text: `ลงนาม #${caseId}` },
+              },
+            ],
+          },
+        },
+      }]);
+    }
+    this.logger.log(`notifyDirectorPendingSigning: case #${caseId} notified ${directors.length} directors`);
+  }
+
+  /** Notify all assignees + clerk when director signs stamp 3 */
+  async notifyAssigneesDirectorSigned(caseId: number, directorName: string, noteText: string): Promise<void> {
+    const c = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        assignments: {
+          include: {
+            assignedTo: { include: { lineUser: { select: { lineUserId: true } } } },
+          },
+        },
+        registeredBy: { include: { lineUser: { select: { lineUserId: true } } } },
+      },
+    });
+    if (!c) return;
+
+    const message = this.messaging.buildTextMessage(
+      `✅ ผอ. ลงนามเกษียณแล้ว\n\n` +
+      `เรื่อง: ${c.title}\n` +
+      `คำสั่ง: ${(noteText || '').substring(0, 80)}\n` +
+      `ลงนามโดย: ${directorName}\n\n` +
+      `พิมพ์ "งานของฉัน" เพื่อดูรายการงาน`,
+    );
+
+    const notified = new Set<string>();
+    for (const a of c.assignments) {
+      const lineId = a.assignedTo?.lineUser?.lineUserId;
+      if (lineId && !notified.has(lineId)) {
+        await this.messaging.push(lineId, [message]);
+        notified.add(lineId);
+      }
+    }
+
+    const clerkLineId = c.registeredBy?.lineUser?.lineUserId;
+    if (clerkLineId && !notified.has(clerkLineId)) {
+      await this.messaging.push(clerkLineId, [message]);
+    }
+    this.logger.log(`notifyAssigneesDirectorSigned: case #${caseId} notified ${notified.size} users`);
+  }
+
   private async sendLineNotification(lineUserId: string, text: string) {
     try {
       await this.messaging.push(lineUserId, [{ type: 'text', text }]);

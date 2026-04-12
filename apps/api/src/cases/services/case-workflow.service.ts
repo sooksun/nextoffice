@@ -644,6 +644,16 @@ export class CaseWorkflowService {
     });
 
     this.logger.log(`Stamps 1+2 applied for intake #${intakeId} (case #${caseId}), stamp 3 deferred`);
+
+    // Notify director(s) that there's a pending signing
+    if (this.notifications) {
+      const proposer = await this.prisma.user.findUnique({
+        where: { id: BigInt(assignedByUserId) },
+        select: { fullName: true },
+      });
+      this.notifications.notifyDirectorPendingSigning(caseId, proposer?.fullName ?? 'ธุรการ')
+        .catch((e) => this.logger.warn(`notifyDirectorPendingSigning failed: ${e.message}`));
+    }
   }
 
   /**
@@ -749,6 +759,12 @@ export class CaseWorkflowService {
     });
 
     this.logger.log(`Stamp 3 applied for intake #${intakeId} (case #${caseId}) by director #${directorUserId}`);
+
+    // Notify assignees + clerk that director has signed
+    if (this.notifications) {
+      this.notifications.notifyAssigneesDirectorSigned(caseId, director?.fullName ?? 'ผู้อำนวยการ', noteText)
+        .catch((e) => this.logger.warn(`notifyAssigneesDirectorSigned failed: ${e.message}`));
+    }
   }
 
   private serialize(c: any) {
