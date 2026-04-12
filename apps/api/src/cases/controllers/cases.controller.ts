@@ -119,7 +119,7 @@ export class CasesController {
 
   @Get('pending-director-signing')
   @UseGuards(RolesGuard)
-  @Roles('DIRECTOR', 'VICE_DIRECTOR')
+  @Roles('DIRECTOR', 'VICE_DIRECTOR', 'ADMIN')
   @ApiOperation({ summary: 'รายการหนังสือรอ ผอ. ลงนาม (Stamp 3)' })
   getPendingDirectorSigning(@CurrentUser() user: any) {
     return this.svc.getPendingDirectorSigning(Number(user.organizationId));
@@ -127,7 +127,7 @@ export class CasesController {
 
   @Post(':id/director-sign')
   @UseGuards(RolesGuard)
-  @Roles('DIRECTOR', 'VICE_DIRECTOR')
+  @Roles('DIRECTOR', 'VICE_DIRECTOR', 'ADMIN')
   @ApiOperation({ summary: 'ผอ. ลงนามเกษียณหนังสือ (ประทับ Stamp 3)' })
   async directorSign(
     @Param('id', ParseIntPipe) id: number,

@@ -51,9 +51,10 @@ export default function DirectorSigningDetailPage() {
 
   // Check if electronic signature exists
   useEffect(() => {
-    apiFetch<{ data: { id: number; hasSignature: boolean; roleCode: string }[] }>("/staff-config")
-      .then((res) => {
-        const me = res.data?.find(
+    apiFetch<{ id: number; hasSignature: boolean; roleCode: string }[]>("/staff-config")
+      .then((list) => {
+        const arr = Array.isArray(list) ? list : (list as any).data ?? [];
+        const me = arr.find(
           (s: any) => s.roleCode === "DIRECTOR" || s.roleCode === "VICE_DIRECTOR",
         );
         if (me?.hasSignature) {
