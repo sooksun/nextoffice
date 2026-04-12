@@ -115,6 +115,45 @@ export class CasesController {
     });
   }
 
+  // ─── Director Signing (must be before :id routes) ───
+
+  @Get('pending-director-signing')
+  @UseGuards(RolesGuard)
+  @Roles('DIRECTOR', 'VICE_DIRECTOR')
+  @ApiOperation({ summary: 'รายการหนังสือรอ ผอ. ลงนาม (Stamp 3)' })
+  getPendingDirectorSigning(@CurrentUser() user: any) {
+    return this.svc.getPendingDirectorSigning(Number(user.organizationId));
+  }
+
+  @Post(':id/director-sign')
+  @UseGuards(RolesGuard)
+  @Roles('DIRECTOR', 'VICE_DIRECTOR')
+  @ApiOperation({ summary: 'ผอ. ลงนามเกษียณหนังสือ (ประทับ Stamp 3)' })
+  async directorSign(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Body() body: {
+      noteText: string;
+      signatureMethod: 'pad' | 'electronic';
+      signatureBase64?: string;
+    },
+  ) {
+    let signatureBuffer: Buffer | undefined;
+    if (body.signatureMethod === 'pad' && body.signatureBase64) {
+      // Decode base64 PNG from signature pad
+      const base64Data = body.signatureBase64.replace(/^data:image\/\w+;base64,/, '');
+      signatureBuffer = Buffer.from(base64Data, 'base64');
+    }
+    // If electronic, applyDirectorStampAsync loads from User.signaturePath
+    await this.workflow.applyDirectorStampAsync(
+      id,
+      Number(user.id),
+      body.noteText,
+      signatureBuffer,
+    );
+    return this.svc.findById(id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get case by ID' })
   findOne(@Param('id', ParseIntPipe) id: number) {

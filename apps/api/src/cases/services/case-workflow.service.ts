@@ -539,8 +539,9 @@ export class CaseWorkflowService {
   }
 
   /**
-   * Apply all 3 stamps to the original PDF in a single pass and save the result.
-   * Triggered automatically at the end of assign(). Never throws — failures are logged only.
+   * Apply stamps 1 + 2 only (Registration + Endorsement).
+   * Stamp 3 (Director Note) is deferred until director signs.
+   * Stores stamp 3 zone coordinates for later use.
    */
   private async applyAllStampsAsync(
     caseId: number,
@@ -561,7 +562,7 @@ export class CaseWorkflowService {
     });
     if (!intake || !intake.mimeType?.includes('pdf')) return;
 
-    const [org, user, director] = await Promise.all([
+    const [org, user] = await Promise.all([
       this.prisma.organization.findUnique({
         where: { id: updatedCase.organizationId },
         select: { name: true },
@@ -570,22 +571,12 @@ export class CaseWorkflowService {
         where: { id: BigInt(assignedByUserId) },
         select: { fullName: true, positionTitle: true, signaturePath: true },
       }),
-      // ผู้อำนวยการโรงเรียน — ใช้เป็นผู้ลงนามตราที่ 3
-      this.prisma.user.findFirst({
-        where: { organizationId: updatedCase.organizationId, roleCode: 'DIRECTOR' },
-        select: { fullName: true, positionTitle: true, signaturePath: true },
-      }),
     ]);
 
-    // Load signature image buffers (silently ignore if missing)
-    const [userSigBuf, directorSigBuf] = await Promise.all([
-      user?.signaturePath
-        ? this.fileStorage.getBuffer(user.signaturePath).catch(() => null)
-        : Promise.resolve(null),
-      director?.signaturePath
-        ? this.fileStorage.getBuffer(director.signaturePath).catch(() => null)
-        : Promise.resolve(null),
-    ]);
+    // Load clerk signature image buffer (silently ignore if missing)
+    const userSigBuf = user?.signaturePath
+      ? await this.fileStorage.getBuffer(user.signaturePath).catch(() => null)
+      : null;
 
     const now = new Date();
     const pdfBuffer = await this.fileStorage.getBuffer(intake.storagePath);
@@ -614,8 +605,8 @@ export class CaseWorkflowService {
       }
     }
 
-
-    const stamped = await this.pdfStamp.applyAllStamps(pdfBuffer, {
+    // Apply stamps 1 + 2 only (directorNote: undefined → stamp 3 skipped)
+    const result = await this.pdfStamp.applyAllStamps(pdfBuffer, {
       registration: {
         orgName: org?.name ?? '',
         registrationNo: updatedCase.registrationNo ?? '',
@@ -631,32 +622,130 @@ export class CaseWorkflowService {
         signatureBuffer: userSigBuf ?? undefined,
         assigneeNames,
       },
-      directorNote: directorNote
-        ? {
-            noteText: directorNote,
-            authorName: director?.fullName ?? user?.fullName ?? 'ผู้อำนวยการ',
-            positionTitle: director?.positionTitle ?? 'ผู้อำนวยการโรงเรียน',
-            stampedAt: now,
-            signatureBuffer: directorSigBuf ?? undefined,
-            assigneeNames,
-          }
-        : undefined,
+      // directorNote omitted → stamp 3 NOT rendered, but zone IS computed
     });
 
-    let finalPdf = stamped;
+    await this.stampStorage.save(intakeId, result.pdfBuffer);
+
+    // Store stamp 3 zone coordinates + set status to pending
+    const stamp3Zone = result.zones[2];
+    await this.prisma.inboundCase.update({
+      where: { id: BigInt(caseId) },
+      data: {
+        directorStampStatus: 'pending',
+        directorStampZoneJson: stamp3Zone
+          ? JSON.stringify({ ...stamp3Zone, ss: result.scaleFactor })
+          : null,
+        directorNote: directorNote ?? undefined,
+      },
+    });
+
+    this.logger.log(`Stamps 1+2 applied for intake #${intakeId} (case #${caseId}), stamp 3 deferred`);
+  }
+
+  /**
+   * Apply stamp 3 (Director Note) to an already-stamped PDF.
+   * Called when the director signs/approves the document.
+   */
+  async applyDirectorStampAsync(
+    caseId: number,
+    directorUserId: number,
+    noteText: string,
+    signatureBuffer?: Buffer,
+  ): Promise<void> {
+    const caseData = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(caseId) },
+      include: {
+        assignments: { include: { assignedTo: { select: { fullName: true } } } },
+      },
+    });
+    if (!caseData) throw new NotFoundException('Case not found');
+    if (caseData.directorStampStatus !== 'pending') {
+      throw new BadRequestException('Document is not pending director signature');
+    }
+
+    const intakeId = this.parseIntakeId(caseData.description);
+    if (!intakeId || !this.pdfStamp || !this.stampStorage || !this.fileStorage) {
+      throw new BadRequestException('Cannot apply stamp: missing intake or services');
+    }
+
+    // Load the already-stamped PDF (stamps 1+2)
+    const stampedPdf = await this.stampStorage.get(intakeId);
+    if (!stampedPdf) throw new NotFoundException('Stamped PDF not found');
+
+    // Parse stored zone
+    const zone = caseData.directorStampZoneJson
+      ? JSON.parse(caseData.directorStampZoneJson)
+      : null;
+    if (!zone) throw new BadRequestException('Stamp 3 zone data not found');
+
+    // Load director info
+    const director = await this.prisma.user.findUnique({
+      where: { id: BigInt(directorUserId) },
+      select: { fullName: true, positionTitle: true, signaturePath: true },
+    });
+
+    // If no explicit signature buffer, try loading electronic signature
+    if (!signatureBuffer && director?.signaturePath) {
+      signatureBuffer = await this.fileStorage.getBuffer(director.signaturePath).catch(() => undefined) ?? undefined;
+    }
+
+    const assigneeNames = caseData.assignments
+      ?.map((a) => a.assignedTo?.fullName)
+      .filter(Boolean) as string[] | undefined;
+
+    const now = new Date();
+    const { ss, ...zoneCoords } = zone;
+
+    // Apply stamp 3
+    let finalPdf = await this.pdfStamp.applyStamp3Only(
+      stampedPdf,
+      {
+        noteText,
+        authorName: director?.fullName ?? 'ผู้อำนวยการ',
+        positionTitle: director?.positionTitle ?? 'ผู้อำนวยการโรงเรียน',
+        stampedAt: now,
+        signatureBuffer,
+        assigneeNames,
+      },
+      zoneCoords,
+      ss,
+    );
 
     // Apply digital signature (PKI)
     if (this.pdfSigning) {
       try {
-        finalPdf = await this.pdfSigning.signPdf(stamped, assignedByUserId, 'เสนอความเห็น (Endorsement)');
-        this.logger.log(`Digital signature applied for intake #${intakeId}`);
+        finalPdf = await this.pdfSigning.signPdf(finalPdf, directorUserId, 'ลงนามเกษียณหนังสือ (Director Signing)');
+        this.logger.log(`PKI signature applied for intake #${intakeId} by director #${directorUserId}`);
       } catch (e: any) {
-        this.logger.warn(`Digital signing failed for intake #${intakeId}: ${e.message}`);
+        this.logger.warn(`PKI signing failed for intake #${intakeId}: ${e.message}`);
       }
     }
 
     await this.stampStorage.save(intakeId, finalPdf);
-    this.logger.log(`All stamps applied for intake #${intakeId} (case #${caseId})`);
+
+    // Update case status
+    await this.prisma.inboundCase.update({
+      where: { id: BigInt(caseId) },
+      data: {
+        directorStampStatus: 'applied',
+        directorStampedAt: now,
+        directorStampedByUserId: BigInt(directorUserId),
+        directorNote: noteText,
+      },
+    });
+
+    // Log activity
+    await this.prisma.caseActivity.create({
+      data: {
+        inboundCaseId: BigInt(caseId),
+        userId: BigInt(directorUserId),
+        action: 'director_sign',
+        detail: JSON.stringify({ noteText }),
+      },
+    });
+
+    this.logger.log(`Stamp 3 applied for intake #${intakeId} (case #${caseId}) by director #${directorUserId}`);
   }
 
   private serialize(c: any) {

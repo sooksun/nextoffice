@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import {
   Inbox, SendHorizontal, CheckCircle, AlertTriangle,
-  CalendarDays, Users, ClipboardList, ChevronRight, Clock
+  CalendarDays, Users, ClipboardList, ChevronRight, Clock, PenLine
 } from "lucide-react";
 import { formatThaiDateTime } from "@/lib/thai-date";
 
@@ -53,6 +53,7 @@ export default function DirectorDashboard() {
   const [stats, setStats] = useState<SummaryStats | null>(null);
   const [recentCases, setRecentCases] = useState<RecentCase[]>([]);
   const [pendingOutbound, setPendingOutbound] = useState<PendingOutbound[]>([]);
+  const [pendingSigningCount, setPendingSigningCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ id: number; fullName: string; organizationId: number; roleCode: string } | null>(null);
 
@@ -73,7 +74,8 @@ export default function DirectorDashboard() {
       apiFetch<PendingOutbound[]>(`/outbound/${orgId}/documents?status=pending_approval`).catch(() => []),
       apiFetch<PendingOutbound[]>(`/outbound/${orgId}/documents?status=draft`).catch(() => []),
       apiFetch<{ total: number; data: RecentCase[] }>(`/cases?dateFrom=${todayStr}&take=50`).catch(() => ({ total: 0, data: [] })),
-    ]).then(([recentRes, allRes, pendingRes, pendingOutRes, draftOutRes, todayRes]) => {
+      apiFetch<any[]>(`/cases/pending-director-signing`).catch(() => []),
+    ]).then(([recentRes, allRes, pendingRes, pendingOutRes, draftOutRes, todayRes, pendingSignRes]) => {
       const recent = recentRes.status === "fulfilled" ? (recentRes.value as any).data ?? [] : [];
       const all = allRes.status === "fulfilled" ? allRes.value as any : { total: 0 };
       const pendingCases = pendingRes.status === "fulfilled" ? (pendingRes.value as any) : { total: 0 };
@@ -81,6 +83,8 @@ export default function DirectorDashboard() {
       const draftOut = draftOutRes.status === "fulfilled" ? draftOutRes.value as PendingOutbound[] : [];
       const todayIn = todayRes.status === "fulfilled" ? (todayRes.value as any) : { total: 0 };
 
+      const pendingSign = pendingSignRes.status === "fulfilled" ? pendingSignRes.value as any[] : [];
+      setPendingSigningCount(Array.isArray(pendingSign) ? pendingSign.length : 0);
       setRecentCases(recent);
       setPendingOutbound(pendingOut);
       setStats({
@@ -143,6 +147,14 @@ export default function DirectorDashboard() {
           href="/outbound?status=pending_approval"
         />
         <StatCard
+          label="รอลงนาม ผอ."
+          value={pendingSigningCount}
+          sub="หนังสือรอเกษียณ"
+          icon={PenLine}
+          accent="text-violet-600 bg-violet-100"
+          href="/director/signing"
+        />
+        <StatCard
           label="ใบลารออนุมัติ"
           value={stats?.leavePending ?? 0}
           sub="รอการพิจารณา"
@@ -156,6 +168,7 @@ export default function DirectorDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <QuickAction href="/inbox" icon={Inbox} label="ดูหนังสือเข้า" color="bg-primary/10 text-primary" />
         <QuickAction href="/outbound/new" icon={SendHorizontal} label="สร้างหนังสือออก" color="bg-secondary/10 text-secondary" />
+        <QuickAction href="/director/signing" icon={PenLine} label="ลงนามเกษียณ" color="bg-violet-100 text-violet-600" />
         <QuickAction href="/outbound" icon={CheckCircle} label="อนุมัติหนังสือ" color="bg-green-100 text-green-700" />
         <QuickAction href="/leave/approvals" icon={CalendarDays} label="อนุมัติใบลา" color="bg-tertiary/10 text-tertiary" />
       </div>

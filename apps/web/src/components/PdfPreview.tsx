@@ -13,7 +13,7 @@ export default function PdfPreview({ src, mimeType, fileName }: PdfPreviewProps)
   const [cacheBust, setCacheBust] = useState<number>(0);
 
   useEffect(() => {
-    const handler = () => setCacheBust(Date.now());
+    const handler = () => setTimeout(() => setCacheBust(Date.now()), 5000);
     window.addEventListener("assign-success", handler);
     return () => window.removeEventListener("assign-success", handler);
   }, []);

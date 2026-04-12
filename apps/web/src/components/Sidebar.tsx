@@ -38,6 +38,7 @@ import {
   ChevronDown,
   Archive,
   QrCode,
+  PenLine,
 } from "lucide-react";
 
 // undefined = ทุก role เห็นได้
@@ -68,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/saraban/handover", label: "บัญชีส่งมอบ 20 ปี", icon: Archive, roles: SARABAN },
       { href: "/saraban/archive", label: "คลังเอกสาร/ทำลาย", icon: FolderOpen, roles: SARABAN },
       { href: "/track", label: "ติดตาม QR Code", icon: QrCode },
+      { href: "/director/signing", label: "รอลงนาม ผอ.", icon: PenLine, roles: ["DIRECTOR", "VICE_DIRECTOR"] },
     ],
   },
   {

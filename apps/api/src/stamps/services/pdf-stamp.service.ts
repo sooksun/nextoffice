@@ -37,6 +37,19 @@ export interface AllStampsData {
   directorNote?: DirectorNoteStampData;
 }
 
+export interface StampZone {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface StampResult {
+  pdfBuffer: Buffer;
+  zones: (StampZone | null)[];
+  scaleFactor: number;
+}
+
 // ─── Stamp dimensions ─────────────────────────────────────────────────────────
 
 const S1_W = 160;
@@ -53,28 +66,27 @@ export class PdfStampService {
     private readonly stampCanvas: StampCanvasService,
   ) {}
 
-  async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<Buffer> {
+  async applyAllStamps(pdfBuffer: Buffer, data: AllStampsData): Promise<StampResult> {
     // ── 0. Detect page scale relative to A4 (595pt) ────────────────────────
-    // Some scanned PDFs have large MediaBox (e.g. 2480pt at 300 DPI equivalent).
-    // Scale all stamp dimensions proportionally so stamps are never tiny.
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const page = pdfDoc.getPages()[0];
     const { width: pageW, height: pageH } = page.getSize();
-    const ss = Math.max(1.0, pageW / 595); // scale factor, min 1× (never shrink below A4 size)
+    const ss = Math.max(1.0, pageW / 595);
 
     // Scaled draw dimensions (pt in PDF space)
     const s1W = Math.round(S1_W * ss);
     const s1H = Math.round(S1_H * ss);
     const w2  = Math.round(W2 * ss);
     const w3  = Math.round(W3 * ss);
-    const sigTotal = Math.round(SIG_TOTAL * ss);
 
     // ── 1. Compute content-box heights at original A4 stamp widths ─────────
-    // Heights are computed at A4 widths (same text layout), then scaled for PDF draw.
     const h2Orig = this.stampCanvas.computeEndorsementHeight(data.endorsement, W2);
     const h3Orig = data.directorNote
       ? this.stampCanvas.computeDirectorNoteHeight(data.directorNote, W3)
-      : 0;
+      : this.stampCanvas.computeDirectorNoteHeight(
+          { noteText: 'placeholder', authorName: '', stampedAt: new Date() },
+          W3,
+        );
     const h2 = Math.round(h2Orig * ss);
     const h3 = Math.round(h3Orig * ss);
 
@@ -82,15 +94,13 @@ export class PdfStampService {
     const sigTotal2 = Math.round((data.endorsement.signatureBuffer ? SIG_TOTAL_SIG : SIG_TOTAL) * ss);
     const sigTotal3 = data.directorNote
       ? Math.round((data.directorNote.signatureBuffer ? SIG_TOTAL_SIG : SIG_TOTAL) * ss)
-      : sigTotal2;
+      : Math.round(SIG_TOTAL * ss);
 
-    // ── 2. Find placement zones (pdfjs-dist text analysis) ─────────────────
+    // ── 2. Find placement zones — ALWAYS compute for all 3 stamps ─────────
     const specs = [
       { w: s1W, h: s1H, preference: 'top-right'       as const },
       { w: w2,  h: h2,  preference: 'lower-half-left'  as const },
-      ...(data.directorNote
-        ? [{ w: w3, h: h3, preference: 'lower-half-right' as const }]
-        : []),
+      { w: w3,  h: h3,  preference: 'lower-half-right' as const },
     ];
 
     const zones = await this.emptySpace.findStampZones(pdfBuffer, specs);
@@ -126,7 +136,6 @@ export class PdfStampService {
     }
 
     if (zones[1]) {
-      // PNG includes signature area below box
       page.drawImage(img2, {
         x:      zones[1].x,
         y:      zones[1].y - sigTotal2,
@@ -143,6 +152,55 @@ export class PdfStampService {
         height: h3 + sigTotal3,
       });
     }
+
+    // Build zone info for stamp 3 (always computed, even if not rendered)
+    const stamp3Zone: StampZone | null = zones[2]
+      ? { x: zones[2].x, y: zones[2].y, w: w3, h: h3 }
+      : null;
+
+    return {
+      pdfBuffer: Buffer.from(await pdfDoc.save()),
+      zones: [
+        zones[0] ? { x: zones[0].x, y: zones[0].y, w: s1W, h: s1H } : null,
+        zones[1] ? { x: zones[1].x, y: zones[1].y, w: w2,  h: h2  } : null,
+        stamp3Zone,
+      ],
+      scaleFactor: ss,
+    };
+  }
+
+  /**
+   * Apply only stamp 3 (Director Note) onto an already-stamped PDF.
+   * Uses pre-computed zone coordinates from the initial stamp pass.
+   */
+  async applyStamp3Only(
+    pdfBuffer: Buffer,
+    data: DirectorNoteStampData,
+    zone: StampZone,
+    scaleFactor: number,
+  ): Promise<Buffer> {
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const page = pdfDoc.getPages()[0];
+
+    // Compute stamp 3 content height at A4 width
+    const h3Orig = this.stampCanvas.computeDirectorNoteHeight(data, W3);
+    const h3 = Math.round(h3Orig * scaleFactor);
+    const w3 = Math.round(W3 * scaleFactor);
+    const sigTotal3 = Math.round(
+      (data.signatureBuffer ? SIG_TOTAL_SIG : SIG_TOTAL) * scaleFactor,
+    );
+
+    // Render stamp 3 PNG
+    const png3 = await this.stampCanvas.renderDirectorNote(data, W3, h3Orig);
+    const img3 = await pdfDoc.embedPng(png3);
+
+    // Draw at stored zone position
+    page.drawImage(img3, {
+      x:      zone.x,
+      y:      zone.y - sigTotal3,
+      width:  w3,
+      height: h3 + sigTotal3,
+    });
 
     return Buffer.from(await pdfDoc.save());
   }

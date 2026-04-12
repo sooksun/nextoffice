@@ -389,7 +389,11 @@ model InboundCase {
   selectedOptionId      BigInt?   @map("selected_option_id") // option A/B/C ที่เลือก
   urgencyLevel          String    @map("urgency_level") @db.VarChar(20) @default("normal") // normal | urgent | very_urgent | most_urgent
   securityLevel         String    @map("security_level") @db.VarChar(20) @default("normal") // normal | confidential | secret
-  directorNote          String?   @map("director_note") @db.Text // คำสั่ง ผอ.
+  directorNote             String?   @map("director_note") @db.Text // คำสั่ง ผอ.
+  directorStampStatus      String?   @default("none") @map("director_stamp_status") @db.VarChar(30) // none → pending → applied
+  directorStampedAt        DateTime? @map("director_stamped_at")
+  directorStampedByUserId  BigInt?   @map("director_stamped_by_user_id")
+  directorStampZoneJson    String?   @map("director_stamp_zone_json") @db.Text
   googleCalendarEventId  String?   @map("google_calendar_event_id") @db.VarChar(255)
   meetingCalendarEventId String?   @map("meeting_calendar_event_id") @db.VarChar(255)
   createdAt              DateTime  @map("created_at") @default(now())
@@ -400,6 +404,7 @@ model InboundCase {
   sourceDocument     Document?             @relation(fields: [sourceDocumentId], references: [id])
   registeredBy       User?                 @relation("CaseRegisteredBy", fields: [registeredByUserId], references: [id])
   assignedTo         User?                 @relation("CaseAssignedTo", fields: [assignedToUserId], references: [id])
+  directorStampedBy  User?                 @relation("CaseDirectorStampedBy", fields: [directorStampedByUserId], references: [id])
   topics             CaseTopic[]
   retrievals         CaseRetrievalResult[]
   options            CaseOption[]
@@ -414,6 +419,7 @@ model InboundCase {
   @@index([status])
   @@index([registeredByUserId])
   @@index([assignedToUserId])
+  @@index([directorStampStatus])
   @@map("inbound_cases")
 }
 
@@ -676,6 +682,7 @@ model User {
   pairingCodes          UserPairingCode[]
   registeredCases       InboundCase[]      @relation("CaseRegisteredBy")
   assignedCases         InboundCase[]      @relation("CaseAssignedTo")
+  directorStampedCases  InboundCase[]      @relation("CaseDirectorStampedBy")
   assignmentsGiven      CaseAssignment[]   @relation("AssignmentGivenBy")
   assignmentsReceived   CaseAssignment[]   @relation("AssignmentReceivedBy")
   endorsementsAuthored  CaseEndorsement[]  @relation("EndorsementAuthor")

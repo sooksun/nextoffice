@@ -480,6 +480,25 @@ ${ragSection}
     }
   }
 
+  async getPendingDirectorSigning(organizationId: number) {
+    const cases = await this.prisma.inboundCase.findMany({
+      where: {
+        organizationId: BigInt(organizationId),
+        directorStampStatus: 'pending',
+      },
+      include: {
+        assignedTo: { select: { id: true, fullName: true } },
+        organization: { select: { id: true, name: true } },
+        sourceDocument: { select: { id: true, documentCode: true, issuingAuthority: true } },
+        assignments: {
+          include: { assignedTo: { select: { id: true, fullName: true } } },
+        },
+      },
+      orderBy: { registeredAt: 'desc' },
+    });
+    return cases.map((c) => this.serialize(c));
+  }
+
   async getOverdue(organizationId?: number) {
     const where: any = {
       status: { notIn: ['completed', 'archived'] },
