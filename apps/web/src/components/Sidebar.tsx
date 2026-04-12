@@ -123,6 +123,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/terms", label: "ข้อกำหนดการใช้บริการ", icon: ScrollText },
       { href: "/privacy", label: "นโยบายความเป็นส่วนตัว", icon: Shield },
       { href: "/help", label: "ศูนย์ช่วยเหลือ", icon: HelpCircle },
+      { href: "/about", label: "เกี่ยวกับ Next Office", icon: Building2 },
     ],
   },
 ];
