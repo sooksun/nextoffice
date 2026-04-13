@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import DocumentUploadModal from "./DocumentUploadModal";
@@ -254,23 +255,13 @@ export default function Sidebar() {
     <aside className="w-64 shrink-0 bg-surface-low flex flex-col border-r border-outline-variant/20 font-[family-name:var(--font-be-vietnam-pro)] text-sm font-medium">
       {/* Brand */}
       <div className="px-5 py-5 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 3v18" />
-            <path d="M3 12h18" />
-            <path d="M3.5 5.5l17 13" />
-            <path d="M20.5 5.5l-17 13" />
-          </svg>
-        </div>
+        <Image
+          src="/Favicon.png"
+          alt="NextOffice"
+          width={40}
+          height={40}
+          className="rounded-xl shadow-lg"
+        />
         <div>
           <span className="text-xl font-bold text-primary leading-tight block">Next Office</span>
           <p className="text-[10px] uppercase tracking-widest text-outline font-bold">Education AI</p>
