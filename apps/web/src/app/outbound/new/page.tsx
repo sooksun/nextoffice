@@ -3,22 +3,32 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { toastError, toastWarning } from "@/lib/toast";
+import { toastError, toastWarning, toastSuccess } from "@/lib/toast";
 import Link from "next/link";
-import { ArrowLeft, SendHorizontal, Upload, Loader2, FileText, Paperclip, CheckCircle } from "lucide-react";
+import { ArrowLeft, SendHorizontal, Upload, Loader2, FileText, Paperclip, CheckCircle, Sparkles, Wand2, FileInput } from "lucide-react";
 import { getUser } from "@/lib/auth";
 
 const LETTER_TYPE_LABEL: Record<string, string> = {
   external_letter: "หนังสือภายนอก",
   internal_memo:   "หนังสือภายใน (บันทึกข้อความ)",
-  directive:       "หนังสือสั่งการ (คำสั่ง/ระเบียบ)",
+  stamp_letter:    "หนังสือประทับตรา",
+  directive:       "คำสั่ง / ประกาศ",
   pr_letter:       "หนังสือประชาสัมพันธ์",
   official_record: "หนังสือที่เจ้าหน้าที่ทำขึ้น",
-  stamp_letter:    "หนังสือประทับตรา",
   secret_letter:   "หนังสือลับ",
 };
 
+const AI_LETTER_TYPES = ["external_letter", "internal_memo", "stamp_letter", "directive"];
 const CONFIDENTIAL_ROLES = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR", "CLERK"];
+
+type CreateMode = "manual" | "ai_prompt" | "ai_inbound";
+
+interface InboundCase {
+  id: number;
+  title: string;
+  registrationNo: string | null;
+  status: string;
+}
 
 export default function NewOutboundPage() {
   const router = useRouter();
@@ -28,6 +38,16 @@ export default function NewOutboundPage() {
   const [uploadedIntakeId, setUploadedIntakeId] = useState<number | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+  // AI state
+  const [mode, setMode] = useState<CreateMode>("manual");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [inboundCases, setInboundCases] = useState<InboundCase[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
+  const [draftType, setDraftType] = useState("reply");
+  const [additionalContext, setAdditionalContext] = useState("");
+
   const [form, setForm] = useState({
     subject: "",
     bodyText: "",
@@ -50,6 +70,76 @@ export default function NewOutboundPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const canSetConfidential = CONFIDENTIAL_ROLES.includes(roleCode);
+
+  // Load inbound cases for "create from inbound" mode
+  useEffect(() => {
+    if (mode !== "ai_inbound") return;
+    const user = getUser();
+    if (!user?.organizationId) return;
+    apiFetch<InboundCase[]>(`/cases?organizationId=${user.organizationId}&limit=50`)
+      .then(setInboundCases)
+      .catch(() => setInboundCases([]));
+  }, [mode]);
+
+  // ─── AI Generate from Prompt ───
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim()) { toastWarning("กรุณาพิมพ์คำสั่งให้ AI"); return; }
+    setAiGenerating(true);
+    try {
+      const res = await apiFetch<any>("/outbound/ai-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          letterType: form.letterType,
+          prompt: aiPrompt,
+        }),
+      });
+      // Pre-fill form with AI response
+      setForm((prev) => ({
+        ...prev,
+        subject: res.subject ?? prev.subject,
+        bodyText: res.bodyText ?? prev.bodyText,
+        recipientOrg: res.recipientOrg ?? prev.recipientOrg,
+        recipientName: res.recipientName ?? prev.recipientName,
+      }));
+      toastSuccess("AI สร้าง draft สำเร็จ — กรุณาตรวจสอบและแก้ไข");
+      setMode("manual"); // Switch to manual mode to edit
+    } catch (err: unknown) {
+      toastError((err as Error).message || "AI สร้าง draft ไม่สำเร็จ");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  // ─── AI Generate from Inbound Case ───
+  const handleAiFromInbound = async () => {
+    if (!selectedCaseId) { toastWarning("กรุณาเลือกหนังสือรับ"); return; }
+    setAiGenerating(true);
+    try {
+      const res = await apiFetch<any>("/outbound/ai-draft", {
+        method: "POST",
+        body: JSON.stringify({
+          caseId: selectedCaseId,
+          draftType,
+          additionalContext: additionalContext || undefined,
+        }),
+      });
+      // Pre-fill form
+      setForm((prev) => ({
+        ...prev,
+        subject: res.subject ?? prev.subject,
+        bodyText: res.bodyText ?? prev.bodyText,
+        recipientOrg: res.recipientOrg ?? prev.recipientOrg,
+        recipientName: res.recipientName ?? prev.recipientName,
+        letterType: res.letterType ?? prev.letterType,
+      }));
+      toastSuccess("AI สร้าง draft จากหนังสือรับสำเร็จ — กรุณาตรวจสอบ");
+      setMode("manual");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "AI สร้าง draft ไม่สำเร็จ");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   const handleFileUpload = async (file: File) => {
     setUploading(true);
@@ -115,11 +205,148 @@ export default function NewOutboundPage() {
           <SendHorizontal size={20} className="text-secondary" />
         </div>
         <div>
-          <h1 className="text-2xl font-black text-primary tracking-tight">ส่งเอกสาร</h1>
-          <p className="text-xs text-on-surface-variant">สร้างหนังสือส่งออก</p>
+          <h1 className="text-2xl font-black text-primary tracking-tight">สร้างหนังสือส่ง</h1>
+          <p className="text-xs text-on-surface-variant">สร้างด้วยตนเอง หรือให้ AI ช่วยร่าง</p>
         </div>
       </div>
 
+      {/* ─── Mode Selector ─── */}
+      <div className="flex gap-2 mb-5">
+        {([
+          { key: "manual", label: "สร้างเอง", icon: FileText },
+          { key: "ai_prompt", label: "AI สร้างจาก Prompt", icon: Sparkles },
+          { key: "ai_inbound", label: "AI สร้างจากหนังสือรับ", icon: FileInput },
+        ] as { key: CreateMode; label: string; icon: any }[]).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setMode(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              mode === key
+                ? "bg-primary text-on-primary shadow-lg shadow-primary/20"
+                : "bg-surface-bright text-on-surface-variant hover:text-primary border border-outline-variant/20"
+            }`}
+          >
+            <Icon size={16} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── AI Prompt Mode ─── */}
+      {mode === "ai_prompt" && (
+        <div className="rounded-2xl border border-purple-200 bg-purple-50/50 p-6 space-y-4 mb-5">
+          <div className="flex items-center gap-2 text-purple-700 font-bold">
+            <Sparkles size={18} />
+            AI สร้างหนังสือจากคำสั่ง
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">ประเภทหนังสือ</label>
+            <select
+              value={form.letterType}
+              onChange={(e) => update("letterType", e.target.value)}
+              className="input-select w-full"
+            >
+              {AI_LETTER_TYPES.map((v) => (
+                <option key={v} value={v}>{LETTER_TYPE_LABEL[v]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">
+              พิมพ์คำสั่งให้ AI <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="เช่น: สร้างหนังสือถึง สพป.เชียงราย เขต 3 เรื่องรายงานผลนักเรียนอ่านออกเขียนได้ ประจำภาคเรียนที่ 2/2568 พร้อมแนบรายงาน 1 ชุด"
+              className="w-full p-3 rounded-xl border border-outline-variant/20 bg-white text-sm resize-none"
+              rows={4}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAiGenerate}
+            disabled={aiGenerating || !aiPrompt.trim()}
+            className="w-full py-3 px-4 bg-purple-600 text-white rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-purple-600/20 transition-transform active:scale-95 disabled:opacity-50"
+          >
+            {aiGenerating ? (
+              <><Loader2 size={16} className="animate-spin" /> AI กำลังสร้าง...</>
+            ) : (
+              <><Wand2 size={16} /> สร้างด้วย AI</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ─── AI from Inbound Mode ─── */}
+      {mode === "ai_inbound" && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6 space-y-4 mb-5">
+          <div className="flex items-center gap-2 text-blue-700 font-bold">
+            <FileInput size={18} />
+            AI สร้างจากหนังสือรับ
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">เลือกหนังสือรับ</label>
+            <select
+              value={selectedCaseId ?? ""}
+              onChange={(e) => setSelectedCaseId(Number(e.target.value) || null)}
+              className="input-select w-full"
+            >
+              <option value="">-- เลือกหนังสือรับ --</option>
+              {inboundCases.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.registrationNo ? `${c.registrationNo} - ` : ""}{c.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">ประเภท draft</label>
+            <select
+              value={draftType}
+              onChange={(e) => setDraftType(e.target.value)}
+              className="input-select w-full"
+            >
+              <option value="reply">หนังสือตอบกลับ (ภายนอก)</option>
+              <option value="memo">บันทึกเสนอผู้บริหาร (ภายใน)</option>
+              <option value="report">รายงานผลการดำเนินงาน</option>
+              <option value="order">คำสั่ง</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">บริบทเพิ่มเติม (ถ้ามี)</label>
+            <textarea
+              value={additionalContext}
+              onChange={(e) => setAdditionalContext(e.target.value)}
+              placeholder="เช่น: ให้ตอบรับและแจ้งรายชื่อผู้เข้าร่วม 3 คน"
+              className="w-full p-3 rounded-xl border border-outline-variant/20 bg-white text-sm resize-none"
+              rows={3}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAiFromInbound}
+            disabled={aiGenerating || !selectedCaseId}
+            className="w-full py-3 px-4 bg-blue-600 text-white rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-blue-600/20 transition-transform active:scale-95 disabled:opacity-50"
+          >
+            {aiGenerating ? (
+              <><Loader2 size={16} className="animate-spin" /> AI กำลังสร้าง...</>
+            ) : (
+              <><Wand2 size={16} /> สร้างจากหนังสือรับ</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ─── Main Form ─── */}
       <form onSubmit={handleSubmit} className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm p-6 space-y-5">
 
         {/* ประเภทหนังสือ + เลขที่หนังสือ */}
@@ -161,7 +388,7 @@ export default function NewOutboundPage() {
             >
               <option value="normal">ทั่วไป</option>
               <option value="urgent">ด่วน</option>
-              <option value="very_urgent">ด่วนที่สุด</option>
+              <option value="very_urgent">ด่วนมาก</option>
               <option value="most_urgent">ด่วนที่สุด</option>
             </select>
           </div>
@@ -238,9 +465,9 @@ export default function NewOutboundPage() {
           <label className="text-sm font-semibold text-on-surface-variant mb-2 block">วิธีการส่ง</label>
           <div className="flex gap-4">
             {[
-              { value: "email", label: "อีเมล", icon: "📧" },
-              { value: "line", label: "LINE", icon: "💬" },
-              { value: "paper", label: "ส่งเอกสาร (กระดาษ)", icon: "📄" },
+              { value: "email", label: "อีเมล" },
+              { value: "line", label: "LINE" },
+              { value: "paper", label: "ส่งเอกสาร (กระดาษ)" },
             ].map((opt) => (
               <label key={opt.value} className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-colors ${form.sentMethod === opt.value ? "border-primary bg-primary/5 text-primary font-semibold" : "border-outline-variant/20 text-on-surface-variant hover:border-primary/30"}`}>
                 <input
@@ -251,7 +478,6 @@ export default function NewOutboundPage() {
                   onChange={(e) => update("sentMethod", e.target.value)}
                   className="sr-only"
                 />
-                <span>{opt.icon}</span>
                 <span className="text-sm">{opt.label}</span>
               </label>
             ))}
@@ -260,13 +486,13 @@ export default function NewOutboundPage() {
 
         {/* เนื้อหา */}
         <div>
-          <label className="text-sm font-semibold text-on-surface-variant mb-1 block">เนื้อหา / หมายเหตุ</label>
+          <label className="text-sm font-semibold text-on-surface-variant mb-1 block">เนื้อหา</label>
           <textarea
             value={form.bodyText}
             onChange={(e) => update("bodyText", e.target.value)}
-            placeholder="เนื้อหาหนังสือหรือหมายเหตุ"
+            placeholder="เนื้อหาหนังสือ"
             className="w-full p-3 rounded-xl border border-outline-variant/20 bg-surface-bright text-sm resize-none"
-            rows={5}
+            rows={8}
           />
         </div>
 
@@ -326,7 +552,7 @@ export default function NewOutboundPage() {
           className="w-full py-3 px-4 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95 disabled:opacity-50"
         >
           <SendHorizontal size={16} />
-          {loading ? "กำลังบันทึก..." : "ส่งเอกสาร"}
+          {loading ? "กำลังบันทึก..." : "บันทึกหนังสือส่ง"}
         </button>
       </form>
     </div>
