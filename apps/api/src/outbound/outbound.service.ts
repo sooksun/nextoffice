@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_OUTBOUND } from '../queue/queue.constants';
 import { PdfSigningService } from '../digital-signature/pdf-signing.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
+import { TemplatesService } from '../templates/templates.service';
 
 @Injectable()
 export class OutboundService {
@@ -18,6 +19,7 @@ export class OutboundService {
     @InjectQueue(QUEUE_OUTBOUND) private readonly outboundQueue: Queue,
     @Optional() private readonly pdfSigning: PdfSigningService,
     @Optional() private readonly fileStorage: FileStorageService,
+    private readonly templates: TemplatesService,
   ) {}
 
   private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
@@ -461,6 +463,96 @@ ${typePrompt}
       this.logger.error(`AI draft generation failed for case ${caseId}`, error?.message);
       throw error;
     }
+  }
+
+  /**
+   * Generate PDF from outbound document data using the appropriate template
+   */
+  async generatePdf(id: number): Promise<Buffer> {
+    const doc = await this.prisma.outboundDocument.findUnique({
+      where: { id: BigInt(id) },
+      include: {
+        organization: { select: { name: true, address: true, phone: true, orgCode: true } },
+        approvedBy: { select: { fullName: true, positionTitle: true } },
+        createdBy: { select: { fullName: true, positionTitle: true } },
+      },
+    });
+    if (!doc) throw new Error(`Outbound document #${id} not found`);
+
+    const org = doc.organization;
+    const signer = doc.approvedBy ?? doc.createdBy;
+    const now = new Date();
+    const buddhistYear = now.getFullYear() + 543;
+    const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const dateStr = `${now.getDate()} ${thaiMonths[now.getMonth()]} ${buddhistYear}`;
+
+    let pdfBuffer: Buffer;
+
+    switch (doc.letterType) {
+      case 'internal_memo':
+        pdfBuffer = await this.templates.generateMemo({
+          department: org?.name,
+          documentNo: doc.documentNo ?? undefined,
+          date: dateStr,
+          subject: doc.subject,
+          recipient: doc.recipientName ?? undefined,
+          body: doc.bodyText ?? undefined,
+          signerName: signer?.fullName ?? undefined,
+          signerPosition: signer?.positionTitle ?? undefined,
+        });
+        break;
+
+      case 'stamp_letter':
+        pdfBuffer = await this.templates.generateStampLetter({
+          documentNo: doc.documentNo ?? undefined,
+          recipient: doc.recipientOrg ?? doc.recipientName ?? undefined,
+          body: doc.bodyText ?? undefined,
+          orgName: org?.name ?? '',
+          date: dateStr,
+        });
+        break;
+
+      case 'directive':
+        pdfBuffer = await this.templates.generateDirective({
+          orgName: org?.name ?? '',
+          subject: doc.subject,
+          body: doc.bodyText ?? undefined,
+          date: dateStr,
+          signerName: signer?.fullName ?? undefined,
+          signerPosition: signer?.positionTitle ?? undefined,
+        });
+        break;
+
+      default: // external_letter
+        pdfBuffer = await this.templates.generateKrut({
+          documentNo: doc.documentNo ?? undefined,
+          orgName: org?.name ?? '',
+          orgAddress: org?.address ?? undefined,
+          date: dateStr,
+          recipient: doc.recipientName ?? undefined,
+          subject: doc.subject,
+          body: doc.bodyText ?? undefined,
+          closing: 'ขอแสดงความนับถือ',
+          signerName: signer?.fullName ?? undefined,
+          signerPosition: signer?.positionTitle ?? undefined,
+          department: org?.name ?? undefined,
+          phone: org?.phone ?? undefined,
+        });
+        break;
+    }
+
+    // Save PDF to MinIO
+    if (this.fileStorage) {
+      const storagePath = `outbound/${doc.organizationId}/${id}.pdf`;
+      await this.fileStorage.saveBuffer(storagePath, pdfBuffer, 'application/pdf');
+      await this.prisma.outboundDocument.update({
+        where: { id: BigInt(id) },
+        data: { storagePath },
+      });
+      this.logger.log(`Generated PDF for outbound doc #${id} → ${storagePath}`);
+    }
+
+    return pdfBuffer;
   }
 
   async reject(id: number, note?: string) {

@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Param, Body, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, Res, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
 import { OutboundService } from './outbound.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -129,6 +130,21 @@ export class OutboundController {
       letterType: dto.letterType,
       prompt: dto.prompt,
     });
+  }
+
+  @Get('documents/:id/pdf')
+  @ApiOperation({ summary: 'Generate and download PDF for outbound document' })
+  async getPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.svc.generatePdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="outbound-${id}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Post('registry/inbound/:caseId')

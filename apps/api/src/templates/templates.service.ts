@@ -267,6 +267,77 @@ export class TemplatesService {
     return Buffer.from(await doc.save());
   }
 
+  /**
+   * แบบที่ 4 — คำสั่ง / ประกาศ
+   */
+  async generateDirective(data: {
+    orgName: string;
+    subject?: string;
+    body?: string;
+    date?: string;
+    signerName?: string;
+    signerPosition?: string;
+    directiveType?: string; // 'คำสั่ง' | 'ประกาศ'
+  }): Promise<Buffer> {
+    const doc = await PDFDocument.create();
+    doc.registerFontkit(fontkit);
+    const page = doc.addPage([A4_W, A4_H]);
+    const { regular, bold } = await this.embedFonts(doc);
+    let y = A4_H - MARGIN_T;
+    const type = data.directiveType ?? 'คำสั่ง';
+
+    // Header — ชื่อส่วนราชการ
+    const headerText = `${type}${data.orgName}`;
+    page.drawText(headerText, { x: MARGIN_L, y, size: 18, font: bold });
+    y -= 28;
+
+    // เรื่อง
+    if (data.subject) {
+      page.drawText(`เรื่อง  ${data.subject}`, { x: MARGIN_L, y, size: 14, font: regular });
+      y -= 10;
+      // เส้นใต้
+      page.drawLine({
+        start: { x: MARGIN_L, y },
+        end: { x: A4_W - MARGIN_R, y },
+        thickness: 0.5,
+        color: rgb(0, 0, 0),
+      });
+      y -= 20;
+    }
+
+    // เนื้อหา
+    if (data.body) {
+      const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
+      for (const line of lines) {
+        if (y < 140) break;
+        page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
+        y -= 20;
+      }
+    }
+
+    y -= 16;
+
+    // วันที่
+    if (data.date) {
+      const dateText = `${type} ณ วันที่  ${data.date}`;
+      page.drawText(dateText, { x: MARGIN_L + 36, y, size: 14, font: regular });
+      y -= 50;
+    }
+
+    // ลงชื่อ
+    if (data.signerName) {
+      const nameX = A4_W / 2 - 40;
+      page.drawText(`(${data.signerName})`, { x: nameX, y, size: 14, font: regular });
+      y -= 18;
+    }
+    if (data.signerPosition) {
+      const posX = A4_W / 2 - 60;
+      page.drawText(data.signerPosition, { x: posX, y, size: 14, font: regular });
+    }
+
+    return Buffer.from(await doc.save());
+  }
+
   // ─── Helpers ─────────────────────────────
 
   private async embedFonts(doc: PDFDocument) {
