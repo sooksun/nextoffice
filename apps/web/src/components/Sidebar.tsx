@@ -256,7 +256,7 @@ export default function Sidebar() {
       {/* Brand */}
       <div className="px-5 py-5 flex items-center gap-3">
         <Image
-          src="/Favicon.png"
+          src="/nextlogo3-Recovered.png"
           alt="NextOffice"
           width={40}
           height={40}
