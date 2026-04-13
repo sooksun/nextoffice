@@ -9,8 +9,8 @@ COPY apps/web/package.json ./apps/web/
 
 # npm workspaces hoists everything to root node_modules
 # --legacy-peer-deps: lockfile generated with this flag on Windows
-# npm rebuild: ensure native binaries (lightningcss) match Alpine/musl platform
-RUN npm ci --legacy-peer-deps && npm rebuild lightningcss
+# lightningcss-linux-x64-musl: Windows lockfile misses Alpine native binary
+RUN npm ci --legacy-peer-deps && npm install lightningcss-linux-x64-musl --no-save
 
 # ─── Stage 2: Build ───
 FROM node:20-alpine AS builder
