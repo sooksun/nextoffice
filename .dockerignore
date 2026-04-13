@@ -9,5 +9,6 @@ dist
 !apps/web/AGENTS.md
 docs/
 *.pdf
-*.jpg
-*.png
+docs/*.jpg
+docs/*.png
+!apps/web/public/**
