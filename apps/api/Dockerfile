@@ -8,8 +8,8 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
-# Install all dependencies (hoisted to root node_modules)
-RUN npm ci --legacy-peer-deps
+# Windows lockfile misses Alpine/musl native binaries — use npm install
+RUN rm -f package-lock.json && npm install --legacy-peer-deps
 
 # Copy API source + Prisma schema
 COPY apps/api/ ./apps/api/
@@ -32,7 +32,8 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
-RUN npm ci --omit=dev --legacy-peer-deps
+# Production deps only — also use npm install for platform compat
+RUN rm -f package-lock.json && npm install --omit=dev --legacy-peer-deps
 
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/generated ./apps/api/generated
