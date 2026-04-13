@@ -68,6 +68,18 @@ export class KnowledgeImportController {
     return this.svc.findAll(Number(user.organizationId));
   }
 
+  @Post(':id/retry')
+  @ApiOperation({ summary: 'ลองนำเข้าใหม่ (retry)' })
+  retry(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.retry(id);
+  }
+
+  @Post('reset-stuck')
+  @ApiOperation({ summary: 'รีเซ็ตรายการที่ค้างนานเกิน 30 นาที' })
+  resetStuck() {
+    return this.svc.resetStuckItems();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'รายละเอียดความรู้' })
   findOne(@Param('id', ParseIntPipe) id: number) {

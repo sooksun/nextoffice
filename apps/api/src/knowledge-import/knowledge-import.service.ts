@@ -147,6 +147,46 @@ export class KnowledgeImportService {
     }));
   }
 
+  async retry(id: number) {
+    const item = await this.prisma.userKnowledgeItem.findUnique({
+      where: { id: BigInt(id) },
+    });
+    if (!item) throw new NotFoundException(`Knowledge item #${id} not found`);
+
+    await this.prisma.userKnowledgeItem.update({
+      where: { id: BigInt(id) },
+      data: { status: 'PENDING', chunkCount: 0, embeddedAt: null },
+    });
+
+    await this.aiQueue.add('knowledge.import.embed', {
+      itemId: item.id.toString(),
+    });
+
+    this.logger.log(`Retrying knowledge import #${id}`);
+    return { id: Number(item.id), status: 'PENDING' };
+  }
+
+  /** Auto-reset items stuck in PROCESSING for over 30 minutes */
+  async resetStuckItems() {
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const stuck = await this.prisma.userKnowledgeItem.findMany({
+      where: {
+        status: 'PROCESSING',
+        updatedAt: { lt: thirtyMinAgo },
+      },
+    });
+
+    for (const item of stuck) {
+      await this.prisma.userKnowledgeItem.update({
+        where: { id: item.id },
+        data: { status: 'ERROR' },
+      });
+      this.logger.warn(`Auto-reset stuck knowledge import #${item.id} to ERROR`);
+    }
+
+    return stuck.length;
+  }
+
   async findOne(id: number) {
     const item = await this.prisma.userKnowledgeItem.findUnique({
       where: { id: BigInt(id) },

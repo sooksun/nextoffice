@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
+import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
+import { toast } from "react-toastify";
 
 type SourceType = "file" | "text";
 type Status = "PENDING" | "PROCESSING" | "DONE" | "ERROR";
@@ -126,6 +127,24 @@ export default function KnowledgeImportPage() {
       alert((err as Error).message || "เกิดข้อผิดพลาด");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRetry = async (id: number) => {
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`${apiBase}/knowledge-import/${id}/retry`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        toast.success("เริ่มประมวลผลใหม่แล้ว");
+        await loadItems();
+      } else {
+        toast.error("ไม่สามารถลองใหม่ได้");
+      }
+    } catch {
+      toast.error("เกิดข้อผิดพลาด");
     }
   };
 
@@ -298,6 +317,7 @@ export default function KnowledgeImportPage() {
                   <th className="px-4 py-3 text-left">Chunks</th>
                   <th className="px-4 py-3 text-left">ผู้อัปโหลด</th>
                   <th className="px-4 py-3 text-left">วันที่</th>
+                  <th className="px-4 py-3 text-left">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/10">
@@ -333,6 +353,18 @@ export default function KnowledgeImportPage() {
                     <td className="px-4 py-3 text-on-surface-variant">{item.uploadedBy.fullName}</td>
                     <td className="px-4 py-3 text-on-surface-variant text-xs">
                       {new Date(item.createdAt).toLocaleDateString("th-TH")}
+                    </td>
+                    <td className="px-4 py-3">
+                      {(item.status === "ERROR" || item.status === "PROCESSING") && (
+                        <button
+                          onClick={() => handleRetry(item.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                          title="ลองประมวลผลใหม่"
+                        >
+                          <RotateCcw size={12} />
+                          ลองใหม่
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
