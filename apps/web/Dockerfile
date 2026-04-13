@@ -7,10 +7,9 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
-# npm workspaces hoists everything to root node_modules
-# --legacy-peer-deps: lockfile generated with this flag on Windows
-# lightningcss-linux-x64-musl: Windows lockfile misses Alpine native binary
-RUN npm ci --legacy-peer-deps && npm install lightningcss-linux-x64-musl --no-save
+# Windows lockfile misses Alpine/musl native binaries (lightningcss, tailwindcss-oxide)
+# Use npm install instead of npm ci to resolve platform-specific optional deps
+RUN rm -f package-lock.json && npm install --legacy-peer-deps
 
 # ─── Stage 2: Build ───
 FROM node:20-alpine AS builder
