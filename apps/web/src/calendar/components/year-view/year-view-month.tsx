@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { format, isSameDay, parseISO, getDaysInMonth, startOfMonth } from "date-fns";
+import { isSameDay, parseISO, getDaysInMonth, startOfMonth } from "date-fns";
 
 import { useCalendar } from "@/calendar/contexts/calendar-context";
+import { thaiMonthFull, toBE, THAI_WEEK_DAYS_SHORT } from "@/calendar/thai-locale";
 
 import { YearViewDayCell } from "@/calendar/components/year-view/year-view-day-cell";
 
@@ -14,10 +14,9 @@ interface IProps {
 }
 
 export function YearViewMonth({ month, events }: IProps) {
-  const { push } = useRouter();
-  const { setSelectedDate } = useCalendar();
+  const { setSelectedDate, setView } = useCalendar();
 
-  const monthName = format(month, "MMMM");
+  const monthName = thaiMonthFull(month);
 
   const daysInMonth = useMemo(() => {
     const totalDays = getDaysInMonth(month);
@@ -29,11 +28,11 @@ export function YearViewMonth({ month, events }: IProps) {
     return [...blanks, ...days];
   }, [month]);
 
-  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const weekDays = THAI_WEEK_DAYS_SHORT;
 
   const handleClick = () => {
     setSelectedDate(new Date(month.getFullYear(), month.getMonth(), 1));
-    push("/month-view");
+    setView("month");
   };
 
   return (

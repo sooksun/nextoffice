@@ -14,13 +14,13 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const DAYS_OF_WEEK = [
-  { index: 0, name: "Sunday" },
-  { index: 1, name: "Monday" },
-  { index: 2, name: "Tuesday" },
-  { index: 3, name: "Wednesday" },
-  { index: 4, name: "Thursday" },
-  { index: 5, name: "Friday" },
-  { index: 6, name: "Saturday" },
+  { index: 0, name: "วันอาทิตย์" },
+  { index: 1, name: "วันจันทร์" },
+  { index: 2, name: "วันอังคาร" },
+  { index: 3, name: "วันพุธ" },
+  { index: 4, name: "วันพฤหัสบดี" },
+  { index: 5, name: "วันศุกร์" },
+  { index: 6, name: "วันเสาร์" },
 ];
 
 export function ChangeWorkingHoursInput() {

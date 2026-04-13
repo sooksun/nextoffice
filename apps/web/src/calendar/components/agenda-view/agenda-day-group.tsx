@@ -1,4 +1,5 @@
-import { differenceInDays, format, parseISO, startOfDay } from "date-fns";
+import { differenceInDays, parseISO, startOfDay } from "date-fns";
+import { formatThaiFullWithDay } from "@/calendar/thai-locale";
 
 import { AgendaEventCard } from "@/calendar/components/agenda-view/agenda-event-card";
 
@@ -16,7 +17,7 @@ export function AgendaDayGroup({ date, events, multiDayEvents }: IProps) {
   return (
     <div className="space-y-4">
       <div className="sticky top-0 flex items-center gap-4 bg-background py-2">
-        <p className="text-sm font-semibold">{format(date, "EEEE, MMMM d, yyyy")}</p>
+        <p className="text-sm font-semibold">{formatThaiFullWithDay(date)}</p>
       </div>
 
       <div className="space-y-2">

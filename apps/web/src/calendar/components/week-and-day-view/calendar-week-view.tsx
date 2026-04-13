@@ -1,4 +1,5 @@
-import { startOfWeek, addDays, format, parseISO, isSameDay, areIntervalsOverlapping } from "date-fns";
+import { startOfWeek, addDays, parseISO, isSameDay, areIntervalsOverlapping } from "date-fns";
+import { thaiDayShort } from "@/calendar/thai-locale";
 
 import { useCalendar } from "@/calendar/contexts/calendar-context";
 
@@ -45,7 +46,7 @@ export function CalendarWeekView({ singleDayEvents, multiDayEvents }: IProps) {
             <div className="grid flex-1 grid-cols-7 divide-x border-l">
               {weekDays.map((day, index) => (
                 <span key={index} className="py-2 text-center text-xs font-medium text-muted-foreground">
-                  {format(day, "EE")} <span className="ml-1 font-semibold text-foreground">{format(day, "d")}</span>
+                  {thaiDayShort(day.getDay())} <span className="ml-1 font-semibold text-foreground">{day.getDate()}</span>
                 </span>
               ))}
             </div>
@@ -59,7 +60,7 @@ export function CalendarWeekView({ singleDayEvents, multiDayEvents }: IProps) {
               {hours.map((hour, index) => (
                 <div key={hour} className="relative" style={{ height: "96px" }}>
                   <div className="absolute -top-3 right-2 flex h-6 items-center">
-                    {index !== 0 && <span className="text-xs text-muted-foreground">{format(new Date().setHours(hour, 0, 0, 0), "hh a")}</span>}
+                    {index !== 0 && <span className="text-xs text-muted-foreground">{String(hour).padStart(2, "0")}:00</span>}
                   </div>
                 </div>
               ))}

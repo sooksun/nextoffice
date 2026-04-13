@@ -1,5 +1,6 @@
 import { Calendar, Clock, User } from "lucide-react";
-import { parseISO, areIntervalsOverlapping, format } from "date-fns";
+import { parseISO, areIntervalsOverlapping } from "date-fns";
+import { thaiDayShort, formatThaiShort, formatThaiTimeRange } from "@/calendar/thai-locale";
 
 import { useCalendar } from "@/calendar/contexts/calendar-context";
 
@@ -50,7 +51,7 @@ export function CalendarDayView({ singleDayEvents, multiDayEvents }: IProps) {
           <div className="relative z-20 flex border-b">
             <div className="w-18"></div>
             <span className="flex-1 border-l py-2 text-center text-xs font-medium text-muted-foreground">
-              {format(selectedDate, "EE")} <span className="font-semibold text-foreground">{format(selectedDate, "d")}</span>
+              {thaiDayShort(selectedDate.getDay())} <span className="font-semibold text-foreground">{selectedDate.getDate()}</span>
             </span>
           </div>
         </div>
@@ -62,7 +63,7 @@ export function CalendarDayView({ singleDayEvents, multiDayEvents }: IProps) {
               {hours.map((hour, index) => (
                 <div key={hour} className="relative" style={{ height: "96px" }}>
                   <div className="absolute -top-3 right-2 flex h-6 items-center">
-                    {index !== 0 && <span className="text-xs text-muted-foreground">{format(new Date().setHours(hour, 0, 0, 0), "hh a")}</span>}
+                    {index !== 0 && <span className="text-xs text-muted-foreground">{String(hour).padStart(2, "0")}:00</span>}
                   </div>
                 </div>
               ))}
@@ -174,13 +175,13 @@ export function CalendarDayView({ singleDayEvents, multiDayEvents }: IProps) {
 
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Calendar className="size-3.5" />
-                        <span className="text-sm">{format(new Date(), "MMM d, yyyy")}</span>
+                        <span className="text-sm">{formatThaiShort(new Date())}</span>
                       </div>
 
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Clock className="size-3.5" />
                         <span className="text-sm">
-                          {format(parseISO(event.startDate), "h:mm a")} - {format(parseISO(event.endDate), "h:mm a")}
+                          {formatThaiTimeRange(parseISO(event.startDate), parseISO(event.endDate))}
                         </span>
                       </div>
                     </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
+import { formatThaiTimeRange } from "@/calendar/thai-locale";
 import { cva } from "class-variance-authority";
 import { Clock, Text, User } from "lucide-react";
 
@@ -93,7 +94,7 @@ export function AgendaEventCard({ event, eventCurrentDay, eventTotalDays }: IPro
           <div className="flex items-center gap-1">
             <Clock className="size-3 shrink-0" />
             <p className="text-xs text-foreground">
-              {format(startDate, "h:mm a")} - {format(endDate, "h:mm a")}
+              {formatThaiTimeRange(startDate, endDate)}
             </p>
           </div>
 

@@ -25,7 +25,7 @@ export function CalendarTimeline({ firstVisibleHour, lastVisibleHour }: IProps) 
   };
 
   const formatCurrentTime = () => {
-    return format(currentTime, "h:mm a");
+    return format(currentTime, "HH:mm") + " น.";
   };
 
   const currentHour = currentTime.getHours();

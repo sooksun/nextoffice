@@ -1,5 +1,6 @@
 import { cva } from "class-variance-authority";
-import { format, differenceInMinutes, parseISO } from "date-fns";
+import { differenceInMinutes, parseISO } from "date-fns";
+import { formatThaiTimeRange } from "@/calendar/thai-locale";
 
 import { useCalendar } from "@/calendar/contexts/calendar-context";
 
@@ -81,7 +82,7 @@ export function EventBlock({ event, className }: IProps) {
 
           {durationInMinutes > 25 && (
             <p>
-              {format(start, "h:mm a")} - {format(end, "h:mm a")}
+              {formatThaiTimeRange(start, end)}
             </p>
           )}
         </div>

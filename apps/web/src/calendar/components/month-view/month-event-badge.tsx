@@ -116,7 +116,7 @@ export function MonthEventBadge({ event, cellDate, eventCurrentDay, eventTotalDa
             )}
           </div>
 
-          {renderBadgeText && <span>{format(new Date(event.startDate), "h:mm a")}</span>}
+          {renderBadgeText && <span>{format(new Date(event.startDate), "HH:mm")}</span>}
         </div>
       </EventDetailsDialog>
     </DraggableEvent>

@@ -1,6 +1,7 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
+import { formatThaiFull, formatThaiTime } from "@/calendar/thai-locale";
 import { Calendar, Clock, Text, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -40,16 +41,16 @@ export function EventDetailsDialog({ event, children }: IProps) {
             <div className="flex items-start gap-2">
               <Calendar className="mt-1 size-4 shrink-0" />
               <div>
-                <p className="text-sm font-medium">Start Date</p>
-                <p className="text-sm text-muted-foreground">{format(startDate, "MMM d, yyyy h:mm a")}</p>
+                <p className="text-sm font-medium">วันเริ่มต้น</p>
+                <p className="text-sm text-muted-foreground">{formatThaiFull(startDate)} {formatThaiTime(startDate)}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-2">
               <Clock className="mt-1 size-4 shrink-0" />
               <div>
-                <p className="text-sm font-medium">End Date</p>
-                <p className="text-sm text-muted-foreground">{format(endDate, "MMM d, yyyy h:mm a")}</p>
+                <p className="text-sm font-medium">วันสิ้นสุด</p>
+                <p className="text-sm text-muted-foreground">{formatThaiFull(endDate)} {formatThaiTime(endDate)}</p>
               </div>
             </div>
 
