@@ -77,6 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: "eservice",
     label: "ลงเวลาปฏิบัติงาน",
     items: [
+      { href: "/calendar", label: "ปฏิทิน", icon: CalendarDays },
       { href: "/attendance", label: "ลงเวลา", icon: Clock },
       { href: "/leave", label: "ลาหยุด", icon: CalendarDays },
       { href: "/leave/travel", label: "ไปราชการ", icon: MapPin },
