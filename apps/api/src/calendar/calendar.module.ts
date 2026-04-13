@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
-import { GoogleCalendarService } from './services/google-calendar.service';
+import { CalendarController } from './calendar.controller';
+import { CalendarService } from './calendar.service';
 
 @Module({
-  providers: [GoogleCalendarService],
-  exports: [GoogleCalendarService],
+  controllers: [CalendarController],
+  providers: [CalendarService],
 })
 export class CalendarModule {}
