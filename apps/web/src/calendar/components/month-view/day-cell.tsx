@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { isToday, startOfDay } from "date-fns";
 
 import { useCalendar } from "@/calendar/contexts/calendar-context";
@@ -22,8 +21,7 @@ interface IProps {
 const MAX_VISIBLE_EVENTS = 3;
 
 export function DayCell({ cell, events, eventPositions }: IProps) {
-  const { push } = useRouter();
-  const { setSelectedDate } = useCalendar();
+  const { setSelectedDate, setView } = useCalendar();
 
   const { day, currentMonth, date } = cell;
 
@@ -32,7 +30,7 @@ export function DayCell({ cell, events, eventPositions }: IProps) {
 
   const handleClick = () => {
     setSelectedDate(date);
-    push("/day-view");
+    setView("day");
   };
 
   return (
