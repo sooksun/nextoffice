@@ -35,6 +35,10 @@ const securityHeaders = [
     ].join("; "),
   },
   {
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin-allow-popups",
+  },
+  {
     key: "X-Powered-By",
     value: "",
   },

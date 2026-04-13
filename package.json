@@ -6,5 +6,11 @@
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:web": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspaces"
+  },
+  "dependencies": {
+    "express": "^4.22.1"
+  },
+  "overrides": {
+    "express": "$express"
   }
 }
