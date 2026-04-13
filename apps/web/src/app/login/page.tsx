@@ -81,7 +81,6 @@ export default function LoginPage() {
             priority
           />
           <div>
-            <p className="text-gray-800 text-xl font-semibold">สพป.เชียงราย เขต 3</p>
             <h1 className="text-gray-900 text-4xl font-black tracking-widest mt-1">NEXT OFFICE</h1>
             <p className="text-gray-700 text-sm mt-1">ระบบสำนักงานอิเล็กทรอนิกส์ด้วยปัญญาประดิษฐ์</p>
           </div>
