@@ -8,7 +8,7 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
 # npm workspaces hoists everything to root node_modules
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # ─── Stage 2: Build ───
 FROM node:20-alpine AS builder

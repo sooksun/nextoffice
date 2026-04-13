@@ -9,7 +9,7 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
 # Install all dependencies (hoisted to root node_modules)
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy API source + Prisma schema
 COPY apps/api/ ./apps/api/
@@ -32,7 +32,7 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --legacy-peer-deps
 
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/generated ./apps/api/generated
