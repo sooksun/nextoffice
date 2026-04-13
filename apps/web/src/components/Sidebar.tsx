@@ -75,7 +75,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "eservice",
-    label: "E-SERVICE",
+    label: "ลงเวลาปฏิบัติงาน",
     items: [
       { href: "/attendance", label: "ลงเวลา", icon: Clock },
       { href: "/leave", label: "ลาหยุด", icon: CalendarDays },
@@ -85,7 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "backoffice",
-    label: "BACK OFFICE",
+    label: "หลังบ้านสารบรรณ",
     items: [
       { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
       { href: "/cases", label: "เคส", icon: Briefcase, roles: ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
@@ -95,7 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     id: "intelligence",
-    label: "INTELLIGENCE",
+    label: "จัดการงานอัจฉริยะ",
     items: [
       { href: "/horizon", label: "ภาพรวม Horizon", icon: Radar, roles: MANAGER },
       { href: "/horizon/sources", label: "แหล่งข้อมูล", icon: Globe, roles: ["ADMIN"] },
