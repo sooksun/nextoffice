@@ -1,6 +1,8 @@
-import { Controller, Get, Post, Param, Body, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Param, Body, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { OutboundService } from './outbound.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('outbound')
 @Controller('outbound')
@@ -101,13 +103,32 @@ export class OutboundController {
   }
 
   @Post('ai-draft')
-  @ApiOperation({ summary: 'V2: Generate AI draft for outbound document' })
+  @ApiOperation({ summary: 'V2: Generate AI draft from inbound case' })
   generateAiDraft(@Body() dto: {
     caseId: number;
     draftType: string;
     additionalContext?: string;
   }) {
     return this.svc.generateAiDraft(dto.caseId, dto.draftType, dto.additionalContext);
+  }
+
+  @Post('ai-generate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'V3: Generate outbound document from user prompt' })
+  generateFromPrompt(
+    @CurrentUser() user: any,
+    @Body() dto: {
+      letterType: string;
+      prompt: string;
+    },
+  ) {
+    return this.svc.generateFromPrompt({
+      organizationId: Number(user.organizationId),
+      userId: Number(user.id),
+      letterType: dto.letterType,
+      prompt: dto.prompt,
+    });
   }
 
   @Post('registry/inbound/:caseId')

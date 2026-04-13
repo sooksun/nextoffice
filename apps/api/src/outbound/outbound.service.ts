@@ -235,8 +235,128 @@ export class OutboundService {
     return { id: Number(entry.id) };
   }
 
-  // ─── V2: AI Draft Generation ─────────────────
+  // ─── V3: AI Document Generation ─────────────────
 
+  private readonly LETTER_TYPE_PROMPTS: Record<string, string> = {
+    external_letter: `สร้างหนังสือภายนอก (หนังสือราชการ) ตามระเบียบสารบรรณ
+ตอบเป็น JSON เท่านั้น:
+{
+  "subject": "เรื่อง...",
+  "recipientOrg": "หน่วยงานผู้รับ",
+  "recipientName": "เรียน ตำแหน่งผู้รับ",
+  "reference": "อ้างถึง (ถ้ามี ไม่มีให้เป็น null)",
+  "attachments": "สิ่งที่ส่งมาด้วย (ถ้ามี ไม่มีให้เป็น null)",
+  "bodyText": "เนื้อหาหนังสือ เริ่มจากย่อหน้าแรก ใช้ภาษาราชการ",
+  "closing": "จึงเรียนมาเพื่อโปรดทราบ / จึงเรียนมาเพื่อโปรดพิจารณา"
+}`,
+
+    internal_memo: `สร้างบันทึกข้อความ (หนังสือภายใน) ตามระเบียบสารบรรณ
+ตอบเป็น JSON เท่านั้น:
+{
+  "subject": "เรื่อง...",
+  "recipientName": "ถึง ตำแหน่งผู้รับ (เช่น ผู้อำนวยการโรงเรียน...)",
+  "bodyText": "เนื้อหาบันทึก เริ่มจากย่อหน้าแรก ใช้ภาษาราชการ",
+  "closing": "จึงเรียนมาเพื่อโปรดทราบ / จึงเรียนมาเพื่อโปรดพิจารณา"
+}`,
+
+    stamp_letter: `สร้างหนังสือประทับตรา ตามระเบียบสารบรรณ (ใช้ประทับตราแทนลงนาม)
+ตอบเป็น JSON เท่านั้น:
+{
+  "subject": "เรื่อง...",
+  "recipientOrg": "ถึง หน่วยงานผู้รับ",
+  "bodyText": "เนื้อหาหนังสือ สั้นกระชับ ใช้ภาษาราชการ"
+}`,
+
+    directive: `สร้างคำสั่ง/ประกาศ ของส่วนราชการ ตามระเบียบสารบรรณ
+ตอบเป็น JSON เท่านั้น:
+{
+  "subject": "เรื่อง...",
+  "bodyText": "เนื้อหาคำสั่ง/ประกาศ ระบุเหตุผล ข้อกำหนด ให้ครบถ้วน ใช้ภาษาราชการ"
+}`,
+  };
+
+  /**
+   * V3: Generate outbound document from user prompt (no inbound case required)
+   */
+  async generateFromPrompt(dto: {
+    organizationId: number;
+    userId: number;
+    letterType: string;
+    prompt: string;
+  }) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: BigInt(dto.organizationId) },
+      select: { id: true, name: true, orgCode: true, address: true, areaCode: true, phone: true },
+    });
+    if (!org) throw new Error('Organization not found');
+
+    const typePrompt = this.LETTER_TYPE_PROMPTS[dto.letterType] ?? this.LETTER_TYPE_PROMPTS.external_letter;
+
+    const systemPrompt = `คุณเป็นผู้เชี่ยวชาญด้านงานสารบรรณราชการไทย
+ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ พ.ศ. 2526
+
+ข้อมูลหน่วยงาน:
+- ชื่อ: ${org.name}
+- ที่อยู่: ${org.address ?? '-'}
+- เขตพื้นที่: ${org.areaCode ?? '-'}
+
+ตอบเป็น JSON เท่านั้น ไม่ต้องมี markdown code block`;
+
+    const userMessage = `${dto.prompt}\n\n${typePrompt}`;
+
+    try {
+      const response = await axios.post(
+        'https://api.anthropic.com/v1/messages',
+        {
+          model: this.configService.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMessage }],
+        },
+        {
+          headers: {
+            'x-api-key': this.configService.get('ANTHROPIC_API_KEY'),
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          timeout: 60000,
+        },
+      );
+
+      const rawText = response.data.content?.[0]?.text || '{}';
+      // Extract JSON from response (handle markdown code blocks)
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch?.[0] ?? '{}');
+
+      // Create OutboundDocument draft
+      const doc = await this.prisma.outboundDocument.create({
+        data: {
+          organizationId: BigInt(dto.organizationId),
+          createdByUserId: BigInt(dto.userId),
+          subject: parsed.subject ?? dto.prompt.substring(0, 200),
+          bodyText: parsed.bodyText ?? '',
+          recipientOrg: parsed.recipientOrg ?? null,
+          recipientName: parsed.recipientName ?? null,
+          letterType: dto.letterType,
+          status: 'draft',
+        },
+      });
+
+      return {
+        id: Number(doc.id),
+        ...parsed,
+        letterType: dto.letterType,
+        status: 'draft',
+      };
+    } catch (error: any) {
+      this.logger.error(`AI prompt generation failed: ${error?.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * V2: Generate AI draft from inbound case (existing, improved)
+   */
   async generateAiDraft(caseId: number, draftType: string, additionalContext?: string) {
     const cas = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(caseId) },
@@ -267,27 +387,29 @@ export class OutboundService {
 
     const topicNames = cas.topics?.map((t: any) => t.topicName || t.name).filter(Boolean).join(', ');
 
-    const typePrompts: Record<string, string> = {
-      memo: 'สร้างบันทึกเสนอผู้บริหาร (บันทึกข้อความภายใน) เพื่อเสนอให้พิจารณาเรื่องนี้',
-      reply: 'ร่างหนังสือตอบกลับ ในรูปแบบหนังสือราชการภายนอก',
-      report: 'ร่างรายงานผลการดำเนินงาน ตามเรื่องที่ได้รับ',
-      order: 'ร่างคำสั่ง ตามเนื้อหาของหนังสือที่ได้รับ',
+    const draftTypeToLetter: Record<string, string> = {
+      memo: 'internal_memo',
+      reply: 'external_letter',
+      report: 'external_letter',
+      order: 'directive',
     };
-
-    const typeInstruction = typePrompts[draftType] ?? `ร่างเอกสารประเภท "${draftType}"`;
+    const letterType = draftTypeToLetter[draftType] ?? 'external_letter';
+    const typePrompt = this.LETTER_TYPE_PROMPTS[letterType] ?? this.LETTER_TYPE_PROMPTS.external_letter;
 
     const prompt = `คุณเป็นผู้เชี่ยวชาญด้านงานสารบรรณราชการไทย
+ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ พ.ศ. 2526
 
-เรื่อง: ${cas.title}
+ข้อมูลหน่วยงาน: ${cas.organization?.name ?? ''}
+
+เรื่องจากหนังสือรับ: ${cas.title}
 ${cas.description ? `รายละเอียด: ${cas.description}` : ''}
-${topicNames ? `หัวข้อที่เกี่ยวข้อง: ${topicNames}` : ''}
-${documentText ? `เนื้อหาเอกสารต้นฉบับ:\n${documentText.substring(0, 3000)}` : ''}
+${topicNames ? `หัวข้อ: ${topicNames}` : ''}
+${documentText ? `เนื้อหาต้นฉบับ:\n${documentText.substring(0, 3000)}` : ''}
 ${additionalContext ? `บริบทเพิ่มเติม: ${additionalContext}` : ''}
 
-คำสั่ง: ${typeInstruction}
+${typePrompt}
 
-กรุณาร่างเอกสารให้ครบถ้วนตามรูปแบบราชการไทย โดยใช้ภาษาทางการ
-ตอบเป็นเนื้อหาเอกสารเท่านั้น ไม่ต้องอธิบายเพิ่มเติม`;
+ตอบเป็น JSON เท่านั้น ไม่ต้องมี markdown code block`;
 
     try {
       const response = await axios.post(
@@ -306,14 +428,21 @@ ${additionalContext ? `บริบทเพิ่มเติม: ${additionalC
         },
       );
 
-      const generatedText = response.data.content?.[0]?.text || '';
+      const rawText = response.data.content?.[0]?.text || '{}';
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      let parsed: any = {};
+      try { parsed = JSON.parse(jsonMatch?.[0] ?? '{}'); } catch { parsed = { bodyText: rawText }; }
 
       // Create OutboundDocument with draft status
       const doc = await this.prisma.outboundDocument.create({
         data: {
           organizationId: cas.organizationId,
-          subject: `[${draftType.toUpperCase()}] ${cas.title}`,
-          bodyText: generatedText,
+          createdByUserId: undefined,
+          subject: parsed.subject ?? `[${draftType.toUpperCase()}] ${cas.title}`,
+          bodyText: parsed.bodyText ?? rawText,
+          recipientOrg: parsed.recipientOrg ?? null,
+          recipientName: parsed.recipientName ?? null,
+          letterType,
           status: 'draft',
           relatedInboundCaseId: cas.id,
           urgencyLevel: cas.urgencyLevel ?? 'normal',
@@ -321,10 +450,13 @@ ${additionalContext ? `บริบทเพิ่มเติม: ${additionalC
         },
       });
 
-      return this.serialize({
-        ...doc,
-        relatedInboundCase: { id: cas.id, title: cas.title, registrationNo: cas.registrationNo },
-      });
+      return {
+        id: Number(doc.id),
+        ...parsed,
+        letterType,
+        status: 'draft',
+        relatedInboundCaseId: Number(cas.id),
+      };
     } catch (error) {
       this.logger.error(`AI draft generation failed for case ${caseId}`, error?.message);
       throw error;
