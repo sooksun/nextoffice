@@ -75,7 +75,7 @@ export class AuthService {
     }
 
     // Find user by email or googleEmail field
-    const user = await this.prisma.user.findFirst({
+    let user = await this.prisma.user.findFirst({
       where: {
         OR: [
           { email: googleEmail },
@@ -86,8 +86,31 @@ export class AuthService {
       include: { organization: true },
     });
 
+    // Auto-create user on first Google login
     if (!user) {
-      throw new UnauthorizedException('ไม่พบบัญชีในระบบ กรุณาติดต่อผู้ดูแล');
+      const googleName = payload.name || googleEmail.split('@')[0];
+
+      // Find default organization (first active school)
+      const defaultOrg = await this.prisma.organization.findFirst({
+        where: { isActive: true, orgType: 'school' },
+        orderBy: { id: 'asc' },
+      });
+
+      // Generate random password hash (Google users won't use password login)
+      const randomPassword = crypto.randomBytes(32).toString('hex');
+      const passwordHash = await this.hashPassword(randomPassword);
+
+      user = await this.prisma.user.create({
+        data: {
+          email: googleEmail,
+          passwordHash,
+          fullName: googleName,
+          roleCode: 'TEACHER',
+          organizationId: defaultOrg?.id ?? null,
+          googleEmail: googleEmail,
+        },
+        include: { organization: true },
+      });
     }
 
     await this.prisma.user.update({
