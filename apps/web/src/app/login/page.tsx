@@ -73,7 +73,7 @@ export default function LoginPage() {
         {/* Left — branding */}
         <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center gap-5">
           <Image
-            src="/nextlogo4.png"
+            src="/nextlogowhite.png"
             alt="NextOffice Logo"
             width={120}
             height={120}
