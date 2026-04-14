@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import * as fs from 'fs';
 import * as path from 'path';
-import fontkit from '@pdf-lib/fontkit';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const fontkitMod = require('@pdf-lib/fontkit');
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+const fontkit = fontkitMod?.default ?? fontkitMod;
 
 const A4_W = 595.28;
 const A4_H = 841.89;
