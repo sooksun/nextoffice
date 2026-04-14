@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -49,7 +49,7 @@ export class OutboundService {
     return docs.map((d) => this.serialize(d));
   }
 
-  async findOne(id: number, roleCode?: string) {
+  async findOne(id: number, roleCode?: string, userOrgId?: number) {
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(id) },
       include: {
@@ -61,6 +61,11 @@ export class OutboundService {
     });
     if (!doc) return null;
 
+    // Enforce organization ownership (prevent cross-tenant access)
+    if (userOrgId !== undefined && Number(doc.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถเข้าถึงเอกสารขององค์กรอื่น');
+    }
+
     // Block access to confidential docs for restricted roles
     if (roleCode && !this.CONFIDENTIAL_ROLES.includes(roleCode)) {
       if (doc.letterType === 'secret_letter' || doc.securityLevel !== 'normal') {
@@ -69,6 +74,17 @@ export class OutboundService {
     }
 
     return this.serialize(doc);
+  }
+
+  private async assertDocBelongsToOrg(id: number, userOrgId: number) {
+    const doc = await this.prisma.outboundDocument.findUnique({
+      where: { id: BigInt(id) },
+      select: { id: true, organizationId: true },
+    });
+    if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
+    if (Number(doc.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถเข้าถึงเอกสารขององค์กรอื่น');
+    }
   }
 
   async create(dto: {
@@ -85,6 +101,21 @@ export class OutboundService {
     relatedInboundCaseId?: number;
     sentMethod?: string;
   }) {
+    if (!dto.organizationId) {
+      throw new ForbiddenException('ต้องระบุองค์กรของผู้ใช้');
+    }
+
+    // If creating from inbound case, verify it belongs to same org
+    if (dto.relatedInboundCaseId) {
+      const cas = await this.prisma.inboundCase.findUnique({
+        where: { id: BigInt(dto.relatedInboundCaseId) },
+        select: { organizationId: true },
+      });
+      if (cas && Number(cas.organizationId) !== Number(dto.organizationId)) {
+        throw new ForbiddenException('ไม่สามารถอ้างอิงเคสขององค์กรอื่น');
+      }
+    }
+
     const doc = await this.prisma.outboundDocument.create({
       data: {
         organizationId: BigInt(dto.organizationId),
@@ -105,13 +136,17 @@ export class OutboundService {
     return { id: Number(doc.id) };
   }
 
-  async approve(id: number, approvedByUserId: number) {
+  async approve(id: number, approvedByUserId: number, userOrgId?: number) {
     // Generate document number: <orgCode>/<sequence>/<buddhistYear>
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(id) },
       include: { organization: { select: { orgCode: true } } },
     });
-    if (!doc) return null;
+    if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
+
+    if (userOrgId !== undefined && Number(doc.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถอนุมัติเอกสารขององค์กรอื่น');
+    }
 
     const documentNo = await this.generateDocumentNo(doc.organizationId, doc.organization?.orgCode);
     const updated = await this.prisma.outboundDocument.update({
@@ -139,7 +174,11 @@ export class OutboundService {
     return { id: Number(updated.id), documentNo };
   }
 
-  async send(id: number, sentMethod?: string) {
+  async send(id: number, sentMethod?: string, userOrgId?: number) {
+    if (userOrgId !== undefined) {
+      await this.assertDocBelongsToOrg(id, userOrgId);
+    }
+
     const updateData: any = { status: 'sent', sentAt: new Date() };
     if (sentMethod) updateData.sentMethod = sentMethod;
 
@@ -213,12 +252,16 @@ export class OutboundService {
   }
 
   /** Register an inbound case into the document registry */
-  async registerInbound(inboundCaseId: number) {
+  async registerInbound(inboundCaseId: number, userOrgId?: number) {
     const cas = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(inboundCaseId) },
       include: { academicYear: true },
     });
-    if (!cas) return null;
+    if (!cas) throw new NotFoundException(`Inbound case #${inboundCaseId} not found`);
+
+    if (userOrgId !== undefined && Number(cas.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถลงทะเบียนเคสขององค์กรอื่น');
+    }
 
     const regCount = await this.prisma.documentRegistry.count({
       where: { organizationId: cas.organizationId, registryType: 'inbound' },
@@ -359,7 +402,7 @@ export class OutboundService {
   /**
    * V2: Generate AI draft from inbound case (existing, improved)
    */
-  async generateAiDraft(caseId: number, draftType: string, additionalContext?: string) {
+  async generateAiDraft(caseId: number, draftType: string, additionalContext?: string, userOrgId?: number) {
     const cas = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(caseId) },
       include: {
@@ -368,7 +411,11 @@ export class OutboundService {
         organization: { select: { id: true, name: true, orgCode: true } },
       },
     });
-    if (!cas) return null;
+    if (!cas) throw new NotFoundException(`Inbound case #${caseId} not found`);
+
+    if (userOrgId !== undefined && Number(cas.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถสร้าง AI draft จากเคสขององค์กรอื่น');
+    }
 
     // Gather document text from the latest DocumentIntake's aiResult
     let documentText = '';
@@ -468,7 +515,7 @@ ${typePrompt}
   /**
    * Generate PDF from outbound document data using the appropriate template
    */
-  async generatePdf(id: number): Promise<Buffer> {
+  async generatePdf(id: number, userOrgId?: number): Promise<Buffer> {
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(id) },
       include: {
@@ -477,7 +524,11 @@ ${typePrompt}
         createdBy: { select: { fullName: true, positionTitle: true } },
       },
     });
-    if (!doc) throw new Error(`Outbound document #${id} not found`);
+    if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
+
+    if (userOrgId !== undefined && Number(doc.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถสร้าง PDF ของเอกสารขององค์กรอื่น');
+    }
 
     const org = doc.organization;
     const signer = doc.approvedBy ?? doc.createdBy;
@@ -555,7 +606,10 @@ ${typePrompt}
     return pdfBuffer;
   }
 
-  async reject(id: number, note?: string) {
+  async reject(id: number, note?: string, userOrgId?: number) {
+    if (userOrgId !== undefined) {
+      await this.assertDocBelongsToOrg(id, userOrgId);
+    }
     const updated = await this.prisma.outboundDocument.update({
       where: { id: BigInt(id) },
       data: { status: 'draft', bodyText: note ? `[ส่งกลับแก้ไข]: ${note}` : undefined },

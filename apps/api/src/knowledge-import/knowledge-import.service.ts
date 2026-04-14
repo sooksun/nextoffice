@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
@@ -147,11 +147,15 @@ export class KnowledgeImportService {
     }));
   }
 
-  async retry(id: number) {
+  async retry(id: number, userOrgId: number) {
     const item = await this.prisma.userKnowledgeItem.findUnique({
       where: { id: BigInt(id) },
     });
     if (!item) throw new NotFoundException(`Knowledge item #${id} not found`);
+
+    if (Number(item.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถประมวลผลความรู้ขององค์กรอื่น');
+    }
 
     await this.prisma.userKnowledgeItem.update({
       where: { id: BigInt(id) },
@@ -166,11 +170,12 @@ export class KnowledgeImportService {
     return { id: Number(item.id), status: 'PENDING' };
   }
 
-  /** Auto-reset items stuck in PROCESSING for over 30 minutes */
-  async resetStuckItems() {
+  /** Auto-reset items stuck in PROCESSING for over 30 minutes (scoped to caller's org) */
+  async resetStuckItems(userOrgId: number) {
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
     const stuck = await this.prisma.userKnowledgeItem.findMany({
       where: {
+        organizationId: BigInt(userOrgId),
         status: 'PROCESSING',
         updatedAt: { lt: thirtyMinAgo },
       },
@@ -187,12 +192,17 @@ export class KnowledgeImportService {
     return stuck.length;
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, userOrgId?: number) {
     const item = await this.prisma.userKnowledgeItem.findUnique({
       where: { id: BigInt(id) },
       include: { uploadedBy: { select: { id: true, fullName: true } } },
     });
     if (!item) throw new NotFoundException(`Knowledge item #${id} not found`);
+
+    if (userOrgId !== undefined && Number(item.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถเข้าถึงความรู้ขององค์กรอื่น');
+    }
+
     return {
       id: Number(item.id),
       title: item.title,

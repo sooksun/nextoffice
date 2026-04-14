@@ -88,6 +88,28 @@ export class AuthService {
 
     // Auto-create user on first Google login
     if (!user) {
+      // Enforce email domain whitelist for auto-registration
+      const allowedDomainsRaw = this.config.get<string>('ALLOWED_GOOGLE_DOMAINS', '');
+      const allowedDomains = allowedDomainsRaw
+        .split(',')
+        .map((d) => d.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (allowedDomains.length > 0) {
+        const emailDomain = googleEmail.split('@')[1]?.toLowerCase() ?? '';
+        if (!allowedDomains.includes(emailDomain)) {
+          throw new UnauthorizedException(
+            'อีเมลนี้ไม่ได้รับอนุญาตให้ลงทะเบียน กรุณาติดต่อผู้ดูแลระบบ',
+          );
+        }
+      } else {
+        // No whitelist configured → reject auto-registration for safety
+        // Admin must set ALLOWED_GOOGLE_DOMAINS or pre-create users
+        throw new UnauthorizedException(
+          'ไม่พบบัญชีในระบบ กรุณาติดต่อผู้ดูแลเพื่อเปิดสิทธิ์เข้าใช้งาน',
+        );
+      }
+
       const googleName = payload.name || googleEmail.split('@')[0];
 
       // Find default organization (first active school)

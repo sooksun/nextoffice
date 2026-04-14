@@ -70,19 +70,25 @@ export class KnowledgeImportController {
 
   @Post(':id/retry')
   @ApiOperation({ summary: 'ลองนำเข้าใหม่ (retry)' })
-  retry(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.retry(id);
+  retry(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.retry(id, Number(user.organizationId));
   }
 
   @Post('reset-stuck')
-  @ApiOperation({ summary: 'รีเซ็ตรายการที่ค้างนานเกิน 30 นาที' })
-  resetStuck() {
-    return this.svc.resetStuckItems();
+  @ApiOperation({ summary: 'รีเซ็ตรายการที่ค้างนานเกิน 30 นาที (เฉพาะองค์กรของผู้ใช้)' })
+  resetStuck(@CurrentUser() user: any) {
+    return this.svc.resetStuckItems(Number(user.organizationId));
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'รายละเอียดความรู้' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.findOne(id);
+  findOne(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.findOne(id, Number(user.organizationId));
   }
 }
