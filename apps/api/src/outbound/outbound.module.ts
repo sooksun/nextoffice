@@ -6,9 +6,10 @@ import { DigitalSignatureModule } from '../digital-signature/digital-signature.m
 import { IntakeModule } from '../intake/intake.module';
 import { TemplatesModule } from '../templates/templates.module';
 import { AuthModule } from '../auth/auth.module';
+import { GeminiModule } from '../gemini/gemini.module';
 
 @Module({
-  imports: [QueueModule, DigitalSignatureModule, IntakeModule, TemplatesModule, AuthModule],
+  imports: [QueueModule, DigitalSignatureModule, IntakeModule, TemplatesModule, AuthModule, GeminiModule],
   controllers: [OutboundController],
   providers: [OutboundService],
   exports: [OutboundService],

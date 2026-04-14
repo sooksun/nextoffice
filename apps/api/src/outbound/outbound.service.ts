@@ -2,12 +2,12 @@ import { Injectable, Logger, Optional, ForbiddenException, NotFoundException } f
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_OUTBOUND } from '../queue/queue.constants';
 import { PdfSigningService } from '../digital-signature/pdf-signing.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
 import { TemplatesService } from '../templates/templates.service';
+import { GeminiApiService } from '../gemini/gemini-api.service';
 
 @Injectable()
 export class OutboundService {
@@ -20,6 +20,7 @@ export class OutboundService {
     @Optional() private readonly pdfSigning: PdfSigningService,
     @Optional() private readonly fileStorage: FileStorageService,
     private readonly templates: TemplatesService,
+    private readonly gemini: GeminiApiService,
   ) {}
 
   private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
@@ -367,28 +368,21 @@ export class OutboundService {
     const userMessage = `${dto.prompt}\n\n${typePrompt}`;
 
     try {
-      const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.configService.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userMessage }],
-        },
-        {
-          headers: {
-            'x-api-key': this.configService.get('ANTHROPIC_API_KEY'),
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-          timeout: 60000,
-        },
-      );
+      const rawText = await this.gemini.generateText({
+        system: systemPrompt,
+        user: userMessage,
+        maxOutputTokens: 4096,
+        temperature: 0.3,
+      });
 
-      const rawText = response.data.content?.[0]?.text || '{}';
       // Extract JSON from response (handle markdown code blocks)
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(jsonMatch?.[0] ?? '{}');
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(jsonMatch?.[0] ?? '{}');
+      } catch {
+        parsed = { bodyText: rawText };
+      }
 
       // Create OutboundDocument draft
       const doc = await this.prisma.outboundDocument.create({
@@ -412,6 +406,7 @@ export class OutboundService {
       };
     } catch (error: any) {
       this.logger.error(`AI prompt generation failed: ${error?.message}`);
+      this.gemini.logAxiosError('generateFromPrompt', error);
       throw error;
     }
   }
@@ -479,23 +474,12 @@ ${typePrompt}
 ตอบเป็น JSON เท่านั้น ไม่ต้องมี markdown code block`;
 
     try {
-      const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: this.configService.get('CLAUDE_MODEL', 'claude-sonnet-4-6'),
-          max_tokens: 4096,
-          messages: [{ role: 'user', content: prompt }],
-        },
-        {
-          headers: {
-            'x-api-key': this.configService.get('ANTHROPIC_API_KEY'),
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-          },
-        },
-      );
+      const rawText = await this.gemini.generateText({
+        user: prompt,
+        maxOutputTokens: 4096,
+        temperature: 0.3,
+      });
 
-      const rawText = response.data.content?.[0]?.text || '{}';
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       let parsed: any = {};
       try { parsed = JSON.parse(jsonMatch?.[0] ?? '{}'); } catch { parsed = { bodyText: rawText }; }
@@ -524,8 +508,9 @@ ${typePrompt}
         status: 'draft',
         relatedInboundCaseId: Number(cas.id),
       };
-    } catch (error) {
-      this.logger.error(`AI draft generation failed for case ${caseId}`, error?.message);
+    } catch (error: any) {
+      this.logger.error(`AI draft generation failed for case ${caseId}: ${error?.message}`);
+      this.gemini.logAxiosError('generateAiDraft', error);
       throw error;
     }
   }
