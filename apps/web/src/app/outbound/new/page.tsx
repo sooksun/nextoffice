@@ -76,8 +76,8 @@ export default function NewOutboundPage() {
     if (mode !== "ai_inbound") return;
     const user = getUser();
     if (!user?.organizationId) return;
-    apiFetch<InboundCase[]>(`/cases?organizationId=${user.organizationId}&limit=50`)
-      .then(setInboundCases)
+    apiFetch<{ total: number; data: InboundCase[] }>(`/cases?organizationId=${user.organizationId}&take=50`)
+      .then((res) => setInboundCases(res.data ?? []))
       .catch(() => setInboundCases([]));
   }, [mode]);
 

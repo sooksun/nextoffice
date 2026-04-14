@@ -104,6 +104,8 @@ export class OutboundController {
   }
 
   @Post('ai-draft')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'V2: Generate AI draft from inbound case' })
   generateAiDraft(@Body() dto: {
     caseId: number;

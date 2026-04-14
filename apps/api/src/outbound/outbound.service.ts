@@ -543,7 +543,7 @@ ${typePrompt}
 
     // Save PDF to MinIO
     if (this.fileStorage) {
-      const storagePath = `outbound/${doc.organizationId}/${id}.pdf`;
+      const storagePath = `outbound/${Number(doc.organizationId)}/${id}.pdf`;
       await this.fileStorage.saveBuffer(storagePath, pdfBuffer, 'application/pdf');
       await this.prisma.outboundDocument.update({
         where: { id: BigInt(id) },
