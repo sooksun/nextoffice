@@ -15,7 +15,8 @@
     "seed:admin": "node -r dotenv/config dist/prisma/seed-admin.js",
     "seed:sarabun": "node -r dotenv/config dist/prisma/seed-sarabun.js",
     "seed:school": "npx ts-node prisma/seed-school.ts",
-    "seed:all": "npm run seed:admin && npm run seed:sarabun && npm run seed:school"
+    "seed:all": "npm run seed:admin && npm run seed:sarabun && npm run seed:school",
+    "backfill:response-type": "npx ts-node -r dotenv/config prisma/backfill-response-classification.ts"
   },
   "jest": {
     "moduleFileExtensions": [

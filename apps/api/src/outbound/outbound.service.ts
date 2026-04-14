@@ -88,6 +88,40 @@ export class OutboundService {
     }
   }
 
+  /** Mark the parent inbound case as replied (best-effort, fail-soft). */
+  private async markCaseAsReplied(caseId: bigint): Promise<void> {
+    try {
+      await this.prisma.inboundCase.update({
+        where: { id: caseId },
+        data: { hasBeenReplied: true, repliedAt: new Date() },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to mark case ${caseId} as replied: ${err?.message}`);
+    }
+  }
+
+  /** Format nextActionJson into a readable bullet list for prompts. */
+  private formatActions(json: string | null | undefined): string {
+    if (!json) return '';
+    try {
+      const arr = JSON.parse(json);
+      if (!Array.isArray(arr) || arr.length === 0) return '';
+      return arr
+        .map((item: any) => {
+          if (typeof item === 'string') return `- ${item}`;
+          if (item && typeof item === 'object') {
+            const title = item.title ?? item.action ?? item.text ?? JSON.stringify(item);
+            const due = item.dueDate ?? item.deadline;
+            return `- ${title}${due ? ` (กำหนด: ${due})` : ''}`;
+          }
+          return `- ${String(item)}`;
+        })
+        .join('\n');
+    } catch {
+      return json.length > 500 ? json.substring(0, 500) + '...' : json;
+    }
+  }
+
   async create(dto: {
     organizationId: number;
     createdByUserId?: number;
@@ -134,6 +168,9 @@ export class OutboundService {
         status: 'draft',
       },
     });
+    if (dto.relatedInboundCaseId) {
+      await this.markCaseAsReplied(BigInt(dto.relatedInboundCaseId));
+    }
     return { id: Number(doc.id) };
   }
 
@@ -413,6 +450,8 @@ export class OutboundService {
 
   /**
    * V2: Generate AI draft from inbound case (existing, improved)
+   * Pulls rich metadata from DocumentAiResult (เลขที่หนังสือ, วันที่, ผู้ส่ง, สรุป, action, deadline)
+   * เพื่อให้ Gemini ร่างหนังสือส่งได้ตรงประเด็นและถูกระเบียบ
    */
   async generateAiDraft(caseId: number, draftType: string, additionalContext?: string, userOrgId?: number) {
     const cas = await this.prisma.inboundCase.findUnique({
@@ -429,19 +468,17 @@ export class OutboundService {
       throw new ForbiddenException('ไม่สามารถสร้าง AI draft จากเคสขององค์กรอื่น');
     }
 
-    // Gather document text from the latest DocumentIntake's aiResult
-    let documentText = '';
-    if (cas.sourceDocument) {
-      const intake = await this.prisma.documentIntake.findFirst({
-        where: { organizationId: cas.organizationId },
-        include: { aiResult: true },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (intake?.aiResult?.extractedText) {
-        documentText = intake.aiResult.extractedText;
-      }
-    }
-    // Fallback to document fullText
+    // ─── Resolve DocumentAiResult via intake:{id} pattern in description ───
+    // (เดิม findFirst by organizationId แล้ว orderBy createdAt — ดึง intake ผิดตัว)
+    // Pattern เดียวกับ cases.service.ts:246
+    const intakeMatch = cas.description?.match(/intake:(\d+)/);
+    const aiResult = intakeMatch
+      ? await this.prisma.documentAiResult.findUnique({
+          where: { documentIntakeId: BigInt(intakeMatch[1]) },
+        })
+      : null;
+
+    let documentText = aiResult?.extractedText ?? '';
     if (!documentText && cas.sourceDocument?.fullText) {
       documentText = cas.sourceDocument.fullText;
     }
@@ -455,19 +492,54 @@ export class OutboundService {
       order: 'order',
       announcement: 'announcement',
     };
+    const draftTypeLabel: Record<string, string> = {
+      memo: 'บันทึกข้อความ',
+      reply: 'หนังสือตอบ',
+      report: 'หนังสือรายงานผล',
+      order: 'คำสั่ง',
+      announcement: 'ประกาศ',
+    };
     const letterType = draftTypeToLetter[draftType] ?? 'external_letter';
     const typePrompt = this.LETTER_TYPE_PROMPTS[letterType] ?? this.LETTER_TYPE_PROMPTS.external_letter;
+
+    // ─── Build enriched prompt ───
+    const docDateStr = aiResult?.documentDate
+      ? aiResult.documentDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '—';
+    const deadlineStr = aiResult?.deadlineDate
+      ? aiResult.deadlineDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    const actionsText = this.formatActions(aiResult?.nextActionJson);
 
     const prompt = `คุณเป็นผู้เชี่ยวชาญด้านงานสารบรรณราชการไทย
 ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ พ.ศ. 2526
 
-ข้อมูลหน่วยงาน: ${cas.organization?.name ?? ''}
+ข้อมูลหน่วยงานผู้ตอบ: ${cas.organization?.name ?? '—'}
 
-เรื่องจากหนังสือรับ: ${cas.title}
-${cas.description ? `รายละเอียด: ${cas.description}` : ''}
-${topicNames ? `หัวข้อ: ${topicNames}` : ''}
-${documentText ? `เนื้อหาต้นฉบับ:\n${documentText.substring(0, 3000)}` : ''}
-${additionalContext ? `บริบทเพิ่มเติม: ${additionalContext}` : ''}
+═══ หนังสือต้นเรื่อง (สิ่งที่ต้องตอบ) ═══
+เลขที่: ${aiResult?.documentNo ?? '—'}
+ลงวันที่: ${docDateStr}
+จาก: ${aiResult?.issuingAuthority ?? '—'}
+ถึง: ${aiResult?.recipientText ?? '—'}
+เรื่อง: ${aiResult?.subjectText ?? cas.title}
+
+ประเภทการตอบสนอง: ${aiResult?.responseType ?? 'unknown'}
+${aiResult?.responseRequirementReason ? `เหตุผล: ${aiResult.responseRequirementReason}` : ''}
+
+สรุปเนื้อหา:
+${aiResult?.summaryText ?? cas.description ?? '—'}
+${deadlineStr ? `\nกำหนดที่ระบุ: ${deadlineStr}` : ''}
+${actionsText ? `\nสิ่งที่ต้องทำ/ตอบ:\n${actionsText}` : ''}
+${topicNames ? `\nหัวข้อ: ${topicNames}` : ''}
+${documentText ? `\n--- เนื้อหาเต็ม (excerpt) ---\n${documentText.substring(0, 2500)}` : ''}
+${additionalContext ? `\n═══ บริบทเพิ่มเติมจากผู้ใช้ ═══\n${additionalContext}` : ''}
+
+═══ คำสั่ง ═══
+ร่าง${draftTypeLabel[draftType] ?? 'หนังสือ'} เพื่อตอบสนองหนังสือต้นเรื่องข้างต้น
+- ในย่อหน้าแรก ต้องอ้างอิงถึงเลขที่และวันที่ของหนังสือต้นเรื่อง (ถ้ามี)
+- เนื้อหาต้องตอบ/ดำเนินการตามสิ่งที่หนังสือต้นเรื่องระบุ
+- ใช้ภาษาราชการตามระเบียบสารบรรณ
+- เลือก "เรียน" + คำลงท้ายให้เหมาะสมกับชั้นยศของผู้รับ
 
 ${typePrompt}
 
@@ -500,6 +572,9 @@ ${typePrompt}
           securityLevel: cas.securityLevel ?? 'normal',
         },
       });
+
+      // Mark inbound case as replied (best-effort, fail-soft)
+      await this.markCaseAsReplied(cas.id);
 
       return {
         id: Number(doc.id),

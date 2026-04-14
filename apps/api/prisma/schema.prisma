@@ -396,6 +396,11 @@ model InboundCase {
   directorStampZoneJson    String?   @map("director_stamp_zone_json") @db.Text
   googleCalendarEventId  String?   @map("google_calendar_event_id") @db.VarChar(255)
   meetingCalendarEventId String?   @map("meeting_calendar_event_id") @db.VarChar(255)
+  // ─── Response classification (denormalized from DocumentAiResult for fast list filtering) ───
+  requiresResponse       Boolean?  @map("requires_response")
+  responseType           String?   @map("response_type") @db.VarChar(30) // reply_required | action_required | report_required | informational | unknown
+  hasBeenReplied         Boolean   @map("has_been_replied") @default(false)
+  repliedAt              DateTime? @map("replied_at")
   createdAt              DateTime  @map("created_at") @default(now())
   updatedAt              DateTime  @map("updated_at") @updatedAt
 
@@ -420,6 +425,7 @@ model InboundCase {
   @@index([registeredByUserId])
   @@index([assignedToUserId])
   @@index([directorStampStatus])
+  @@index([requiresResponse, hasBeenReplied])
   @@map("inbound_cases")
 }
 
@@ -610,6 +616,10 @@ model DocumentAiResult {
   meetingLocation          String?   @map("meeting_location") @db.VarChar(500)
   nextActionJson           String?   @map("next_action_json") @db.LongText
   structuredSummaryJson    String?   @map("structured_summary_json") @db.LongText
+  // ─── Response requirement classification ───
+  responseType              String?  @map("response_type") @db.VarChar(30) // reply_required | action_required | report_required | informational | unknown
+  responseTypeConfidence    Float?   @map("response_type_confidence")
+  responseRequirementReason String?  @map("response_requirement_reason") @db.Text
   createdAt                DateTime  @map("created_at") @default(now())
   updatedAt                DateTime  @map("updated_at") @updatedAt
 

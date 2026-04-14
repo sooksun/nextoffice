@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ExtractionService } from './extraction.service';
 import { PredictiveWorkflowService } from './predictive-workflow.service';
+import { ResponseRequirementClassifierService } from './response-requirement-classifier.service';
 import { ReasoningService } from '../../rag/services/reasoning.service';
 import { LineMessagingService } from '../../line/services/line-messaging.service';
 import { LineSessionService } from '../../line/services/line-session.service';
@@ -28,6 +29,7 @@ export class OfficialWorkflowService {
     private readonly prisma: PrismaService,
     private readonly extraction: ExtractionService,
     private readonly predictive: PredictiveWorkflowService,
+    private readonly responseClassifier: ResponseRequirementClassifierService,
     private readonly reasoning: ReasoningService,
     private readonly messaging: LineMessagingService,
     private readonly sessions: LineSessionService,
@@ -68,6 +70,25 @@ export class OfficialWorkflowService {
       },
     });
 
+    // Classify response requirement (best-effort, fail-soft)
+    const responseClass = await this.responseClassifier.classify({
+      subjectText: metadata.subjectText,
+      summaryText: metadata.summary,
+      extractedText,
+      nextActionJson: JSON.stringify(metadata.actions),
+    });
+    await this.prisma.documentAiResult.update({
+      where: { id: intake.aiResult.id },
+      data: {
+        responseType: responseClass.responseType,
+        responseTypeConfidence: responseClass.confidence,
+        responseRequirementReason: responseClass.reason,
+      },
+    });
+    this.logger.log(
+      `Response classification for intake ${documentIntakeId}: ${responseClass.responseType} (conf=${responseClass.confidence})`,
+    );
+
     // Ensure organization exists
     const orgId = await this.ensureOrganization(intake.organizationId);
 
@@ -95,6 +116,9 @@ export class OfficialWorkflowService {
         dueDate: metadata.deadlineDate ? new Date(metadata.deadlineDate) : null,
         urgencyLevel: mapUrgency(metadata.urgency),
         status: 'analyzing',
+        // Denormalized response classification for fast list filtering (fail-open: unknown shows in list)
+        responseType: responseClass.responseType,
+        requiresResponse: responseClass.responseType !== 'informational',
       },
     });
 

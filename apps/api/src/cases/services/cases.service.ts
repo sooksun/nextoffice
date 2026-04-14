@@ -196,6 +196,10 @@ export class CasesService {
     search?: string;
     take?: number;
     skip?: number;
+    /** เมื่อ true: คืนเฉพาะ case ที่ต้องการการตอบสนอง (requiresResponse=true) — ใช้ในหน้าสร้างหนังสือส่งจากหนังสือรับ */
+    responseRequiredOnly?: boolean;
+    /** เมื่อ false: ตัดเคสที่มีการสร้างหนังสือส่งตอบไปแล้ว (hasBeenReplied=true) ออก. default true (backward compat) */
+    includeReplied?: boolean;
   } = {}) {
     const where: any = {};
     if (opts.organizationId) where.organizationId = BigInt(opts.organizationId);
@@ -215,6 +219,8 @@ export class CasesService {
         { description: { contains: opts.search } },
       ];
     }
+    if (opts.responseRequiredOnly) where.requiresResponse = true;
+    if (opts.includeReplied === false) where.hasBeenReplied = false;
 
     const [cases, total] = await Promise.all([
       this.prisma.inboundCase.findMany({

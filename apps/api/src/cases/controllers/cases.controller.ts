@@ -37,6 +37,8 @@ export class CasesController {
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'take', required: false, type: Number })
   @ApiQuery({ name: 'skip', required: false, type: Number })
+  @ApiQuery({ name: 'responseRequiredOnly', required: false, description: 'true = เฉพาะหนังสือที่ต้องการตอบสนอง' })
+  @ApiQuery({ name: 'includeReplied', required: false, description: 'false = ตัดหนังสือที่ตอบไปแล้ว' })
   listCases(
     @Query('organizationId') orgId?: string,
     @Query('status') status?: string,
@@ -48,6 +50,8 @@ export class CasesController {
     @Query('search') search?: string,
     @Query('take') take?: string,
     @Query('skip') skip?: string,
+    @Query('responseRequiredOnly') responseRequiredOnly?: string,
+    @Query('includeReplied') includeReplied?: string,
   ) {
     return this.svc.listCases({
       organizationId: orgId ? Number(orgId) : undefined,
@@ -60,6 +64,8 @@ export class CasesController {
       search,
       take: take ? Number(take) : undefined,
       skip: skip ? Number(skip) : undefined,
+      responseRequiredOnly: responseRequiredOnly === 'true',
+      includeReplied: includeReplied === undefined ? undefined : includeReplied !== 'false',
     });
   }
 

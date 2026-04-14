@@ -42,7 +42,26 @@ interface InboundCase {
   title: string;
   registrationNo: string | null;
   status: string;
+  responseType?: string | null;
+  requiresResponse?: boolean | null;
+  hasBeenReplied?: boolean;
+  documentNo?: string;
+  documentDate?: string | null;
 }
+
+const RESPONSE_TYPE_LABEL_TH: Record<string, string> = {
+  reply_required: "ต้องตอบ",
+  action_required: "ดำเนินการ",
+  report_required: "รายงานผล",
+  informational: "เพื่อทราบ",
+  unknown: "ไม่ทราบ",
+};
+
+const RESPONSE_TYPE_TO_DRAFT: Record<string, string> = {
+  reply_required: "reply",
+  action_required: "memo",
+  report_required: "report",
+};
 
 export default function NewOutboundPage() {
   const router = useRouter();
@@ -61,6 +80,7 @@ export default function NewOutboundPage() {
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
   const [draftType, setDraftType] = useState("reply");
   const [additionalContext, setAdditionalContext] = useState("");
+  const [showReplied, setShowReplied] = useState(false);
 
   const [form, setForm] = useState({
     subject: "",
@@ -86,14 +106,21 @@ export default function NewOutboundPage() {
   const canSetConfidential = CONFIDENTIAL_ROLES.includes(roleCode);
 
   // Load inbound cases for "create from inbound" mode
+  // กรองเฉพาะหนังสือที่ต้องตอบสนอง (responseRequiredOnly=true) และไม่นำที่ตอบไปแล้วมาแสดง (เว้นแต่ติ๊ก toggle)
   useEffect(() => {
     if (mode !== "ai_inbound") return;
     const user = getUser();
     if (!user?.organizationId) return;
-    apiFetch<{ total: number; data: InboundCase[] }>(`/cases?organizationId=${user.organizationId}&take=50`)
+    const params = new URLSearchParams({
+      organizationId: String(user.organizationId),
+      responseRequiredOnly: "true",
+      includeReplied: showReplied ? "true" : "false",
+      take: "50",
+    });
+    apiFetch<{ total: number; data: InboundCase[] }>(`/cases?${params}`)
       .then((res) => setInboundCases(res.data ?? []))
       .catch(() => setInboundCases([]));
-  }, [mode]);
+  }, [mode, showReplied]);
 
   // ─── AI Generate from Prompt ───
   const handleAiGenerate = async () => {
@@ -299,24 +326,54 @@ export default function NewOutboundPage() {
       {/* ─── AI from Inbound Mode ─── */}
       {mode === "ai_inbound" && (
         <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6 space-y-4 mb-5">
-          <div className="flex items-center gap-2 text-blue-700 font-bold">
-            <FileInput size={18} />
-            AI สร้างจากหนังสือรับ
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-blue-700 font-bold">
+              <FileInput size={18} />
+              AI สร้างจากหนังสือรับ
+            </div>
+            <label className="flex items-center gap-1.5 text-xs text-on-surface-variant cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showReplied}
+                onChange={(e) => setShowReplied(e.target.checked)}
+                className="rounded"
+              />
+              แสดงหนังสือที่ตอบแล้ว
+            </label>
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">เลือกหนังสือรับ</label>
+            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">
+              เลือกหนังสือรับ
+              <span className="ml-1 text-xs text-on-surface-variant/70 font-normal">
+                ({inboundCases.length} ฉบับ — เฉพาะที่ต้องตอบสนอง)
+              </span>
+            </label>
             <select
               value={selectedCaseId ?? ""}
-              onChange={(e) => setSelectedCaseId(Number(e.target.value) || null)}
+              onChange={(e) => {
+                const id = Number(e.target.value) || null;
+                setSelectedCaseId(id);
+                // Auto pre-select draftType ตาม responseType
+                if (id) {
+                  const c = inboundCases.find((x) => x.id === id);
+                  const next = c?.responseType ? RESPONSE_TYPE_TO_DRAFT[c.responseType] : null;
+                  if (next) setDraftType(next);
+                }
+              }}
               className="input-select w-full"
             >
               <option value="">-- เลือกหนังสือรับ --</option>
-              {inboundCases.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.registrationNo ? `${c.registrationNo} - ` : ""}{c.title}
-                </option>
-              ))}
+              {inboundCases.map((c) => {
+                const badge = c.responseType ? `[${RESPONSE_TYPE_LABEL_TH[c.responseType] ?? c.responseType}] ` : "";
+                const replied = c.hasBeenReplied ? " ✓ตอบแล้ว" : "";
+                const ref = c.registrationNo || c.documentNo;
+                return (
+                  <option key={c.id} value={c.id}>
+                    {badge}{ref ? `${ref} - ` : ""}{c.title}{replied}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
