@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, Send } from "lucide-react";
 import OutboundActions from "./OutboundActions";
+import OutboundPdfButton from "./OutboundPdfButton";
 import SignatureVerification from "@/components/SignatureVerification";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 
@@ -105,6 +106,11 @@ export default async function OutboundDetailPage({
             )}
           </div>
         </div>
+      </div>
+
+      {/* PDF Actions */}
+      <div className="mb-4">
+        <OutboundPdfButton docId={doc.id} documentNo={doc.documentNo} />
       </div>
 
       {/* Actions */}
