@@ -12,13 +12,14 @@ const LETTER_TYPE_LABEL: Record<string, string> = {
   external_letter: "หนังสือภายนอก",
   internal_memo:   "หนังสือภายใน (บันทึกข้อความ)",
   stamp_letter:    "หนังสือประทับตรา",
-  directive:       "คำสั่ง / ประกาศ",
+  order:           "คำสั่ง",
+  announcement:    "ประกาศ",
   pr_letter:       "หนังสือประชาสัมพันธ์",
   official_record: "หนังสือที่เจ้าหน้าที่ทำขึ้น",
   secret_letter:   "หนังสือลับ",
 };
 
-const AI_LETTER_TYPES = ["external_letter", "internal_memo", "stamp_letter", "directive"];
+const AI_LETTER_TYPES = ["external_letter", "internal_memo", "stamp_letter", "order", "announcement"];
 const CONFIDENTIAL_ROLES = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR", "CLERK"];
 
 type CreateMode = "manual" | "ai_prompt" | "ai_inbound";
@@ -317,6 +318,7 @@ export default function NewOutboundPage() {
               <option value="memo">บันทึกเสนอผู้บริหาร (ภายใน)</option>
               <option value="report">รายงานผลการดำเนินงาน</option>
               <option value="order">คำสั่ง</option>
+              <option value="announcement">ประกาศ</option>
             </select>
           </div>
 

@@ -269,6 +269,8 @@ export class TemplatesService {
 
   /**
    * แบบที่ 4 — คำสั่ง / ประกาศ
+   * - คำสั่ง: header centered "คำสั่ง<orgName>", ลำดับเลขคำสั่ง, ข้อความเป็นข้อ ๆ
+   * - ประกาศ: header centered "ประกาศ<orgName>", เนื้อหาเป็นย่อหน้า ปิดด้วย "ประกาศ ณ วันที่..."
    */
   async generateDirective(data: {
     orgName: string;
@@ -278,6 +280,7 @@ export class TemplatesService {
     signerName?: string;
     signerPosition?: string;
     directiveType?: string; // 'คำสั่ง' | 'ประกาศ'
+    orderNo?: string; // สำหรับคำสั่ง: "ที่ ๑/๒๕๖๘"
   }): Promise<Buffer> {
     const doc = await PDFDocument.create();
     doc.registerFontkit(fontkit);
@@ -285,25 +288,42 @@ export class TemplatesService {
     const { regular, bold } = await this.embedFonts(doc);
     let y = A4_H - MARGIN_T;
     const type = data.directiveType ?? 'คำสั่ง';
+    const isOrder = type === 'คำสั่ง';
 
-    // Header — ชื่อส่วนราชการ
+    // Header centered — "คำสั่ง<orgName>" หรือ "ประกาศ<orgName>"
     const headerText = `${type}${data.orgName}`;
-    page.drawText(headerText, { x: MARGIN_L, y, size: 18, font: bold });
-    y -= 28;
+    const headerWidth = bold.widthOfTextAtSize(headerText, 18);
+    page.drawText(headerText, {
+      x: (A4_W - headerWidth) / 2,
+      y,
+      size: 18,
+      font: bold,
+    });
+    y -= 24;
 
-    // เรื่อง
-    if (data.subject) {
-      page.drawText(`เรื่อง  ${data.subject}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 10;
-      // เส้นใต้
-      page.drawLine({
-        start: { x: MARGIN_L, y },
-        end: { x: A4_W - MARGIN_R, y },
-        thickness: 0.5,
-        color: rgb(0, 0, 0),
-      });
+    // สำหรับคำสั่ง: แสดงเลขที่คำสั่ง (ถ้ามี)
+    if (isOrder && data.orderNo) {
+      const noWidth = regular.widthOfTextAtSize(data.orderNo, 14);
+      page.drawText(data.orderNo, { x: (A4_W - noWidth) / 2, y, size: 14, font: regular });
       y -= 20;
     }
+
+    // เรื่อง centered
+    if (data.subject) {
+      const subjText = `เรื่อง  ${data.subject}`;
+      const subjWidth = regular.widthOfTextAtSize(subjText, 14);
+      page.drawText(subjText, { x: (A4_W - subjWidth) / 2, y, size: 14, font: regular });
+      y -= 24;
+    }
+
+    // เส้นคั่นใต้หัวเรื่อง
+    page.drawLine({
+      start: { x: A4_W / 2 - 30, y },
+      end: { x: A4_W / 2 + 30, y },
+      thickness: 0.6,
+      color: rgb(0, 0, 0),
+    });
+    y -= 20;
 
     // เนื้อหา
     if (data.body) {
@@ -317,22 +337,25 @@ export class TemplatesService {
 
     y -= 16;
 
-    // วันที่
+    // วันที่ — "สั่ง ณ วันที่..." สำหรับคำสั่ง, "ประกาศ ณ วันที่..." สำหรับประกาศ
     if (data.date) {
-      const dateText = `${type} ณ วันที่  ${data.date}`;
-      page.drawText(dateText, { x: MARGIN_L + 36, y, size: 14, font: regular });
+      const dateLabel = isOrder ? 'สั่ง' : 'ประกาศ';
+      const dateText = `${dateLabel} ณ วันที่  ${data.date}`;
+      const dateX = A4_W / 2 + 20; // ชิดขวาเล็กน้อย
+      page.drawText(dateText, { x: dateX, y, size: 14, font: regular });
       y -= 50;
     }
 
     // ลงชื่อ
     if (data.signerName) {
-      const nameX = A4_W / 2 - 40;
-      page.drawText(`(${data.signerName})`, { x: nameX, y, size: 14, font: regular });
+      const sigLabel = `(${data.signerName})`;
+      const sigWidth = regular.widthOfTextAtSize(sigLabel, 14);
+      page.drawText(sigLabel, { x: A4_W / 2 + 80 - sigWidth / 2, y, size: 14, font: regular });
       y -= 18;
     }
     if (data.signerPosition) {
-      const posX = A4_W / 2 - 60;
-      page.drawText(data.signerPosition, { x: posX, y, size: 14, font: regular });
+      const posWidth = regular.widthOfTextAtSize(data.signerPosition, 14);
+      page.drawText(data.signerPosition, { x: A4_W / 2 + 80 - posWidth / 2, y, size: 14, font: regular });
     }
 
     return Buffer.from(await doc.save());

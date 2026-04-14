@@ -312,6 +312,23 @@ export class OutboundService {
   "bodyText": "เนื้อหาหนังสือ สั้นกระชับ ใช้ภาษาราชการ"
 }`,
 
+    order: `สร้าง "คำสั่ง" ของส่วนราชการ ตามระเบียบสารบรรณ
+คำสั่งใช้สำหรับสั่งการให้บุคคลหรือหน่วยงานดำเนินการตามที่ระบุ
+ตอบเป็น JSON เท่านั้น:
+{
+  "subject": "เรื่อง... (เช่น แต่งตั้งคณะกรรมการ..., มอบหมายหน้าที่...)",
+  "bodyText": "เนื้อหาคำสั่ง โดยเริ่มจากการอ้างเหตุผล/อำนาจหน้าที่ แล้วระบุข้อสั่งการเป็นข้อ ๆ (ข้อ ๑. ... ข้อ ๒. ...) พร้อมวันที่เริ่มใช้บังคับ ใช้ภาษาราชการ"
+}`,
+
+    announcement: `สร้าง "ประกาศ" ของส่วนราชการ ตามระเบียบสารบรรณ
+ประกาศใช้สำหรับแจ้งให้ทราบโดยทั่วไป ไม่ใช่การสั่งการ
+ตอบเป็น JSON เท่านั้น:
+{
+  "subject": "เรื่อง... (เช่น รับสมัคร..., ผลการคัดเลือก..., กำหนดการ...)",
+  "bodyText": "เนื้อหาประกาศ อธิบายเรื่องที่ต้องการแจ้งให้ทราบทั่วไป ระบุรายละเอียด ข้อกำหนด เงื่อนไข กำหนดการ ใช้ภาษาราชการ"
+}`,
+
+    // Backward compat alias
     directive: `สร้างคำสั่ง/ประกาศ ของส่วนราชการ ตามระเบียบสารบรรณ
 ตอบเป็น JSON เท่านั้น:
 {
@@ -440,7 +457,8 @@ export class OutboundService {
       memo: 'internal_memo',
       reply: 'external_letter',
       report: 'external_letter',
-      order: 'directive',
+      order: 'order',
+      announcement: 'announcement',
     };
     const letterType = draftTypeToLetter[draftType] ?? 'external_letter';
     const typePrompt = this.LETTER_TYPE_PROMPTS[letterType] ?? this.LETTER_TYPE_PROMPTS.external_letter;
@@ -563,6 +581,31 @@ ${typePrompt}
         });
         break;
 
+      case 'order':
+        pdfBuffer = await this.templates.generateDirective({
+          orgName: org?.name ?? '',
+          subject: doc.subject,
+          body: doc.bodyText ?? undefined,
+          date: dateStr,
+          signerName: signer?.fullName ?? undefined,
+          signerPosition: signer?.positionTitle ?? undefined,
+          directiveType: 'คำสั่ง',
+        });
+        break;
+
+      case 'announcement':
+        pdfBuffer = await this.templates.generateDirective({
+          orgName: org?.name ?? '',
+          subject: doc.subject,
+          body: doc.bodyText ?? undefined,
+          date: dateStr,
+          signerName: signer?.fullName ?? undefined,
+          signerPosition: signer?.positionTitle ?? undefined,
+          directiveType: 'ประกาศ',
+        });
+        break;
+
+      // Backward compatibility — legacy "directive" type defaults to คำสั่ง
       case 'directive':
         pdfBuffer = await this.templates.generateDirective({
           orgName: org?.name ?? '',
@@ -571,6 +614,7 @@ ${typePrompt}
           date: dateStr,
           signerName: signer?.fullName ?? undefined,
           signerPosition: signer?.positionTitle ?? undefined,
+          directiveType: 'คำสั่ง',
         });
         break;
 
