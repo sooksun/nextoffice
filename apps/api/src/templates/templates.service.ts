@@ -18,7 +18,7 @@ export class TemplatesService {
 
   constructor() {
     try {
-      const fontsDir = path.resolve(__dirname, '../../stamps/fonts');
+      const fontsDir = path.resolve(__dirname, '../stamps/fonts');
       this.sarabunRegular = fs.readFileSync(path.join(fontsDir, 'Sarabun-Regular.ttf'));
       this.sarabunBold = fs.readFileSync(path.join(fontsDir, 'Sarabun-Bold.ttf'));
     } catch {
