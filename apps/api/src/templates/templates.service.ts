@@ -100,8 +100,9 @@ export class TemplatesService {
       const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
       for (const line of lines) {
         if (y < 100) break;
+        if (!line) { y -= 10; continue; }
         page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 20;
+        y -= 22;
       }
     }
 
@@ -194,8 +195,9 @@ export class TemplatesService {
       const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
       for (const line of lines) {
         if (y < 120) break;
+        if (!line) { y -= 10; continue; }
         page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 20;
+        y -= 22;
       }
     }
 
@@ -248,8 +250,9 @@ export class TemplatesService {
       const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
       for (const line of lines) {
         if (y < 200) break;
+        if (!line) { y -= 10; continue; }
         page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 20;
+        y -= 22;
       }
     }
 
@@ -333,8 +336,9 @@ export class TemplatesService {
       const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
       for (const line of lines) {
         if (y < 140) break;
+        if (!line) { y -= 10; continue; }
         page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 20;
+        y -= 22;
       }
     }
 
@@ -377,9 +381,15 @@ export class TemplatesService {
     return { regular, bold };
   }
 
+  /**
+   * Wrap text for Thai — splits by whitespace, breaks long tokens by character.
+   * Collapses 3+ consecutive newlines to 2 to prevent large visual gaps.
+   */
   private wrapText(text: string, font: any, size: number, maxWidth: number): string[] {
     const lines: string[] = [];
-    const paragraphs = text.split('\n');
+    // Collapse excessive blank lines (3+ → 2) so AI body gaps stay readable
+    const normalized = text.replace(/\n{3,}/g, '\n\n').trim();
+    const paragraphs = normalized.split('\n');
     for (const para of paragraphs) {
       if (!para.trim()) { lines.push(''); continue; }
       const words = para.split(/\s+/);
@@ -390,7 +400,11 @@ export class TemplatesService {
           const w = font.widthOfTextAtSize(test, size);
           if (w > maxWidth && current) {
             lines.push(current);
-            current = word;
+            // If the word alone exceeds maxWidth, break it by character
+            current = this.breakLongToken(word, font, size, maxWidth, lines);
+          } else if (w > maxWidth) {
+            // First word already too wide — break by character
+            current = this.breakLongToken(word, font, size, maxWidth, lines);
           } else {
             current = test;
           }
@@ -401,5 +415,31 @@ export class TemplatesService {
       if (current) lines.push(current);
     }
     return lines;
+  }
+
+  /** Break a token that is wider than maxWidth by iterating over characters. */
+  private breakLongToken(
+    token: string,
+    font: any,
+    size: number,
+    maxWidth: number,
+    output: string[],
+  ): string {
+    let current = '';
+    for (const ch of token) {
+      const test = current + ch;
+      try {
+        const w = font.widthOfTextAtSize(test, size);
+        if (w > maxWidth && current) {
+          output.push(current);
+          current = ch;
+        } else {
+          current = test;
+        }
+      } catch {
+        current = test;
+      }
+    }
+    return current;
   }
 }
