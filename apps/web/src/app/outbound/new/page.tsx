@@ -20,6 +20,19 @@ const LETTER_TYPE_LABEL: Record<string, string> = {
 };
 
 const AI_LETTER_TYPES = ["external_letter", "internal_memo", "stamp_letter", "order", "announcement"];
+
+const AI_PROMPT_PLACEHOLDER: Record<string, string> = {
+  external_letter:
+    "เช่น: สร้างหนังสือถึง ผอ.สพป.เชียงราย เขต 3 เรื่องรายงานผลการดำเนินงานโครงการอ่านออกเขียนได้ ประจำภาคเรียนที่ 2/2568 พร้อมแนบรายงาน 1 ชุด",
+  internal_memo:
+    "เช่น: สร้างบันทึกข้อความเสนอผู้อำนวยการโรงเรียน เรื่องขออนุมัติจัดซื้อวัสดุการเรียนการสอน ประจำภาคเรียนที่ 2/2568 วงเงินไม่เกิน 50,000 บาท",
+  stamp_letter:
+    "เช่น: สร้างหนังสือประทับตราถึงองค์การบริหารส่วนตำบล... เรื่องขอใช้สถานที่จัดกิจกรรม วันที่ 15 พ.ค. 2569",
+  order:
+    "เช่น: สร้างคำสั่งแต่งตั้งคณะกรรมการประเมินผลการศึกษา ปีการศึกษา 2568 ประกอบด้วยประธาน 1 คน กรรมการ 3 คน และเลขานุการ 1 คน",
+  announcement:
+    "เช่น: สร้างประกาศรับสมัครนักเรียนชั้นประถมศึกษาปีที่ 1 ประจำปีการศึกษา 2569 รับสมัครตั้งแต่ 1-30 เม.ย. 2569 เวลา 08.30-16.30 น.",
+};
 const CONFIDENTIAL_ROLES = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR", "CLERK"];
 
 type CreateMode = "manual" | "ai_prompt" | "ai_inbound";
@@ -262,7 +275,7 @@ export default function NewOutboundPage() {
             <textarea
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="เช่น: สร้างหนังสือถึง สพป.เชียงราย เขต 3 เรื่องรายงานผลนักเรียนอ่านออกเขียนได้ ประจำภาคเรียนที่ 2/2568 พร้อมแนบรายงาน 1 ชุด"
+              placeholder={AI_PROMPT_PLACEHOLDER[form.letterType] ?? AI_PROMPT_PLACEHOLDER.external_letter}
               className="w-full p-3 rounded-xl border border-outline-variant/20 bg-white text-sm resize-none"
               rows={4}
             />
