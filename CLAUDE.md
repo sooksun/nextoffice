@@ -219,6 +219,8 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 **ผลลัพธ์:** `docker compose up -d --build web` ทำได้ตรงๆ ปุ่ม Google ไม่หายอีก
 
+**Caveat ที่ค้นพบเพิ่ม:** เมื่อใส่ `env_file: .env.production` ใน web service ตัวแปร `PORT=3000` (ที่ตั้งไว้สำหรับ api) จะ **shadow** `ENV PORT=3001` ใน Dockerfile → web container listen 3000 แทน 3001 → reverse proxy เจอ 502 — ต้องใส่ `PORT: "3001"` และ `HOSTNAME: "0.0.0.0"` ใน `environment:` (override env_file)
+
 ---
 
 ### Technical Decisions (session 2026-04-15)
