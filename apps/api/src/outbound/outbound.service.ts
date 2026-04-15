@@ -654,14 +654,14 @@ ${typePrompt}
         break;
 
       case 'announcement':
-        pdfBuffer = await this.templates.generateDirective({
+        pdfBuffer = await this.templates.generatePublicRelation({
           orgName: org?.name ?? '',
           subject: doc.subject,
           body: doc.bodyText ?? undefined,
           date: dateStr,
           signerName: signer?.fullName ?? undefined,
           signerPosition: signer?.positionTitle ?? undefined,
-          directiveType: 'ประกาศ',
+          prType: 'ประกาศ',
         });
         break;
 
