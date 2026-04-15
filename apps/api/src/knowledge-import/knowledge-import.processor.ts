@@ -101,13 +101,21 @@ export class KnowledgeImportProcessor {
         return;
       }
 
+      // Log heap usage for diagnosis
+      const heap = process.memoryUsage();
+      this.logger.log(
+        `Item #${itemId} heap: rss=${Math.round(heap.rss / 1024 / 1024)}MB heapUsed=${Math.round(heap.heapUsed / 1024 / 1024)}MB heapTotal=${Math.round(heap.heapTotal / 1024 / 1024)}MB`,
+      );
+
       // Save extracted text
+      this.logger.log(`Item #${itemId} — saving extractedText to DB`);
       await this.prisma.userKnowledgeItem.update({
         where: { id: itemId },
         data: { extractedText: text },
       });
 
       // Chunk the text
+      this.logger.log(`Item #${itemId} — chunking text`);
       const chunks = this.chunking.splitText(text);
       this.logger.log(`Split into ${chunks.length} chunks for item #${itemId}`);
 
