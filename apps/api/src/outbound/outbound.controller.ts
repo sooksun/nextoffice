@@ -69,6 +69,22 @@ export class OutboundController {
     res.end(buffer);
   }
 
+  @Get('documents/:id/word')
+  @ApiOperation({ summary: 'Generate and download Word (.docx) for outbound document' })
+  async getWord(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.svc.generatePdf(id, Number(user?.organizationId));
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': `attachment; filename="outbound-${id}.docx"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
   @Post('documents')
   @ApiOperation({ summary: 'Create a draft outbound document' })
   create(
