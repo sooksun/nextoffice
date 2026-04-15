@@ -170,3 +170,37 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 - Do not change unrelated files.
 - Database: do not change schema unless necessary; explain migration impact before applying.
 - Before finishing, summarize: files changed, what was implemented, risks remaining, what to test next.
+
+---
+
+## Known Security Issues (TODO — ยังไม่ได้แก้)
+
+### [HIGH] IDOR — Case endpoints ไม่มี org boundary check
+- **ไฟล์:** `apps/api/src/cases/services/cases.service.ts` → `findById()`, `getOptions()`
+- **ไฟล์:** `apps/api/src/cases/controllers/cases.controller.ts` → `GET /:id`, `PATCH /:id/status`, `PATCH /assignments/:id/status`
+- **ปัญหา:** `findById()` query ด้วย case ID อย่างเดียว — ไม่กรอง `organizationId` ทำให้ user ใน org A อ่าน/แก้ข้อมูลของ org B ได้
+- **วิธีแก้:** ส่ง `userOrgId` จาก `@CurrentUser()` เข้า service และเพิ่ม `where: { id, organizationId }` ใน query ทุก method ที่รับ case ID จากภายนอก
+
+### [HIGH] Privilege Escalation — DIRECTOR สร้าง ADMIN ได้
+- **ไฟล์:** `apps/api/src/auth/dto/register.dto.ts` → `roleCode` field
+- **ไฟล์:** `apps/api/src/auth/services/auth.service.ts` → `register()` method
+- **ปัญหา:** `RegisterDto` อนุญาต `roleCode = 'ADMIN'` และ `register()` service เขียนค่านี้ตรง ๆ ไปยัง DB โดยไม่ตรวจว่า caller มีสิทธิ์สร้าง ADMIN หรือเปล่า — DIRECTOR จึงสร้างบัญชี ADMIN ได้
+- **วิธีแก้:**
+  ```typescript
+  // auth.service.ts → register()
+  async register(dto: RegisterDto, callerRole: string) {
+    if (dto.roleCode === 'ADMIN' && callerRole !== 'ADMIN') {
+      throw new ForbiddenException('Only ADMIN can create ADMIN accounts');
+    }
+    // ...
+  }
+  // auth.controller.ts → register()
+  async register(@Body() dto: RegisterDto, @CurrentUser() caller: any) {
+    return this.authService.register(dto, caller.roleCode);
+  }
+  ```
+
+### Technical Decisions (session 2026-04-15)
+- **PDF Thai rendering** — เปลี่ยนจาก `pdf-lib` (ไม่มี text shaping) มาใช้ `@napi-rs/canvas` (Skia + HarfBuzz) render เป็น PNG แล้ว embed ใน PDF ผ่าน pdf-lib ไฟล์: `apps/api/src/templates/templates.service.ts`
+- **Font path** — Sarabun fonts อยู่ที่ `apps/api/src/stamps/fonts/` (nest-cli copy ไป `dist/src/stamps/fonts/` ผ่าน assets config)
+- **Response classification** — เพิ่ม `responseType`/`requiresResponse`/`hasBeenReplied` ใน schema + classifier service + backfill script (`prisma/backfill-response-classification.js`)
