@@ -46,8 +46,8 @@ export class TemplatesController {
     }
 
     res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${dto.type}.pdf"`,
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': `attachment; filename="${dto.type}.docx"`,
       'Content-Length': buffer.length,
     });
     res.end(buffer);
