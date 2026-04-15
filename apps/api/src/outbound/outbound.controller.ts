@@ -32,6 +32,32 @@ export class OutboundController {
     return this.svc.findAll(organizationId, status, letterType, user?.roleCode);
   }
 
+  @Get('my/documents')
+  @ApiOperation({ summary: 'List outbound documents for the current user organization (no orgId required)' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'letterType', required: false })
+  listMyDocuments(
+    @CurrentUser() user: any,
+    @Query('status') status?: string,
+    @Query('letterType') letterType?: string,
+  ) {
+    return this.svc.findAll(Number(user?.organizationId), status, letterType, user?.roleCode);
+  }
+
+  @Get('my/registry')
+  @ApiOperation({ summary: 'Get outbound registry (ทะเบียนส่ง) for the current user organization' })
+  @ApiQuery({ name: 'academicYearId', required: false, type: Number })
+  getMyRegistry(
+    @CurrentUser() user: any,
+    @Query('academicYearId') academicYearId?: string,
+  ) {
+    return this.svc.getRegistry(
+      Number(user?.organizationId),
+      'outbound',
+      academicYearId ? parseInt(academicYearId, 10) : undefined,
+    );
+  }
+
   @Get('documents/pending-approval')
   @ApiOperation({ summary: 'List documents pending approval for an organization' })
   @ApiQuery({ name: 'organizationId', required: true, type: Number })

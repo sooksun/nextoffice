@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { apiFetch, getServerToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { Send } from "lucide-react";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
@@ -64,14 +64,14 @@ interface OutboundDoc {
   organization: { id: number; name: string; shortName: string | null } | null;
 }
 
-async function getDocs(orgId: string, status?: string, letterType?: string, roleCode?: string) {
+async function getDocs(status?: string, letterType?: string) {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
   if (letterType) params.set("letterType", letterType);
-  if (roleCode) params.set("roleCode", roleCode);
   const qs = params.toString() ? `?${params.toString()}` : "";
   try {
-    return await apiFetch<OutboundDoc[]>(`/outbound/${orgId}/documents${qs}`);
+    // ใช้ /outbound/my/documents — backend อ่าน orgId จาก JWT (ไม่ต้องส่งใน URL)
+    return await apiFetch<OutboundDoc[]>(`/outbound/my/documents${qs}`);
   } catch {
     return [];
   }
@@ -83,19 +83,9 @@ export default async function OutboundRegistryPage({
   searchParams: Promise<Record<string, string>>;
 }) {
   const sp = await searchParams;
-  const orgId = sp.organizationId ?? "1";
   const letterType = sp.type;
 
-  let roleCode: string | undefined;
-  try {
-    const token = await getServerToken();
-    if (token) {
-      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
-      roleCode = payload.roleCode;
-    }
-  } catch { /* ignore */ }
-
-  const docs = await getDocs(orgId, sp.status, letterType, roleCode);
+  const docs = await getDocs(sp.status, letterType);
 
   const pageTitle = letterType
     ? `ทะเบียนส่ง — ${LETTER_TYPE_LABEL[letterType] ?? letterType}`
