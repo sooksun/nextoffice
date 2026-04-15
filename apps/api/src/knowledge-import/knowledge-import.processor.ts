@@ -52,19 +52,21 @@ export class KnowledgeImportProcessor {
 
       if (!text && item.storagePath) {
         // Download file from MinIO
-        const buffer = await this.storage.getBuffer(item.storagePath);
+        // Use `let` so we can null the reference to release heap before the Gemini call
+        let buffer: Buffer | null = await this.storage.getBuffer(item.storagePath);
+        const bufferLen = buffer.length;
         const mimeType = item.mimeType ?? 'application/octet-stream';
 
         const prompt = item.sourceType === 'pdf'
           ? 'สกัดข้อความทั้งหมดจากเอกสาร PDF นี้ให้ครบถ้วน รักษาโครงสร้างและหัวข้อให้ชัดเจน'
           : 'อธิบายและสกัดข้อความทั้งหมดในภาพนี้ ให้ครอบคลุมทุกข้อมูลที่มองเห็น';
 
-        if (buffer.length > INLINE_SIZE_LIMIT) {
+        if (bufferLen > INLINE_SIZE_LIMIT) {
           // Large file: upload via Gemini File API first, then reference by URI
-          this.logger.log(`Item #${itemId}: file ${(buffer.length / 1024 / 1024).toFixed(1)}MB — using Gemini File API`);
+          this.logger.log(`Item #${itemId}: file ${(bufferLen / 1024 / 1024).toFixed(1)}MB — using Gemini File API`);
           const fileUri = await this.uploadToGeminiFileApi(buffer, mimeType);
           // Release the large buffer before the Gemini call to free heap
-          (buffer as any) = null;
+          buffer = null;
           text = await this.gemini.generateFromParts({
             system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
             parts: [
@@ -76,7 +78,7 @@ export class KnowledgeImportProcessor {
         } else {
           // Small file: inline base64 (faster, no extra API call)
           const base64 = buffer.toString('base64');
-          (buffer as any) = null; // free original buffer
+          buffer = null; // free original buffer
           text = await this.gemini.generateFromParts({
             system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
             parts: [

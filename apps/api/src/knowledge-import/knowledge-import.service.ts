@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,7 +7,7 @@ import { VectorStoreService } from '../rag/services/vector-store.service';
 import { QUEUE_AI_PROCESSING } from '../queue/queue.constants';
 
 @Injectable()
-export class KnowledgeImportService {
+export class KnowledgeImportService implements OnModuleInit {
   private readonly logger = new Logger(KnowledgeImportService.name);
 
   constructor(
@@ -16,6 +16,36 @@ export class KnowledgeImportService {
     private readonly vectorStore: VectorStoreService,
     @InjectQueue(QUEUE_AI_PROCESSING) private readonly aiQueue: Queue,
   ) {}
+
+  /**
+   * ตอน API startup: reset items ที่ค้าง PROCESSING เกิน 10 นาที
+   * (เกิดเมื่อ API restart ระหว่างประมวลผล — DB row ไม่ได้อัปเดตเป็น DONE/ERROR)
+   */
+  async onModuleInit() {
+    try {
+      const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const stuck = await this.prisma.userKnowledgeItem.findMany({
+        where: {
+          status: 'PROCESSING',
+          updatedAt: { lt: tenMinAgo },
+        },
+        select: { id: true },
+      });
+
+      if (stuck.length > 0) {
+        await this.prisma.userKnowledgeItem.updateMany({
+          where: { id: { in: stuck.map((s) => s.id) } },
+          data: {
+            status: 'ERROR',
+            errorMessage: 'Processing was interrupted (API restart). Please retry.',
+          },
+        });
+        this.logger.warn(`Auto-reset ${stuck.length} stuck PROCESSING items to ERROR on startup`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Startup stuck-item reset failed: ${err?.message}`);
+    }
+  }
 
   async create(opts: {
     userId: number;
