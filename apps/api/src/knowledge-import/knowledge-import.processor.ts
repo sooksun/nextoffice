@@ -12,8 +12,12 @@ import { ChunkingService } from '../rag/services/chunking.service';
 import { GeminiApiService } from '../gemini/gemini-api.service';
 import { QUEUE_AI_PROCESSING } from '../queue/queue.constants';
 
-/** Threshold (bytes): files larger than this use Gemini File API instead of inline base64 */
-const INLINE_SIZE_LIMIT = 2 * 1024 * 1024; // 2 MB
+/**
+ * Threshold (bytes): files larger than this use Gemini File API instead of inline base64.
+ * PDFs always go through File API regardless of size (avoids keeping large base64 in V8 heap
+ * which prevents GC before chunking and causes OOM).
+ */
+const INLINE_SIZE_LIMIT = 2 * 1024 * 1024; // 2 MB (images only)
 
 @Processor(QUEUE_AI_PROCESSING)
 export class KnowledgeImportProcessor {
@@ -51,44 +55,13 @@ export class KnowledgeImportProcessor {
       let text = item.extractedText ?? '';
 
       if (!text && item.storagePath) {
-        // Download file from MinIO
-        // Use `let` so we can null the reference to release heap before the Gemini call
-        let buffer: Buffer | null = await this.storage.getBuffer(item.storagePath);
-        const bufferLen = buffer.length;
-        const mimeType = item.mimeType ?? 'application/octet-stream';
-
-        const prompt = item.sourceType === 'pdf'
-          ? 'สกัดข้อความทั้งหมดจากเอกสาร PDF นี้ให้ครบถ้วน รักษาโครงสร้างและหัวข้อให้ชัดเจน'
-          : 'อธิบายและสกัดข้อความทั้งหมดในภาพนี้ ให้ครอบคลุมทุกข้อมูลที่มองเห็น';
-
-        if (bufferLen > INLINE_SIZE_LIMIT) {
-          // Large file: upload via Gemini File API first, then reference by URI
-          this.logger.log(`Item #${itemId}: file ${(bufferLen / 1024 / 1024).toFixed(1)}MB — using Gemini File API`);
-          const fileUri = await this.uploadToGeminiFileApi(buffer, mimeType);
-          // Release the large buffer before the Gemini call to free heap
-          buffer = null;
-          text = await this.gemini.generateFromParts({
-            system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
-            parts: [
-              { fileData: { mimeType, fileUri } } as any,
-              { text: prompt },
-            ],
-            maxOutputTokens: 8192,
-          });
-        } else {
-          // Small file: inline base64 (faster, no extra API call)
-          const base64 = buffer.toString('base64');
-          buffer = null; // free original buffer
-          text = await this.gemini.generateFromParts({
-            system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
-            parts: [
-              { inlineData: { mimeType, data: base64 } },
-              { text: prompt },
-            ],
-            maxOutputTokens: 8192,
-          });
-        }
-
+        // Run OCR in an isolated method so all large locals (buffer, base64, axios response)
+        // go out of scope when the method returns, allowing V8 to GC them before chunking.
+        text = await this.runOcr(item.storagePath, item.mimeType ?? 'application/octet-stream', item.sourceType);
+        // runOcr's scope is now gone → base64/buffer/axios response are unreachable.
+        // Force a GC cycle to reclaim them before chunking allocates new objects.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (typeof (global as any).gc === 'function') (global as any).gc();
         this.logger.log(`Extracted ${text.length} chars from ${item.sourceType} for item #${itemId}`);
       }
 
@@ -179,6 +152,53 @@ export class KnowledgeImportProcessor {
         },
       });
       throw err;
+    }
+  }
+
+  /**
+   * Run OCR/extraction on a stored file.
+   *
+   * Isolated into its own method so that large temporaries (buffer, base64 string,
+   * axios response JSON) are allocated in THIS function's scope and become immediately
+   * unreachable when the method returns — allowing V8 to GC them before the caller
+   * proceeds to chunking & embedding.
+   *
+   * PDFs always use the Gemini File API (upload → URI reference) to avoid holding
+   * the base64-encoded PDF in old-space across the async OCR call.
+   * Images under INLINE_SIZE_LIMIT use inline base64 (faster, no extra round-trip).
+   */
+  private async runOcr(storagePath: string, mimeType: string, sourceType: string): Promise<string> {
+    let buffer: Buffer | null = await this.storage.getBuffer(storagePath);
+    const bufferLen = buffer.length;
+
+    const prompt = sourceType === 'pdf'
+      ? 'สกัดข้อความทั้งหมดจากเอกสาร PDF นี้ให้ครบถ้วน รักษาโครงสร้างและหัวข้อให้ชัดเจน'
+      : 'อธิบายและสกัดข้อความทั้งหมดในภาพนี้ ให้ครอบคลุมทุกข้อมูลที่มองเห็น';
+
+    const system = 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม';
+
+    // PDFs always use File API; images use inline base64 when small enough
+    const useFileApi = mimeType === 'application/pdf' || bufferLen > INLINE_SIZE_LIMIT;
+
+    if (useFileApi) {
+      this.logger.log(`OCR: ${(bufferLen / 1024 / 1024).toFixed(1)}MB ${mimeType} — using Gemini File API`);
+      const fileUri = await this.uploadToGeminiFileApi(buffer, mimeType);
+      buffer = null; // release before Gemini call
+      return this.gemini.generateFromParts({
+        system,
+        parts: [{ fileData: { mimeType, fileUri } } as any, { text: prompt }],
+        maxOutputTokens: 8192,
+      });
+    } else {
+      // Small image: inline base64
+      const base64 = buffer.toString('base64');
+      buffer = null; // release original buffer
+      return this.gemini.generateFromParts({
+        system,
+        parts: [{ inlineData: { mimeType, data: base64 } }, { text: prompt }],
+        maxOutputTokens: 8192,
+      });
+      // base64 goes out of scope when this method returns → V8 can GC it
     }
   }
 
