@@ -7,28 +7,38 @@ import { json } from 'express';
 import { AppModule } from './app.module';
 
 /**
- * V8 old-space heap anchor — keeps ≈50 MB of live strings in old-space
- * as permanent GC roots, allocated at module-load time (before NestJS init).
+ * V8 old-space heap anchor — 500 K plain JS objects (≈48 MB in regular old-space).
  *
  * Root cause of OOM:
  *   NestJS baseline (≈88 MB) sits at 97% of V8's auto-sized initial old-space
- *   (≈90 MB on this host). Any allocation during job processing triggers
- *   consecutive "ineffective" mark-compact GC cycles → fatal OOM.
+ *   (≈90 MB). Any allocation during job processing triggers consecutive
+ *   "ineffective" mark-compact GC cycles → fatal OOM.
  *
- * Why the previous Uint8Array approach FAILED:
- *   TypedArray backing stores live in EXTERNAL memory (tracked separately by V8).
- *   They do NOT affect heapTotal or V8's old-space growth target — the V8 heap
- *   stayed at 90 MB even after allocating 200 MB of Uint8Array.
+ * Why previous attempts FAILED:
+ *   1. Uint8Array (1 MB each): backing store → EXTERNAL memory, not old-space.
+ *      heapTotal unchanged, GC threshold unaffected.
+ *   2. String 'a'.repeat(500_000) (500 KB each): V8 puts objects > ~128 KB in
+ *      Large Object Space (LOS). LOS is tracked separately — old-space "near
+ *      heap limit" check ignores LOS. heapTotal showed only +4 MB (just headers).
  *
- * This fix: 100 × 500 KB SeqOneByteStrings are real V8 old-space objects.
- *   Live old-space after NestJS init: ≈88 MB (NestJS) + ≈50 MB (anchor) = ≈138 MB.
- *   V8 heap target: 138 MB × growth_factor ≈ 200–350 MB → ample headroom.
- *   Memory cost: 50 MB of the container's 4 GB — acceptable.
+ * This fix: plain JS objects are always < kMaxRegularHeapObjectSize (~512 KB)
+ *   and land in REGULAR old-space — the space that matters for GC limits.
+ *   500 K × ~96 bytes = ≈48 MB in regular old-space.
+ *   Live old-space after NestJS init: 88 + 48 = 136 MB.
+ *   V8 heap target: 136 × growth_factor ≈ 200–350 MB → ample headroom for jobs.
+ *   Cost: ≈48 MB of the container's 4 GB + ~130 ms extra startup time.
  */
-const _V8_HEAP_ANCHOR: string[] = Array.from(
-  { length: 100 },
-  () => 'a'.repeat(500_000), // 100 × 500 KB ≈ 50 MB in V8 old-space (SeqOneByteString)
+const _V8_HEAP_ANCHOR: Array<{ v: number }> = Array.from(
+  { length: 500_000 },
+  (_, i) => ({ v: i }), // 500 K plain objects × ~96 bytes ≈ 48 MB in regular old-space
 );
+// Diagnostic: verify anchor actually landed in V8 heap (not external memory)
+{
+  const _h = process.memoryUsage();
+  process.stdout.write(
+    `[HeapAnchor] used=${Math.round(_h.heapUsed / 1e6)}MB total=${Math.round(_h.heapTotal / 1e6)}MB ext=${Math.round(_h.external / 1e6)}MB\n`,
+  );
+}
 
 async function bootstrap() {
   void _V8_HEAP_ANCHOR; // prevent dead-code elimination
