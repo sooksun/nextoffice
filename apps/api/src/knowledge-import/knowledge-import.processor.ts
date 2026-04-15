@@ -118,29 +118,35 @@ export class KnowledgeImportProcessor {
         );
       }
 
-      // Embed each chunk and upsert to Qdrant
-      let embedded = 0;
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        try {
-          const vector = await this.embedding.embed(chunk);
-          if (vector.length === 0) continue;
+      // Batch embed — 1 API call per 100 chunks (50-100x faster than sequential)
+      const t0 = Date.now();
+      const vectors = await this.embedding.embedBatchParallel(chunks);
+      this.logger.log(`Batch-embedded ${chunks.length} chunks in ${Date.now() - t0}ms for item #${itemId}`);
 
-          const pointId = randomUUID();
-          await this.vectorStore.upsert(COLLECTION_KNOWLEDGE, pointId, vector, {
+      // Build points array (skip empty vectors)
+      const points = [];
+      for (let i = 0; i < chunks.length; i++) {
+        if (!vectors[i] || vectors[i].length === 0) continue;
+        points.push({
+          id: randomUUID(),
+          vector: vectors[i],
+          payload: {
             sourceType: 'user_knowledge',
             itemId: item.id.toString(),
             organizationId: item.organizationId.toString(),
             title: item.title,
             category: item.category ?? '',
             chunkIndex: i,
-            text: chunk.substring(0, 500),
-          });
-          embedded++;
-        } catch (err) {
-          this.logger.warn(`Chunk ${i} embed failed for item #${itemId}: ${err.message}`);
-        }
+            text: chunks[i].substring(0, 500),
+          },
+        });
       }
+
+      // Batch upsert to Qdrant — 1 call for all points
+      const t1 = Date.now();
+      await this.vectorStore.upsertBatch(COLLECTION_KNOWLEDGE, points);
+      this.logger.log(`Upserted ${points.length} vectors to Qdrant in ${Date.now() - t1}ms for item #${itemId}`);
+      const embedded = points.length;
 
       // Update status
       await this.prisma.userKnowledgeItem.update({

@@ -63,6 +63,18 @@ export class VectorStoreService implements OnModuleInit {
     });
   }
 
+  /** Batch upsert — 1 Qdrant call for many points (much faster than looping upsert) */
+  async upsertBatch(
+    collection: string,
+    points: Array<{ id: string; vector: number[]; payload: Record<string, any> }>,
+  ) {
+    if (!this.client) {
+      throw new Error('Qdrant client not initialized — vector storage unavailable');
+    }
+    if (points.length === 0) return;
+    await this.client.upsert(collection, { points });
+  }
+
   /** Delete all Qdrant points belonging to a knowledge item (used before re-embed to avoid duplication). */
   async deleteByItemId(itemId: bigint): Promise<void> {
     if (!this.client) return;
