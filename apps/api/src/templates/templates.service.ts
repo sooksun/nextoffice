@@ -42,8 +42,8 @@ const CONTENT_W = CW - ML - MR;
 const INDENT    = cm(1.25); // ย่อหน้า ~2.5 ซม. (ใช้ครึ่งหนึ่งเพราะ x เริ่มที่ ML แล้ว)
 
 // ─── Font sizes (pt) ──────────────────────────────────────────────────────────
-const FS_BODY   = 19;   // ขนาดเนื้อหาทั่วไป (19pt ตามผู้ใช้กำหนด)
-const FS_LABEL  = 19;   // ขนาด label (เรื่อง เรียน ฯลฯ)
+const FS_BODY   = 12;   // ขนาดเนื้อหาทั่วไป
+const FS_LABEL  = 12;   // ขนาด label (เรื่อง เรียน ฯลฯ)
 const FS_HEADER = 29;   // หัว "บันทึกข้อความ"
 const FS_TITLE  = 18;   // ชื่อหนังสือสั่งการ / ประกาศ
 const FS_SMALL  = 14;   // ข้อมูลล่าง / footnote
