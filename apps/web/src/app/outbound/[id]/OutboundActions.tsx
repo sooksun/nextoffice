@@ -73,7 +73,7 @@ export default function OutboundActions({ docId, status, sentMethod, recipientEm
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-md transition-transform active:scale-95 disabled:opacity-50"
         >
           <CheckCircle size={16} />
-          {loading ? "กำลังดำเนินการ..." : "อนุมัติ (ได้เลขท��่อัตโนมัติ)"}
+          {loading ? "กำลังดำเนินการ..." : "อนุมัติ (ได้เลขที่อัตโนมัติ)"}
         </button>
       )}
       {status === "approved" && (
@@ -83,7 +83,7 @@ export default function OutboundActions({ docId, status, sentMethod, recipientEm
             onChange={(e) => setMethod(e.target.value)}
             className="input-select text-sm"
           >
-            <option value="email">📧 ส่ง���างอีเมล</option>
+            <option value="email">📧 ส่งทางอีเมล</option>
             <option value="line">💬 ส่งทาง LINE</option>
             <option value="paper">📄 ส่งเอกสาร (กระดาษ)</option>
           </select>
