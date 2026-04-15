@@ -200,7 +200,42 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
   }
   ```
 
+---
+
+## Known Deployment Pitfalls (อ่านก่อน deploy ทุกครั้ง)
+
+### [CRITICAL] Google Login หายหลัง rebuild web image
+
+**อาการ:** ปุ่ม "Sign in with Google" หายจากหน้า `/login` หลัง `docker compose up --build web`
+
+**สาเหตุ:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID` เป็น build-time variable ของ Next.js — ค่าถูก bake เข้า JavaScript bundle ตอน `docker build` ถ้า build โดยไม่ export ตัวแปรนี้ไว้ใน shell ก่อน ค่าจะเป็น `""` และ `GoogleOAuthProvider` จะไม่ render
+
+**root cause ใน code:**
+- `apps/web/src/app/login/layout.tsx:8` — `if (!clientId) return <>{children}</>;` → ไม่ wrap `GoogleOAuthProvider`
+- `apps/web/src/app/login/page.tsx:161` — `{googleClientId && (<GoogleLogin .../>)}` → ปุ่มหาย
+- `docker-compose.yml` web build args: `NEXT_PUBLIC_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}` — ต้องการ `GOOGLE_CLIENT_ID` จาก shell environment ไม่ใช่จาก `env_file`
+
+**วิธีแก้ — ใช้ `redeploy.sh` ทุกครั้ง (อย่ารัน `docker compose up --build` ตรงๆ):**
+```bash
+bash redeploy.sh          # rebuild ทั้งหมด + git pull
+bash redeploy.sh web      # rebuild web อย่างเดียว
+bash redeploy.sh api      # rebuild api อย่างเดียว
+```
+
+**ถ้าจำเป็นต้องรันตรง:**
+```bash
+cd /DATA/AppData/www/nextoffice
+export GOOGLE_CLIENT_ID=$(grep '^GOOGLE_CLIENT_ID=' .env.production | cut -d= -f2-)
+export PUBLIC_API_URL=$(grep '^PUBLIC_API_URL=' .env.production | cut -d= -f2-)
+docker compose up -d --build web
+```
+
+**ตรวจสอบ:** หลัง rebuild เปิด `/login` — ถ้าเห็นปุ่ม Google = ผ่าน, ถ้าหาย = build โดยไม่มี env var
+
+---
+
 ### Technical Decisions (session 2026-04-15)
-- **PDF Thai rendering** — เปลี่ยนจาก `pdf-lib` (ไม่มี text shaping) มาใช้ `@napi-rs/canvas` (Skia + HarfBuzz) render เป็น PNG แล้ว embed ใน PDF ผ่าน pdf-lib ไฟล์: `apps/api/src/templates/templates.service.ts`
-- **Font path** — Sarabun fonts อยู่ที่ `apps/api/src/stamps/fonts/` (nest-cli copy ไป `dist/src/stamps/fonts/` ผ่าน assets config)
+- **Document templates format** — เปลี่ยนจาก `@napi-rs/canvas` (PDF) มาใช้ `docx` library (v9.6.1) generate Word (.docx) ไฟล์: `apps/api/src/templates/templates.service.ts` — ทั้ง 6 ประเภท return `Buffer` ของ `.docx`
+- **Font path** — Sarabun fonts + kruth02.png อยู่ที่ `apps/api/src/stamps/fonts/` (nest-cli copy ไป `dist/src/stamps/fonts/` ผ่าน assets config)
 - **Response classification** — เพิ่ม `responseType`/`requiresResponse`/`hasBeenReplied` ใน schema + classifier service + backfill script (`prisma/backfill-response-classification.js`)
+- **Outbound Word download** — `GET /outbound/documents/:id/word` endpoint คืน `.docx` buffer, frontend component: `apps/web/src/app/outbound/[id]/OutboundPdfButton.tsx`
