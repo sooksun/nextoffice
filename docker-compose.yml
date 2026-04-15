@@ -122,6 +122,9 @@ services:
     environment:
       NODE_ENV: production
       INTERNAL_API_URL: http://api:3000
+      # Override PORT จาก .env.production (api ใช้ 3000, web ต้องใช้ 3001)
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
     ports:
       - "9910:3001"
     depends_on:
