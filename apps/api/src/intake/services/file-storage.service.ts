@@ -64,6 +64,15 @@ export class FileStorageService {
     }
   }
 
+  async deleteFile(objectPath: string): Promise<void> {
+    try {
+      await this.client.removeObject(this.bucket, objectPath);
+    } catch (err) {
+      this.logger.warn(`Failed to delete from MinIO (${objectPath}): ${err.message}`);
+      throw err;
+    }
+  }
+
   computeSha256(buffer: Buffer): string {
     return crypto.createHash('sha256').update(buffer).digest('hex');
   }

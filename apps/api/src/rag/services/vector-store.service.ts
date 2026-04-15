@@ -55,14 +55,20 @@ export class VectorStoreService implements OnModuleInit {
   }
 
   async upsert(collection: string, pointId: string, vector: number[], payload: Record<string, any>) {
-    if (!this.client) return;
-    try {
-      await this.client.upsert(collection, {
-        points: [{ id: pointId, vector, payload }],
-      });
-    } catch (err) {
-      this.logger.warn(`Qdrant upsert failed: ${err.message}`);
+    if (!this.client) {
+      throw new Error('Qdrant client not initialized — vector storage unavailable');
     }
+    await this.client.upsert(collection, {
+      points: [{ id: pointId, vector, payload }],
+    });
+  }
+
+  /** Delete all Qdrant points belonging to a knowledge item (used before re-embed to avoid duplication). */
+  async deleteByItemId(itemId: bigint): Promise<void> {
+    if (!this.client) return;
+    await this.client.delete(COLLECTION_KNOWLEDGE, {
+      filter: { must: [{ key: 'itemId', match: { value: itemId.toString() } }] },
+    });
   }
 
   async search(

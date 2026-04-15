@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw } from "lucide-react";
+import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
 import { toast } from "react-toastify";
 
@@ -16,6 +16,7 @@ interface KnowledgeItem {
   status: Status;
   chunkCount: number;
   embeddedAt: string | null;
+  errorMessage: string | null;
   createdAt: string;
   uploadedBy: { id: number; fullName: string };
 }
@@ -67,9 +68,11 @@ export default function KnowledgeImportPage() {
       if (res.ok) {
         const data = await res.json();
         setItems(data);
+      } else {
+        toast.error("ไม่สามารถโหลดรายการความรู้ได้");
       }
     } catch {
-      // silent
+      toast.error("เกิดข้อผิดพลาดในการโหลดรายการ");
     } finally {
       setLoading(false);
     }
@@ -127,6 +130,25 @@ export default function KnowledgeImportPage() {
       alert((err as Error).message || "เกิดข้อผิดพลาด");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: number, title: string) => {
+    if (!confirm(`ต้องการลบ "${title}" ออกจากระบบหรือไม่?\nการดำเนินการนี้จะลบข้อมูลออกจาก Vector Database ด้วย`)) return;
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`${apiBase}/knowledge-import/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        toast.success("ลบความรู้เรียบร้อย");
+        setItems((prev) => prev.filter((i) => i.id !== id));
+      } else {
+        toast.error("ไม่สามารถลบได้");
+      }
+    } catch {
+      toast.error("เกิดข้อผิดพลาด");
     }
   };
 
@@ -346,6 +368,11 @@ export default function KnowledgeImportPage() {
                         {item.status === "PROCESSING" && <Loader2 size={11} className="animate-spin" />}
                         {STATUS_LABEL[item.status]}
                       </span>
+                      {item.status === "ERROR" && item.errorMessage && (
+                        <p className="text-xs text-red-600 mt-1 max-w-[200px] truncate" title={item.errorMessage}>
+                          {item.errorMessage}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-on-surface-variant">
                       {item.chunkCount > 0 ? item.chunkCount : "-"}
@@ -355,16 +382,25 @@ export default function KnowledgeImportPage() {
                       {new Date(item.createdAt).toLocaleDateString("th-TH")}
                     </td>
                     <td className="px-4 py-3">
-                      {(item.status === "ERROR" || item.status === "PROCESSING") && (
+                      <div className="flex items-center gap-1">
+                        {(item.status === "ERROR" || item.status === "PROCESSING") && (
+                          <button
+                            onClick={() => handleRetry(item.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            title="ลองประมวลผลใหม่"
+                          >
+                            <RotateCcw size={12} />
+                            ลองใหม่
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleRetry(item.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                          title="ลองประมวลผลใหม่"
+                          onClick={() => handleDelete(item.id, item.title)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="ลบความรู้นี้"
                         >
-                          <RotateCcw size={12} />
-                          ลองใหม่
+                          <Trash2 size={12} />
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -87,6 +87,13 @@ export class KnowledgeImportProcessor {
       const chunks = this.chunking.splitText(text);
       this.logger.log(`Split into ${chunks.length} chunks for item #${itemId}`);
 
+      // Remove old Qdrant vectors before re-embedding (prevents duplication on retry)
+      if (item.chunkCount > 0) {
+        await this.vectorStore.deleteByItemId(item.id).catch((e) =>
+          this.logger.warn(`Qdrant cleanup failed for item #${itemId}: ${e.message}`),
+        );
+      }
+
       // Embed each chunk and upsert to Qdrant
       let embedded = 0;
       for (let i = 0; i < chunks.length; i++) {
@@ -126,7 +133,10 @@ export class KnowledgeImportProcessor {
       this.logger.error(`knowledge.import.embed failed for item #${itemId}: ${err.message}`, err.stack);
       await this.prisma.userKnowledgeItem.update({
         where: { id: itemId },
-        data: { status: 'ERROR' },
+        data: {
+          status: 'ERROR',
+          errorMessage: err?.message?.substring(0, 500) ?? 'Unknown error',
+        },
       });
       throw err;
     }

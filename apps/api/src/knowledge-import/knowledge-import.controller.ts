@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
   Body,
   UploadedFile,
@@ -90,5 +91,14 @@ export class KnowledgeImportController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.svc.findOne(id, Number(user.organizationId));
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'ลบความรู้ (ลบ DB record + Qdrant vectors + ไฟล์ MinIO)' })
+  remove(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.delete(id, Number(user.organizationId));
   }
 }

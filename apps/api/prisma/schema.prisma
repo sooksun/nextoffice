@@ -1598,6 +1598,7 @@ model UserKnowledgeItem {
   extractedText    String?   @map("extracted_text") @db.LongText
   chunkCount       Int       @map("chunk_count") @default(0)
   embeddedAt       DateTime? @map("embedded_at")
+  errorMessage     String?   @map("error_message") @db.Text
   createdAt        DateTime  @map("created_at") @default(now())
   updatedAt        DateTime  @map("updated_at") @updatedAt
 

@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
+import { VectorStoreService } from '../rag/services/vector-store.service';
 import { QUEUE_AI_PROCESSING } from '../queue/queue.constants';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class KnowledgeImportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: FileStorageService,
+    private readonly vectorStore: VectorStoreService,
     @InjectQueue(QUEUE_AI_PROCESSING) private readonly aiQueue: Queue,
   ) {}
 
@@ -142,6 +144,7 @@ export class KnowledgeImportService {
       status: i.status,
       chunkCount: i.chunkCount,
       embeddedAt: i.embeddedAt,
+      errorMessage: i.errorMessage ?? null,
       createdAt: i.createdAt,
       uploadedBy: { id: Number(i.uploadedBy.id), fullName: i.uploadedBy.fullName },
     }));
@@ -159,7 +162,7 @@ export class KnowledgeImportService {
 
     await this.prisma.userKnowledgeItem.update({
       where: { id: BigInt(id) },
-      data: { status: 'PENDING', chunkCount: 0, embeddedAt: null },
+      data: { status: 'PENDING', chunkCount: 0, embeddedAt: null, errorMessage: null },
     });
 
     await this.aiQueue.add('knowledge.import.embed', {
@@ -192,6 +195,35 @@ export class KnowledgeImportService {
     return stuck.length;
   }
 
+  async delete(id: number, userOrgId: number) {
+    const item = await this.prisma.userKnowledgeItem.findUnique({
+      where: { id: BigInt(id) },
+    });
+    if (!item) throw new NotFoundException(`Knowledge item #${id} not found`);
+
+    if (Number(item.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถลบความรู้ขององค์กรอื่น');
+    }
+
+    // Delete vectors from Qdrant first
+    if (item.chunkCount > 0) {
+      await this.vectorStore.deleteByItemId(item.id).catch((e) =>
+        this.logger.warn(`Qdrant cleanup on delete failed for item #${id}: ${e.message}`),
+      );
+    }
+
+    // Delete file from MinIO if present
+    if (item.storagePath) {
+      await this.storage.deleteFile(item.storagePath).catch((e) =>
+        this.logger.warn(`MinIO cleanup on delete failed for item #${id}: ${e.message}`),
+      );
+    }
+
+    await this.prisma.userKnowledgeItem.delete({ where: { id: BigInt(id) } });
+    this.logger.log(`Deleted knowledge item #${id} (org ${userOrgId})`);
+    return { id };
+  }
+
   async findOne(id: number, userOrgId?: number) {
     const item = await this.prisma.userKnowledgeItem.findUnique({
       where: { id: BigInt(id) },
@@ -212,6 +244,7 @@ export class KnowledgeImportService {
       status: item.status,
       chunkCount: item.chunkCount,
       embeddedAt: item.embeddedAt,
+      errorMessage: item.errorMessage ?? null,
       createdAt: item.createdAt,
       uploadedBy: { id: Number(item.uploadedBy.id), fullName: item.uploadedBy.fullName },
     };
