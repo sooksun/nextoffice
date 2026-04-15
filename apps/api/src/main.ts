@@ -7,32 +7,31 @@ import { json } from 'express';
 import { AppModule } from './app.module';
 
 /**
- * Pre-warm the V8 heap so that NestJS baseline (~86MB) is not at 95% of the
- * initial heap size (~91MB). Without this, any tiny allocation after startup
- * triggers consecutive "ineffective" mark-compact GC cycles → fatal OOM.
+ * V8 old-space heap anchor — keeps ≈50 MB of live strings in old-space
+ * as permanent GC roots, allocated at module-load time (before NestJS init).
  *
- * Strategy: allocate ~200MB of temporary objects so V8 grows the old-space
- * heap. After the function returns, objects become unreachable and V8 GCs them,
- * but the heap SIZE stays elevated (V8 never shrinks below its peak). Result:
- * NestJS 86MB / 300MB+ heap = <30% utilization → no GC pressure during jobs.
+ * Root cause of OOM:
+ *   NestJS baseline (≈88 MB) sits at 97% of V8's auto-sized initial old-space
+ *   (≈90 MB on this host). Any allocation during job processing triggers
+ *   consecutive "ineffective" mark-compact GC cycles → fatal OOM.
+ *
+ * Why the previous Uint8Array approach FAILED:
+ *   TypedArray backing stores live in EXTERNAL memory (tracked separately by V8).
+ *   They do NOT affect heapTotal or V8's old-space growth target — the V8 heap
+ *   stayed at 90 MB even after allocating 200 MB of Uint8Array.
+ *
+ * This fix: 100 × 500 KB SeqOneByteStrings are real V8 old-space objects.
+ *   Live old-space after NestJS init: ≈88 MB (NestJS) + ≈50 MB (anchor) = ≈138 MB.
+ *   V8 heap target: 138 MB × growth_factor ≈ 200–350 MB → ample headroom.
+ *   Memory cost: 50 MB of the container's 4 GB — acceptable.
  */
-function prewarmHeap() {
-  const buckets: Uint8Array[] = [];
-  try {
-    for (let i = 0; i < 200; i++) {
-      buckets.push(new Uint8Array(1_000_000)); // 200 × 1MB = 200MB total
-    }
-  } catch {
-    // ignore — if allocation fails, heap is still larger than before
-  }
-  buckets.length = 0; // dereference all — eligible for GC
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (typeof (global as any).gc === 'function') (global as any).gc();
-  // V8 heap is now grown and stable at a larger size
-}
+const _V8_HEAP_ANCHOR: string[] = Array.from(
+  { length: 100 },
+  () => 'a'.repeat(500_000), // 100 × 500 KB ≈ 50 MB in V8 old-space (SeqOneByteString)
+);
 
 async function bootstrap() {
-  prewarmHeap();
+  void _V8_HEAP_ANCHOR; // prevent dead-code elimination
   const app = await NestFactory.create(AppModule);
 
   app.use(
