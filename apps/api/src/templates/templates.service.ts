@@ -1,37 +1,65 @@
+/**
+ * TemplatesService — renders Thai government letter templates.
+ *
+ * Uses @napi-rs/canvas (Skia + HarfBuzz) for correct Thai text shaping,
+ * then embeds the rendered PNG page into a pdf-lib PDF.
+ * This guarantees สระ/วรรณยุกต์ appear in the correct position.
+ */
 import { Injectable, Logger } from '@nestjs/common';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { createCanvas, GlobalFonts, Canvas } from '@napi-rs/canvas';
+import { PDFDocument } from 'pdf-lib';
 import * as fs from 'fs';
 import * as path from 'path';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const fontkitMod = require('@pdf-lib/fontkit');
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-const fontkit = fontkitMod?.default ?? fontkitMod;
 
-const A4_W = 595.28;
-const A4_H = 841.89;
-const MARGIN_L = 72;
-const MARGIN_R = 72;
-const MARGIN_T = 60;
+// ─── Constants ──────────────────────────────────────────────────────────────
+/** Render at 150 DPI for crisp output; A4 in PDF points = 595.28 × 841.89 */
+const DPI = 150;
+const PX_PER_PT = DPI / 72; // 1 PDF point → canvas pixels
 
+const A4_PT_W = 595.28;
+const A4_PT_H = 841.89;
+const CW = Math.round(A4_PT_W * PX_PER_PT); // canvas width  ~1240
+const CH = Math.round(A4_PT_H * PX_PER_PT); // canvas height ~1754
+
+const ML = px(72);  // left margin
+const MR = px(72);  // right margin
+const MT = px(60);  // top margin
+const CONTENT_W = CW - ML - MR;
+const INDENT = px(36); // paragraph indent
+
+/** Convert PDF points to canvas pixels */
+function px(pt: number): number {
+  return Math.round(pt * PX_PER_PT);
+}
+
+const FONT_FAMILY = 'Sarabun';
+
+// ─── Service ─────────────────────────────────────────────────────────────────
 @Injectable()
 export class TemplatesService {
   private readonly logger = new Logger(TemplatesService.name);
-  private sarabunRegular: Buffer | null = null;
-  private sarabunBold: Buffer | null = null;
 
   constructor() {
     try {
       const fontsDir = path.resolve(__dirname, '../stamps/fonts');
-      this.sarabunRegular = fs.readFileSync(path.join(fontsDir, 'Sarabun-Regular.ttf'));
-      this.sarabunBold = fs.readFileSync(path.join(fontsDir, 'Sarabun-Bold.ttf'));
-    } catch {
-      this.logger.warn('Sarabun fonts not found, will use fallback');
+      // Register both weights under the same family; Skia picks by weight
+      GlobalFonts.registerFromPath(
+        path.join(fontsDir, 'Sarabun-Regular.ttf'),
+        FONT_FAMILY,
+      );
+      GlobalFonts.registerFromPath(
+        path.join(fontsDir, 'Sarabun-Bold.ttf'),
+        FONT_FAMILY,
+      );
+      this.logger.log('Sarabun fonts registered (canvas/Skia)');
+    } catch (err: any) {
+      this.logger.error(`Failed to register fonts: ${err?.message}`);
     }
   }
 
-  /**
-   * แบบที่ 1 — หนังสือภายนอก (กระดาษครุฑ)
-   */
+  // ─── Public document generators ─────────────────────────────────────────
+
+  /** แบบที่ 1 — หนังสือภายนอก (กระดาษครุฑ) */
   async generateKrut(data: {
     documentNo?: string;
     orgName: string;
@@ -47,102 +75,85 @@ export class TemplatesService {
     department?: string;
     phone?: string;
   }): Promise<Buffer> {
-    const doc = await PDFDocument.create();
-    doc.registerFontkit(fontkit);
-    const page = doc.addPage([A4_W, A4_H]);
-    const { regular, bold } = await this.embedFonts(doc);
-    let y = A4_H - MARGIN_T;
+    const { canvas, ctx } = this.newCanvas();
+    let y = MT;
 
     // ที่
     if (data.documentNo) {
-      page.drawText(`ที่ ${data.documentNo}`, { x: MARGIN_L, y, size: 14, font: regular });
+      this.text(ctx, `ที่ ${data.documentNo}`, ML, y, 14);
     }
-    y -= 20;
+    y += px(20);
 
     // ส่วนราชการ
-    page.drawText(data.orgName, { x: MARGIN_L, y, size: 14, font: regular });
-    y -= 16;
+    this.text(ctx, data.orgName, ML, y, 14);
+    y += px(18);
     if (data.orgAddress) {
-      page.drawText(data.orgAddress, { x: MARGIN_L, y, size: 12, font: regular });
-      y -= 16;
+      this.text(ctx, data.orgAddress, ML, y, 12);
+      y += px(16);
     }
-    y -= 8;
+    y += px(8);
 
     // วันที่
     if (data.date) {
-      const dateX = A4_W / 2 - 50;
-      page.drawText(data.date, { x: dateX, y, size: 14, font: regular });
-      y -= 24;
+      const dw = this.measure(ctx, data.date, 14);
+      this.text(ctx, data.date, (CW - dw) / 2, y, 14);
+      y += px(24);
     }
 
-    // เรื่อง
+    // เรื่อง / เรียน / อ้างถึง
     if (data.subject) {
-      page.drawText(`เรื่อง  ${data.subject}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 20;
+      y = this.drawWrapped(ctx, `เรื่อง  ${data.subject}`, ML, y, 14, CONTENT_W);
+      y += px(4);
     }
-
-    // เรียน
     if (data.recipient) {
-      page.drawText(`เรียน  ${data.recipient}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 20;
+      y = this.drawWrapped(ctx, `เรียน  ${data.recipient}`, ML, y, 14, CONTENT_W);
+      y += px(4);
     }
-
-    // อ้างถึง
     if (data.reference) {
-      page.drawText(`อ้างถึง  ${data.reference}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 20;
+      y = this.drawWrapped(ctx, `อ้างถึง  ${data.reference}`, ML, y, 14, CONTENT_W);
+      y += px(4);
     }
-
-    y -= 8;
+    y += px(8);
 
     // เนื้อหา
     if (data.body) {
-      const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
-      for (const line of lines) {
-        if (y < 100) break;
-        if (!line) { y -= 10; continue; }
-        page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 22;
-      }
+      y = this.drawBody(ctx, data.body, ML + INDENT, y, 14, CONTENT_W - INDENT);
     }
-
-    y -= 16;
+    y += px(16);
 
     // คำลงท้าย
     if (data.closing) {
-      const closingX = A4_W / 2 - 30;
-      page.drawText(data.closing, { x: closingX, y, size: 14, font: regular });
-      y -= 60;
+      const cw = this.measure(ctx, data.closing, 14);
+      this.text(ctx, data.closing, (CW - cw) / 2, y, 14);
+      y += px(60);
     }
 
     // ลงชื่อ
     if (data.signerName) {
-      const nameX = A4_W / 2 - 40;
-      page.drawText(`(${data.signerName})`, { x: nameX, y, size: 14, font: regular });
-      y -= 18;
+      const label = `(${data.signerName})`;
+      const lw = this.measure(ctx, label, 14);
+      this.text(ctx, label, (CW - lw) / 2, y, 14);
+      y += px(18);
     }
     if (data.signerPosition) {
-      const posX = A4_W / 2 - 60;
-      page.drawText(data.signerPosition, { x: posX, y, size: 14, font: regular });
-      y -= 24;
+      const pw = this.measure(ctx, data.signerPosition, 14);
+      this.text(ctx, data.signerPosition, (CW - pw) / 2, y, 14);
     }
 
-    // ส่วนราชการเจ้าของเรื่อง
-    y = 80;
+    // ส่วนราชการเจ้าของเรื่อง (bottom)
+    let by = CH - MT;
     if (data.department) {
-      page.drawText(data.department, { x: MARGIN_L, y, size: 11, font: regular, color: rgb(0.4, 0.4, 0.4) });
-      y -= 14;
+      this.text(ctx, data.department, ML, by, 11, false, '#666666');
+      by += px(14);
     }
     if (data.phone) {
-      page.drawText(`โทร. ${data.phone}`, { x: MARGIN_L, y, size: 11, font: regular, color: rgb(0.4, 0.4, 0.4) });
+      this.text(ctx, `โทร. ${data.phone}`, ML, by, 11, false, '#666666');
     }
 
-    return Buffer.from(await doc.save());
+    return this.toPdf(canvas);
   }
 
-  /**
-   * แบบที่ 2 — บันทึกข้อความ (หนังสือภายใน)
-   */
+  /** แบบที่ 2 — บันทึกข้อความ */
   async generateMemo(data: {
     department?: string;
     documentNo?: string;
@@ -153,73 +164,68 @@ export class TemplatesService {
     signerName?: string;
     signerPosition?: string;
   }): Promise<Buffer> {
-    const doc = await PDFDocument.create();
-    doc.registerFontkit(fontkit);
-    const page = doc.addPage([A4_W, A4_H]);
-    const { regular, bold } = await this.embedFonts(doc);
-    let y = A4_H - MARGIN_T;
+    const { canvas, ctx } = this.newCanvas();
+    let y = MT;
 
     // Header
-    page.drawText('บันทึกข้อความ', { x: A4_W / 2 - 50, y, size: 20, font: bold });
-    y -= 30;
+    const header = 'บันทึกข้อความ';
+    const hw = this.measure(ctx, header, 20, true);
+    this.text(ctx, header, (CW - hw) / 2, y, 20, true);
+    y += px(34);
 
-    // ส่วนราชการ
+    // Horizontal rule
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ML, y);
+    ctx.lineTo(CW - MR, y);
+    ctx.stroke();
+    y += px(10);
+
+    // เมตา
     if (data.department) {
-      page.drawText(`ส่วนราชการ  ${data.department}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 20;
+      y = this.drawWrapped(ctx, `ส่วนราชการ  ${data.department}`, ML, y, 14, CONTENT_W);
+      y += px(4);
     }
-
-    // ที่
     if (data.documentNo) {
-      page.drawText(`ที่  ${data.documentNo}`, { x: MARGIN_L, y, size: 14, font: regular });
+      this.text(ctx, `ที่  ${data.documentNo}`, ML, y, 14);
       if (data.date) {
-        page.drawText(`วันที่  ${data.date}`, { x: 350, y, size: 14, font: regular });
+        this.text(ctx, `วันที่  ${data.date}`, px(350), y, 14);
       }
-      y -= 20;
+      y += px(20);
     }
-
-    // เรื่อง
     if (data.subject) {
-      page.drawText(`เรื่อง  ${data.subject}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 20;
+      y = this.drawWrapped(ctx, `เรื่อง  ${data.subject}`, ML, y, 14, CONTENT_W);
+      y += px(4);
     }
-
-    // เรียน
     if (data.recipient) {
-      page.drawText(`เรียน  ${data.recipient}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 24;
+      y = this.drawWrapped(ctx, `เรียน  ${data.recipient}`, ML, y, 14, CONTENT_W);
+      y += px(4);
     }
+    y += px(8);
 
     // เนื้อหา
     if (data.body) {
-      const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
-      for (const line of lines) {
-        if (y < 120) break;
-        if (!line) { y -= 10; continue; }
-        page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 22;
-      }
+      y = this.drawBody(ctx, data.body, ML + INDENT, y, 14, CONTENT_W - INDENT);
     }
-
-    y -= 40;
+    y += px(40);
 
     // ลงชื่อ
     if (data.signerName) {
-      const nameX = A4_W / 2 - 40;
-      page.drawText(`(${data.signerName})`, { x: nameX, y, size: 14, font: regular });
-      y -= 18;
+      const label = `(${data.signerName})`;
+      const lw = this.measure(ctx, label, 14);
+      this.text(ctx, label, (CW - lw) / 2, y, 14);
+      y += px(18);
     }
     if (data.signerPosition) {
-      const posX = A4_W / 2 - 60;
-      page.drawText(data.signerPosition, { x: posX, y, size: 14, font: regular });
+      const pw = this.measure(ctx, data.signerPosition, 14);
+      this.text(ctx, data.signerPosition, (CW - pw) / 2, y, 14);
     }
 
-    return Buffer.from(await doc.save());
+    return this.toPdf(canvas);
   }
 
-  /**
-   * แบบที่ 3 — หนังสือประทับตรา
-   */
+  /** แบบที่ 3 — หนังสือประทับตรา */
   async generateStampLetter(data: {
     documentNo?: string;
     recipient?: string;
@@ -227,57 +233,36 @@ export class TemplatesService {
     orgName: string;
     date?: string;
   }): Promise<Buffer> {
-    const doc = await PDFDocument.create();
-    doc.registerFontkit(fontkit);
-    const page = doc.addPage([A4_W, A4_H]);
-    const { regular, bold } = await this.embedFonts(doc);
-    let y = A4_H - MARGIN_T;
+    const { canvas, ctx } = this.newCanvas();
+    let y = MT;
 
-    // ที่
     if (data.documentNo) {
-      page.drawText(`ที่ ${data.documentNo}`, { x: MARGIN_L, y, size: 14, font: regular });
+      this.text(ctx, `ที่ ${data.documentNo}`, ML, y, 14);
     }
-    y -= 24;
+    y += px(24);
 
-    // ถึง
     if (data.recipient) {
-      page.drawText(`ถึง  ${data.recipient}`, { x: MARGIN_L, y, size: 14, font: regular });
-      y -= 24;
+      y = this.drawWrapped(ctx, `ถึง  ${data.recipient}`, ML, y, 14, CONTENT_W);
+      y += px(8);
     }
 
-    // เนื้อหา
     if (data.body) {
-      const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
-      for (const line of lines) {
-        if (y < 200) break;
-        if (!line) { y -= 10; continue; }
-        page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 22;
-      }
+      y = this.drawBody(ctx, data.body, ML + INDENT, y, 14, CONTENT_W - INDENT);
     }
+    y += px(40);
 
-    y -= 40;
-
-    // ชื่อส่วนราชการ + วันที่
-    const centerX = A4_W / 2 - 60;
-    page.drawText(data.orgName, { x: centerX, y, size: 14, font: bold });
-    y -= 20;
+    const cw2 = this.measure(ctx, data.orgName, 14, true);
+    this.text(ctx, data.orgName, (CW - cw2) / 2, y, 14, true);
+    y += px(20);
     if (data.date) {
-      page.drawText(data.date, { x: centerX, y, size: 14, font: regular });
+      const dw = this.measure(ctx, data.date, 14);
+      this.text(ctx, data.date, (CW - dw) / 2, y, 14);
     }
 
-    // ตำแหน่งสำหรับประทับตรา (วงกลม placeholder)
-    y -= 50;
-    page.drawText('[ประทับตราส่วนราชการ]', { x: centerX - 20, y, size: 11, font: regular, color: rgb(0.6, 0.6, 0.6) });
-
-    return Buffer.from(await doc.save());
+    return this.toPdf(canvas);
   }
 
-  /**
-   * แบบที่ 4 — คำสั่ง / ประกาศ
-   * - คำสั่ง: header centered "คำสั่ง<orgName>", ลำดับเลขคำสั่ง, ข้อความเป็นข้อ ๆ
-   * - ประกาศ: header centered "ประกาศ<orgName>", เนื้อหาเป็นย่อหน้า ปิดด้วย "ประกาศ ณ วันที่..."
-   */
+  /** แบบที่ 4 — คำสั่ง / ประกาศ */
   async generateDirective(data: {
     orgName: string;
     subject?: string;
@@ -285,161 +270,197 @@ export class TemplatesService {
     date?: string;
     signerName?: string;
     signerPosition?: string;
-    directiveType?: string; // 'คำสั่ง' | 'ประกาศ'
-    orderNo?: string; // สำหรับคำสั่ง: "ที่ ๑/๒๕๖๘"
+    directiveType?: string;
+    orderNo?: string;
   }): Promise<Buffer> {
-    const doc = await PDFDocument.create();
-    doc.registerFontkit(fontkit);
-    const page = doc.addPage([A4_W, A4_H]);
-    const { regular, bold } = await this.embedFonts(doc);
-    let y = A4_H - MARGIN_T;
+    const { canvas, ctx } = this.newCanvas();
+    let y = MT;
     const type = data.directiveType ?? 'คำสั่ง';
     const isOrder = type === 'คำสั่ง';
 
-    // Header centered — "คำสั่ง<orgName>" หรือ "ประกาศ<orgName>"
+    // Header
     const headerText = `${type}${data.orgName}`;
-    const headerWidth = bold.widthOfTextAtSize(headerText, 18);
-    page.drawText(headerText, {
-      x: (A4_W - headerWidth) / 2,
-      y,
-      size: 18,
-      font: bold,
-    });
-    y -= 24;
+    const headerW = this.measure(ctx, headerText, 18, true);
+    this.text(ctx, headerText, (CW - headerW) / 2, y, 18, true);
+    y += px(26);
 
-    // สำหรับคำสั่ง: แสดงเลขที่คำสั่ง (ถ้ามี)
     if (isOrder && data.orderNo) {
-      const noWidth = regular.widthOfTextAtSize(data.orderNo, 14);
-      page.drawText(data.orderNo, { x: (A4_W - noWidth) / 2, y, size: 14, font: regular });
-      y -= 20;
+      const noW = this.measure(ctx, data.orderNo, 14);
+      this.text(ctx, data.orderNo, (CW - noW) / 2, y, 14);
+      y += px(20);
     }
 
-    // เรื่อง centered
     if (data.subject) {
-      const subjText = `เรื่อง  ${data.subject}`;
-      const subjWidth = regular.widthOfTextAtSize(subjText, 14);
-      page.drawText(subjText, { x: (A4_W - subjWidth) / 2, y, size: 14, font: regular });
-      y -= 24;
+      const subj = `เรื่อง  ${data.subject}`;
+      const sw = this.measure(ctx, subj, 14);
+      this.text(ctx, subj, (CW - sw) / 2, y, 14);
+      y += px(20);
     }
 
-    // เส้นคั่นใต้หัวเรื่อง
-    page.drawLine({
-      start: { x: A4_W / 2 - 30, y },
-      end: { x: A4_W / 2 + 30, y },
-      thickness: 0.6,
-      color: rgb(0, 0, 0),
-    });
-    y -= 20;
+    // Divider
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(CW / 2 - px(30), y);
+    ctx.lineTo(CW / 2 + px(30), y);
+    ctx.stroke();
+    y += px(20);
 
-    // เนื้อหา
     if (data.body) {
-      const lines = this.wrapText(data.body, regular, 14, A4_W - MARGIN_L - MARGIN_R);
-      for (const line of lines) {
-        if (y < 140) break;
-        if (!line) { y -= 10; continue; }
-        page.drawText(line, { x: MARGIN_L + 36, y, size: 14, font: regular });
-        y -= 22;
-      }
+      y = this.drawBody(ctx, data.body, ML + INDENT, y, 14, CONTENT_W - INDENT);
     }
+    y += px(16);
 
-    y -= 16;
-
-    // วันที่ — "สั่ง ณ วันที่..." สำหรับคำสั่ง, "ประกาศ ณ วันที่..." สำหรับประกาศ
     if (data.date) {
       const dateLabel = isOrder ? 'สั่ง' : 'ประกาศ';
       const dateText = `${dateLabel} ณ วันที่  ${data.date}`;
-      const dateX = A4_W / 2 + 20; // ชิดขวาเล็กน้อย
-      page.drawText(dateText, { x: dateX, y, size: 14, font: regular });
-      y -= 50;
+      this.text(ctx, dateText, CW / 2 + px(20), y, 14);
+      y += px(50);
     }
 
-    // ลงชื่อ
     if (data.signerName) {
-      const sigLabel = `(${data.signerName})`;
-      const sigWidth = regular.widthOfTextAtSize(sigLabel, 14);
-      page.drawText(sigLabel, { x: A4_W / 2 + 80 - sigWidth / 2, y, size: 14, font: regular });
-      y -= 18;
+      const label = `(${data.signerName})`;
+      const lw = this.measure(ctx, label, 14);
+      this.text(ctx, label, CW / 2 + px(80) - lw / 2, y, 14);
+      y += px(18);
     }
     if (data.signerPosition) {
-      const posWidth = regular.widthOfTextAtSize(data.signerPosition, 14);
-      page.drawText(data.signerPosition, { x: A4_W / 2 + 80 - posWidth / 2, y, size: 14, font: regular });
+      const pw = this.measure(ctx, data.signerPosition, 14);
+      this.text(ctx, data.signerPosition, CW / 2 + px(80) - pw / 2, y, 14);
     }
 
-    return Buffer.from(await doc.save());
+    return this.toPdf(canvas);
   }
 
-  // ─── Helpers ─────────────────────────────
+  // ─── Private helpers ──────────────────────────────────────────────────────
 
-  private async embedFonts(doc: PDFDocument) {
-    if (this.sarabunRegular && this.sarabunBold) {
-      const regular = await doc.embedFont(this.sarabunRegular, { subset: false });
-      const bold = await doc.embedFont(this.sarabunBold, { subset: false });
-      return { regular, bold };
-    }
-    const regular = await doc.embedFont(StandardFonts.Helvetica);
-    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-    return { regular, bold };
+  private newCanvas(): { canvas: Canvas; ctx: any } {
+    const canvas = createCanvas(CW, CH);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillStyle = '#000000';
+    ctx.textBaseline = 'top';
+    return { canvas, ctx };
+  }
+
+  private font(size: number, bold = false): string {
+    return `${bold ? '700' : '400'} ${px(size)}px "${FONT_FAMILY}"`;
+  }
+
+  private text(
+    ctx: any,
+    str: string,
+    x: number,
+    y: number,
+    size: number,
+    bold = false,
+    color = '#000000',
+  ): void {
+    ctx.font = this.font(size, bold);
+    ctx.fillStyle = color;
+    ctx.fillText(str, x, y);
+    ctx.fillStyle = '#000000';
+  }
+
+  private measure(ctx: any, str: string, size: number, bold = false): number {
+    ctx.font = this.font(size, bold);
+    return ctx.measureText(str).width;
   }
 
   /**
-   * Wrap text for Thai — splits by whitespace, breaks long tokens by character.
-   * Collapses 3+ consecutive newlines to 2 to prevent large visual gaps.
+   * Draws a single line of text, wrapping at maxWidth.
+   * Returns the new y position after the last line.
    */
-  private wrapText(text: string, font: any, size: number, maxWidth: number): string[] {
+  private drawWrapped(
+    ctx: any,
+    str: string,
+    x: number,
+    y: number,
+    size: number,
+    maxWidth: number,
+  ): number {
+    const lines = this.wrap(ctx, str, size, maxWidth);
+    for (const line of lines) {
+      this.text(ctx, line, x, y, size);
+      y += px(22);
+    }
+    return y;
+  }
+
+  /**
+   * Draws multi-paragraph body text with indent.
+   * Returns the new y position.
+   */
+  private drawBody(
+    ctx: any,
+    body: string,
+    x: number,
+    y: number,
+    size: number,
+    maxWidth: number,
+  ): number {
+    const normalized = body.replace(/\n{3,}/g, '\n\n').trim();
+    let firstInPara = true;
+
+    for (const para of normalized.split('\n')) {
+      if (!para.trim()) {
+        y += px(10); // paragraph gap
+        firstInPara = true;
+        continue;
+      }
+      const lines = this.wrap(ctx, para, size, maxWidth);
+      for (let i = 0; i < lines.length; i++) {
+        if (y + px(size) > CH - MT) break; // page overflow guard
+        // Indent only the first line of each paragraph
+        const lineX = firstInPara && i === 0 ? x : x - INDENT + INDENT; // keep same x
+        this.text(ctx, lines[i], lineX, y, size);
+        y += px(22);
+      }
+      firstInPara = false;
+    }
+    return y;
+  }
+
+  /** Word-wrap + character-fallback for Thai (no space boundaries). */
+  private wrap(ctx: any, text: string, size: number, maxWidth: number): string[] {
+    ctx.font = this.font(size, false);
     const lines: string[] = [];
-    // Collapse excessive blank lines (3+ → 2) so AI body gaps stay readable
-    const normalized = text.replace(/\n{3,}/g, '\n\n').trim();
-    const paragraphs = normalized.split('\n');
-    for (const para of paragraphs) {
-      if (!para.trim()) { lines.push(''); continue; }
-      const words = para.split(/\s+/);
-      let current = '';
-      for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        try {
-          const w = font.widthOfTextAtSize(test, size);
-          if (w > maxWidth && current) {
+    const tokens = text.split(/\s+/);
+    let current = '';
+
+    for (const token of tokens) {
+      if (!token) continue;
+      const test = current ? `${current} ${token}` : token;
+      if (ctx.measureText(test).width <= maxWidth) {
+        current = test;
+      } else if (current) {
+        lines.push(current);
+        current = token;
+      } else {
+        // Single token wider than maxWidth — break by character
+        for (const ch of token) {
+          const testCh = current + ch;
+          if (ctx.measureText(testCh).width > maxWidth && current) {
             lines.push(current);
-            // If the word alone exceeds maxWidth, break it by character
-            current = this.breakLongToken(word, font, size, maxWidth, lines);
-          } else if (w > maxWidth) {
-            // First word already too wide — break by character
-            current = this.breakLongToken(word, font, size, maxWidth, lines);
+            current = ch;
           } else {
-            current = test;
+            current = testCh;
           }
-        } catch {
-          current = test;
         }
       }
-      if (current) lines.push(current);
     }
+    if (current) lines.push(current);
     return lines;
   }
 
-  /** Break a token that is wider than maxWidth by iterating over characters. */
-  private breakLongToken(
-    token: string,
-    font: any,
-    size: number,
-    maxWidth: number,
-    output: string[],
-  ): string {
-    let current = '';
-    for (const ch of token) {
-      const test = current + ch;
-      try {
-        const w = font.widthOfTextAtSize(test, size);
-        if (w > maxWidth && current) {
-          output.push(current);
-          current = ch;
-        } else {
-          current = test;
-        }
-      } catch {
-        current = test;
-      }
-    }
-    return current;
+  /** Convert canvas to a single-page PDF (image-embedded). */
+  private async toPdf(canvas: Canvas): Promise<Buffer> {
+    const png = await canvas.encode('png');
+    const doc = await PDFDocument.create();
+    const page = doc.addPage([A4_PT_W, A4_PT_H]);
+    const img = await doc.embedPng(png);
+    page.drawImage(img, { x: 0, y: 0, width: A4_PT_W, height: A4_PT_H });
+    return Buffer.from(await doc.save());
   }
 }
