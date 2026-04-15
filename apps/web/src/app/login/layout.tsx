@@ -1,10 +1,8 @@
-"use client";
-
-import { GoogleOAuthProvider } from "@react-oauth/google";
-
-const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+// Server Component — อ่าน GOOGLE_CLIENT_ID ตอน runtime (ไม่ใช่ build time)
+// ทำให้ Google Login ไม่หายแม้ rebuild web image โดยไม่ export env ก่อน
+import GoogleAuthProvider from "./GoogleAuthProvider";
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
-  if (!clientId) return <>{children}</>;
-  return <GoogleOAuthProvider clientId={clientId}>{children}</GoogleOAuthProvider>;
+  const clientId = process.env.GOOGLE_CLIENT_ID ?? "";
+  return <GoogleAuthProvider clientId={clientId}>{children}</GoogleAuthProvider>;
 }

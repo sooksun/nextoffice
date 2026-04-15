@@ -6,6 +6,7 @@ import { login, loginWithGoogle } from "@/lib/auth";
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { GoogleLogin } from "@react-oauth/google";
 import Image from "next/image";
+import { useGoogleEnabled } from "./GoogleAuthProvider";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -63,7 +64,7 @@ export default function LoginPage() {
     }
   }
 
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const googleEnabled = useGoogleEnabled();
 
   return (
     <div className="min-h-screen w-full flex flex-col" style={{ backgroundColor: "#7DCB77" }}>
@@ -158,7 +159,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {googleClientId && (
+          {googleEnabled && (
             <>
               <div className="flex items-center gap-3 my-5">
                 <div className="flex-1 h-px bg-gray-200" />

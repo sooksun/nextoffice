@@ -66,11 +66,7 @@ if [ -n "$_pub_url" ]; then
 fi
 echo "  PUBLIC_API_URL=${PUBLIC_API_URL:-<not set — web will call localhost>}"
 
-_gcid=$(grep -E '^[[:space:]]*GOOGLE_CLIENT_ID=' "$APP_DIR/.env.production" | head -1 | cut -d'=' -f2- | sed "s/^['\"]//;s/['\"]$//" | tr -d '\r')
-if [ -n "$_gcid" ]; then
-    export GOOGLE_CLIENT_ID="$_gcid"
-fi
-echo "  GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:+set}"
+echo "  GOOGLE_CLIENT_ID — อ่านจาก .env.production ตอน runtime (ไม่ต้อง export ตอน build อีกแล้ว)"
 
 # ─── 4. สร้าง database ถ้ายังไม่มี (export MYSQL_ROOT_PASSWORD ก่อนรัน หรือสร้าง DB เอง) ───
 echo "[4/7] Ensuring database exists on 192.168.1.4..."

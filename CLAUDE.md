@@ -204,33 +204,20 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 ## Known Deployment Pitfalls (อ่านก่อน deploy ทุกครั้ง)
 
-### [CRITICAL] Google Login หายหลัง rebuild web image
+### [RESOLVED] Google Login หายหลัง rebuild web image
 
-**อาการ:** ปุ่ม "Sign in with Google" หายจากหน้า `/login` หลัง `docker compose up --build web`
+**สถานะ:** แก้ถาวรแล้ว (session 2026-04-15) — ไม่เกิดอีกแม้ rebuild โดยไม่ export env
 
-**สาเหตุ:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID` เป็น build-time variable ของ Next.js — ค่าถูก bake เข้า JavaScript bundle ตอน `docker build` ถ้า build โดยไม่ export ตัวแปรนี้ไว้ใน shell ก่อน ค่าจะเป็น `""` และ `GoogleOAuthProvider` จะไม่ render
+**สาเหตุเดิม:** `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ถูก bake ตอน `docker build` → ถ้า build โดยไม่มีค่า ปุ่มหายทันที
 
-**root cause ใน code:**
-- `apps/web/src/app/login/layout.tsx:8` — `if (!clientId) return <>{children}</>;` → ไม่ wrap `GoogleOAuthProvider`
-- `apps/web/src/app/login/page.tsx:161` — `{googleClientId && (<GoogleLogin .../>)}` → ปุ่มหาย
-- `docker-compose.yml` web build args: `NEXT_PUBLIC_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}` — ต้องการ `GOOGLE_CLIENT_ID` จาก shell environment ไม่ใช่จาก `env_file`
+**วิธีที่แก้:**
+- `login/layout.tsx` เปลี่ยนเป็น **Server Component** อ่าน `process.env.GOOGLE_CLIENT_ID` ตอน **runtime** แทน
+- `login/GoogleAuthProvider.tsx` (ใหม่) — client wrapper + React Context ส่งสัญญาณให้ page
+- `login/page.tsx` ใช้ `useGoogleEnabled()` hook แทน `process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+- `docker-compose.yml` web service เพิ่ม `env_file: .env.production` → `GOOGLE_CLIENT_ID` โหลดตอน `docker compose up`
+- `Dockerfile` ลบ `ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID` ออกแล้ว
 
-**วิธีแก้ — ใช้ `redeploy.sh` ทุกครั้ง (อย่ารัน `docker compose up --build` ตรงๆ):**
-```bash
-bash redeploy.sh          # rebuild ทั้งหมด + git pull
-bash redeploy.sh web      # rebuild web อย่างเดียว
-bash redeploy.sh api      # rebuild api อย่างเดียว
-```
-
-**ถ้าจำเป็นต้องรันตรง:**
-```bash
-cd /DATA/AppData/www/nextoffice
-export GOOGLE_CLIENT_ID=$(grep '^GOOGLE_CLIENT_ID=' .env.production | cut -d= -f2-)
-export PUBLIC_API_URL=$(grep '^PUBLIC_API_URL=' .env.production | cut -d= -f2-)
-docker compose up -d --build web
-```
-
-**ตรวจสอบ:** หลัง rebuild เปิด `/login` — ถ้าเห็นปุ่ม Google = ผ่าน, ถ้าหาย = build โดยไม่มี env var
+**ผลลัพธ์:** `docker compose up -d --build web` ทำได้ตรงๆ ปุ่ม Google ไม่หายอีก
 
 ---
 

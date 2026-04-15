@@ -12,14 +12,11 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-# Export build-time vars (NEXT_PUBLIC_* must be baked in at docker build)
-_gcid=$(grep -E '^[[:space:]]*GOOGLE_CLIENT_ID=' "$ENV_FILE" | head -1 | cut -d'=' -f2- | sed "s/^['\"]//;s/['\"]$//" | tr -d '\r')
-[ -n "$_gcid" ] && export GOOGLE_CLIENT_ID="$_gcid"
-
+# Export build-time vars ที่ยังต้องการ (เฉพาะ NEXT_PUBLIC_API_URL เท่านั้น)
+# หมายเหตุ: GOOGLE_CLIENT_ID ไม่ต้อง export อีกแล้ว — อ่านจาก env_file ตอน runtime
 _pub_url=$(grep -E '^[[:space:]]*PUBLIC_API_URL=' "$ENV_FILE" | head -1 | cut -d'=' -f2- | sed "s/^['\"]//;s/['\"]$//" | tr -d '\r')
 [ -n "$_pub_url" ] && export PUBLIC_API_URL="$_pub_url"
 
-echo "GOOGLE_CLIENT_ID : ${GOOGLE_CLIENT_ID:+set (${#GOOGLE_CLIENT_ID} chars)}"
 echo "PUBLIC_API_URL   : ${PUBLIC_API_URL:-<not set>}"
 
 git pull origin main
