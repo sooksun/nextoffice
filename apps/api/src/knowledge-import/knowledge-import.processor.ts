@@ -2,6 +2,8 @@ import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { randomUUID } from 'crypto';
+import axios from 'axios';
+import * as FormData from 'form-data';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
 import { EmbeddingService } from '../rag/services/embedding.service';
@@ -9,6 +11,9 @@ import { VectorStoreService, COLLECTION_KNOWLEDGE } from '../rag/services/vector
 import { ChunkingService } from '../rag/services/chunking.service';
 import { GeminiApiService } from '../gemini/gemini-api.service';
 import { QUEUE_AI_PROCESSING } from '../queue/queue.constants';
+
+/** Threshold (bytes): files larger than this use Gemini File API instead of inline base64 */
+const INLINE_SIZE_LIMIT = 2 * 1024 * 1024; // 2 MB
 
 @Processor(QUEUE_AI_PROCESSING)
 export class KnowledgeImportProcessor {
@@ -50,20 +55,34 @@ export class KnowledgeImportProcessor {
         const buffer = await this.storage.getBuffer(item.storagePath);
         const mimeType = item.mimeType ?? 'application/octet-stream';
 
-        // Use Gemini Vision to extract text from PDF or image
-        const base64 = buffer.toString('base64');
         const prompt = item.sourceType === 'pdf'
           ? 'สกัดข้อความทั้งหมดจากเอกสาร PDF นี้ให้ครบถ้วน รักษาโครงสร้างและหัวข้อให้ชัดเจน'
           : 'อธิบายและสกัดข้อความทั้งหมดในภาพนี้ ให้ครอบคลุมทุกข้อมูลที่มองเห็น';
 
-        text = await this.gemini.generateFromParts({
-          system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
-          parts: [
-            { inlineData: { mimeType, data: base64 } },
-            { text: prompt },
-          ],
-          maxOutputTokens: 8192,
-        });
+        if (buffer.length > INLINE_SIZE_LIMIT) {
+          // Large file: upload via Gemini File API first, then reference by URI
+          this.logger.log(`Item #${itemId}: file ${(buffer.length / 1024 / 1024).toFixed(1)}MB — using Gemini File API`);
+          const fileUri = await this.uploadToGeminiFileApi(buffer, mimeType);
+          text = await this.gemini.generateFromParts({
+            system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
+            parts: [
+              { fileData: { mimeType, fileUri } } as any,
+              { text: prompt },
+            ],
+            maxOutputTokens: 8192,
+          });
+        } else {
+          // Small file: inline base64 (faster, no extra API call)
+          const base64 = buffer.toString('base64');
+          text = await this.gemini.generateFromParts({
+            system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
+            parts: [
+              { inlineData: { mimeType, data: base64 } },
+              { text: prompt },
+            ],
+            maxOutputTokens: 8192,
+          });
+        }
 
         this.logger.log(`Extracted ${text.length} chars from ${item.sourceType} for item #${itemId}`);
       }
@@ -140,5 +159,34 @@ export class KnowledgeImportProcessor {
       });
       throw err;
     }
+  }
+
+  /**
+   * Upload a file buffer to the Gemini File API and return the fileUri.
+   * This avoids loading large files as inline base64 in the request body,
+   * which can cause Node.js heap OOM for PDFs > 2MB.
+   */
+  private async uploadToGeminiFileApi(buffer: Buffer, mimeType: string): Promise<string> {
+    const apiKey = this.gemini.getApiKey();
+    if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
+
+    const form = new FormData();
+    form.append('file', buffer, { filename: 'document', contentType: mimeType });
+
+    const uploadRes = await axios.post(
+      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+      form,
+      {
+        headers: form.getHeaders(),
+        timeout: 60000,
+        maxContentLength: 50 * 1024 * 1024,
+        maxBodyLength: 50 * 1024 * 1024,
+      },
+    );
+
+    const fileUri: string = uploadRes.data?.file?.uri;
+    if (!fileUri) throw new Error('Gemini File API did not return a fileUri');
+    this.logger.log(`Gemini File API uploaded: ${fileUri}`);
+    return fileUri;
   }
 }
