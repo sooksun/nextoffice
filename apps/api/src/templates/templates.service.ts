@@ -42,8 +42,8 @@ const CONTENT_W = CW - ML - MR;
 const INDENT    = cm(1.25); // ย่อหน้า ~2.5 ซม. (ใช้ครึ่งหนึ่งเพราะ x เริ่มที่ ML แล้ว)
 
 // ─── Font sizes (pt) ──────────────────────────────────────────────────────────
-const FS_BODY   = 16;   // ขนาดเนื้อหาทั่วไป
-const FS_LABEL  = 16;   // ขนาด label (เรื่อง เรียน ฯลฯ)
+const FS_BODY   = 19;   // ขนาดเนื้อหาทั่วไป (19pt ตามผู้ใช้กำหนด)
+const FS_LABEL  = 19;   // ขนาด label (เรื่อง เรียน ฯลฯ)
 const FS_HEADER = 29;   // หัว "บันทึกข้อความ"
 const FS_TITLE  = 18;   // ชื่อหนังสือสั่งการ / ประกาศ
 const FS_SMALL  = 14;   // ข้อมูลล่าง / footnote
@@ -381,20 +381,28 @@ export class TemplatesService {
       y += px(8);
     }
 
-    // ── หัว ──────────────────────────────────────────────────────────────
-    const headerLine = `${type}`;
-    const hLine2 = data.orgName;
+    // ── หัว: "ประกาศ[ชื่อหน่วยงาน]" บรรทัดเดียว ─────────────────────────────
+    const headerLine = `${type}${data.orgName}`;
     const hw = this.measure(ctx, headerLine, FS_TITLE, true);
     this.text(ctx, headerLine, (CW - hw) / 2, y, FS_TITLE, true);
-    y += px(26);
-    const h2w = this.measure(ctx, hLine2, FS_TITLE, true);
-    this.text(ctx, hLine2, (CW - h2w) / 2, y, FS_TITLE, true);
-    y += px(26);
+    y += px(30);
 
+    // ── เรื่อง — ตัด prefix ซ้ำออก (ถ้า subject เริ่มด้วย "ประกาศ[orgName] เรื่อง") ──
     if (data.subject) {
-      const sw = this.measure(ctx, `เรื่อง  ${data.subject}`, FS_BODY);
-      this.text(ctx, `เรื่อง  ${data.subject}`, (CW - sw) / 2, y, FS_BODY);
-      y += LH * 1.5;
+      let subj = data.subject.trim();
+      // strip redundant "ประกาศ[orgName]" prefix (กรณี data มาจาก AI ที่ใส่มาซ้ำ)
+      const redundantPrefix = `${type}${data.orgName}`;
+      if (subj.startsWith(redundantPrefix)) {
+        subj = subj.slice(redundantPrefix.length).trim();
+      }
+      // strip นำหน้า "เรื่อง" ที่ซ้ำ
+      subj = subj.replace(/^เรื่อง\s+/, '').trim();
+
+      if (subj) {
+        const sw = this.measure(ctx, `เรื่อง  ${subj}`, FS_BODY);
+        this.text(ctx, `เรื่อง  ${subj}`, (CW - sw) / 2, y, FS_BODY);
+        y += LH * 1.5;
+      }
     }
 
     // ── เส้นคั่น ──────────────────────────────────────────────────────────
