@@ -221,6 +221,8 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 **Caveat ที่ค้นพบเพิ่ม:** เมื่อใส่ `env_file: .env.production` ใน web service ตัวแปร `PORT=3000` (ที่ตั้งไว้สำหรับ api) จะ **shadow** `ENV PORT=3001` ใน Dockerfile → web container listen 3000 แทน 3001 → reverse proxy เจอ 502 — ต้องใส่ `PORT: "3001"` และ `HOSTNAME: "0.0.0.0"` ใน `environment:` (override env_file)
 
+**Caveat ที่ 2 — Next.js static optimization:** Server Component ที่อ่าน `process.env` ถูก pre-render ตอน `next build` → ค่าถูก bake เข้า static HTML → runtime env ไม่มีผล วิธีแก้: ใส่ `export const dynamic = "force-dynamic";` ใน `login/layout.tsx` เพื่อบังคับ render ทุก request
+
 ---
 
 ### Technical Decisions (session 2026-04-15)
