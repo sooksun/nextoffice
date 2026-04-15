@@ -4,7 +4,9 @@ import { Job } from 'bull';
 import { randomUUID } from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
-import * as pdfParse from 'pdf-parse';
+// pdf-parse uses CommonJS module.exports = fn, so must use require()
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse: (buf: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
 import { PrismaService } from '../prisma/prisma.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
 import { EmbeddingService } from '../rag/services/embedding.service';
