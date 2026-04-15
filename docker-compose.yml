@@ -77,7 +77,10 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
-    mem_limit: 4g
+    deploy:
+      resources:
+        limits:
+          memory: 4G
     env_file:
       - .env.production
     environment:

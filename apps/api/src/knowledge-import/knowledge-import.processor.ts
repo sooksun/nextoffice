@@ -4,6 +4,7 @@ import { Job } from 'bull';
 import { randomUUID } from 'crypto';
 import axios from 'axios';
 import * as FormData from 'form-data';
+import * as pdfParse from 'pdf-parse';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
 import { EmbeddingService } from '../rag/services/embedding.service';
@@ -158,48 +159,59 @@ export class KnowledgeImportProcessor {
   /**
    * Run OCR/extraction on a stored file.
    *
-   * Isolated into its own method so that large temporaries (buffer, base64 string,
-   * axios response JSON) are allocated in THIS function's scope and become immediately
-   * unreachable when the method returns — allowing V8 to GC them before the caller
-   * proceeds to chunking & embedding.
+   * Strategy (memory-efficient, no large V8 heap allocations):
+   *  1. PDF → pdf-parse (pure JS, extracts embedded text; zero network calls, zero base64)
+   *     If pdf-parse yields too little text (scanned PDF), fall through to Gemini File API.
+   *  2. Large image or scanned PDF → Gemini File API (upload first, reference by URI)
+   *  3. Small image → inline base64 via Gemini (last resort, images are typically < 500KB)
    *
-   * PDFs always use the Gemini File API (upload → URI reference) to avoid holding
-   * the base64-encoded PDF in old-space across the async OCR call.
-   * Images under INLINE_SIZE_LIMIT use inline base64 (faster, no extra round-trip).
+   * Isolated into its own method so all temporaries (buffer, base64, axios response)
+   * become unreachable when this method returns → V8 can GC before chunking starts.
    */
   private async runOcr(storagePath: string, mimeType: string, sourceType: string): Promise<string> {
-    let buffer: Buffer | null = await this.storage.getBuffer(storagePath);
+    const buffer: Buffer = await this.storage.getBuffer(storagePath);
     const bufferLen = buffer.length;
 
+    // ── 1. Text-based PDF: use pdf-parse (CPU only, no heap spike) ──────────────
+    if (mimeType === 'application/pdf') {
+      try {
+        this.logger.log(`OCR: ${(bufferLen / 1024 / 1024).toFixed(2)}MB PDF — trying pdf-parse`);
+        const parsed = await pdfParse(buffer);
+        const pdfText = parsed.text?.trim() ?? '';
+        if (pdfText.length >= 50) {
+          this.logger.log(`pdf-parse extracted ${pdfText.length} chars (${parsed.numpages} pages)`);
+          return pdfText;
+        }
+        this.logger.log(`pdf-parse returned only ${pdfText.length} chars — likely scanned, falling back to Gemini`);
+      } catch (err: any) {
+        this.logger.warn(`pdf-parse failed: ${err.message} — falling back to Gemini`);
+      }
+    }
+
+    // ── 2. Scanned PDF / Image: Gemini (File API for large, inline for small) ──
     const prompt = sourceType === 'pdf'
       ? 'สกัดข้อความทั้งหมดจากเอกสาร PDF นี้ให้ครบถ้วน รักษาโครงสร้างและหัวข้อให้ชัดเจน'
       : 'อธิบายและสกัดข้อความทั้งหมดในภาพนี้ ให้ครอบคลุมทุกข้อมูลที่มองเห็น';
-
     const system = 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม';
 
-    // PDFs always use File API; images use inline base64 when small enough
-    const useFileApi = mimeType === 'application/pdf' || bufferLen > INLINE_SIZE_LIMIT;
-
-    if (useFileApi) {
-      this.logger.log(`OCR: ${(bufferLen / 1024 / 1024).toFixed(1)}MB ${mimeType} — using Gemini File API`);
+    if (bufferLen > INLINE_SIZE_LIMIT) {
+      this.logger.log(`OCR: ${(bufferLen / 1024 / 1024).toFixed(1)}MB — Gemini File API`);
       const fileUri = await this.uploadToGeminiFileApi(buffer, mimeType);
-      buffer = null; // release before Gemini call
       return this.gemini.generateFromParts({
         system,
         parts: [{ fileData: { mimeType, fileUri } } as any, { text: prompt }],
         maxOutputTokens: 8192,
       });
-    } else {
-      // Small image: inline base64
-      const base64 = buffer.toString('base64');
-      buffer = null; // release original buffer
-      return this.gemini.generateFromParts({
-        system,
-        parts: [{ inlineData: { mimeType, data: base64 } }, { text: prompt }],
-        maxOutputTokens: 8192,
-      });
-      // base64 goes out of scope when this method returns → V8 can GC it
     }
+
+    // Small image: inline base64 (buffer released after this method returns)
+    this.logger.log(`OCR: ${(bufferLen / 1024 / 1024).toFixed(2)}MB image — Gemini inline`);
+    const base64 = buffer.toString('base64');
+    return this.gemini.generateFromParts({
+      system,
+      parts: [{ inlineData: { mimeType, data: base64 } }, { text: prompt }],
+      maxOutputTokens: 8192,
+    });
   }
 
   /**
