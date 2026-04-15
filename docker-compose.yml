@@ -77,11 +77,12 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
+    mem_limit: 4g
     env_file:
       - .env.production
     environment:
       NODE_ENV: production
-      NODE_OPTIONS: "--max-old-space-size=4096"
+      NODE_OPTIONS: "--max-old-space-size=3072"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       MINIO_ENDPOINT: minio
