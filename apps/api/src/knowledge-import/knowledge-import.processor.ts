@@ -28,7 +28,7 @@ export class KnowledgeImportProcessor {
     private readonly gemini: GeminiApiService,
   ) {}
 
-  @Process('knowledge.import.embed')
+  @Process({ name: 'knowledge.import.embed', concurrency: 1 })
   async handleEmbed(job: Job<{ itemId: string }>) {
     const itemId = BigInt(job.data.itemId);
     this.logger.log(`Processing knowledge.import.embed for item #${itemId}`);
@@ -63,6 +63,8 @@ export class KnowledgeImportProcessor {
           // Large file: upload via Gemini File API first, then reference by URI
           this.logger.log(`Item #${itemId}: file ${(buffer.length / 1024 / 1024).toFixed(1)}MB — using Gemini File API`);
           const fileUri = await this.uploadToGeminiFileApi(buffer, mimeType);
+          // Release the large buffer before the Gemini call to free heap
+          (buffer as any) = null;
           text = await this.gemini.generateFromParts({
             system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
             parts: [
@@ -74,6 +76,7 @@ export class KnowledgeImportProcessor {
         } else {
           // Small file: inline base64 (faster, no extra API call)
           const base64 = buffer.toString('base64');
+          (buffer as any) = null; // free original buffer
           text = await this.gemini.generateFromParts({
             system: 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม',
             parts: [
