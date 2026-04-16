@@ -98,10 +98,12 @@ export class KnowledgeImportService implements OnModuleInit {
       });
     }
 
-    // Dispatch embedding job
+    // Dispatch embedding job — attempts:1 prevents crash loop:
+    // OOM crashes kill the process → Bull auto-retries → another OOM → loop.
+    // User can retry manually via PATCH /knowledge-import/:id/retry.
     await this.aiQueue.add('knowledge.import.embed', {
       itemId: item.id.toString(),
-    });
+    }, { attempts: 1, removeOnFail: true });
 
     this.logger.log(`Created UserKnowledgeItem #${item.id} for org ${orgId}, queued embed`);
 
@@ -151,7 +153,7 @@ export class KnowledgeImportService implements OnModuleInit {
 
     await this.aiQueue.add('knowledge.import.embed', {
       itemId: item.id.toString(),
-    });
+    }, { attempts: 1, removeOnFail: true });
 
     this.logger.log(`LINE knowledge import #${item.id} created for org ${orgId}`);
     return { id: Number(item.id) };
@@ -197,7 +199,7 @@ export class KnowledgeImportService implements OnModuleInit {
 
     await this.aiQueue.add('knowledge.import.embed', {
       itemId: item.id.toString(),
-    });
+    }, { attempts: 1, removeOnFail: true });
 
     this.logger.log(`Retrying knowledge import #${id}`);
     return { id: Number(item.id), status: 'PENDING' };
