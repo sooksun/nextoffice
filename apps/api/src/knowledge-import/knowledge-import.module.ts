@@ -10,6 +10,9 @@ import { RagModule } from '../rag/rag.module';
 import { GeminiModule } from '../gemini/gemini.module';
 
 @Module({
+  // IntakeModule: FileStorageService (used by KnowledgeImportService.create)
+  // RagModule: VectorStoreService (used by KnowledgeImportService.delete)
+  // GeminiModule: GeminiApiService (used by processor to get API key/model)
   imports: [ConfigModule, AuthModule, QueueModule, IntakeModule, RagModule, GeminiModule],
   controllers: [KnowledgeImportController],
   providers: [KnowledgeImportService, KnowledgeImportProcessor],

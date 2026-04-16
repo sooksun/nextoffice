@@ -6,7 +6,8 @@
     "deleteOutDir": true,
     "assets": [
       { "include": "stamps/fonts/**", "outDir": "dist/src" },
-      { "include": "knowledge-import/ocr-worker.js", "outDir": "dist/src" }
+      { "include": "knowledge-import/ocr-worker.js", "outDir": "dist/src" },
+      { "include": "knowledge-import/knowledge-worker.js", "outDir": "dist/src" }
     ]
   }
 }
