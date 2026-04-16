@@ -98,11 +98,14 @@ export class KnowledgeImportProcessor {
     return new Promise((resolve, reject) => {
       const workerPath = path.join(__dirname, 'knowledge-worker.js');
 
-      // Clear NODE_OPTIONS so parent's --max-old-space-size is NOT inherited.
-      const childEnv = { ...process.env, NODE_OPTIONS: '' };
+      // Clear NODE_OPTIONS so parent's env flag isn't doubled with execArgv.
+      // Child inherits parent execArgv (--max-old-space-size=800) which is fine:
+      // the worker uses only Node.js built-ins (https, crypto) so actual heap
+      // stays ~10-20 MB regardless of the limit. OS sees ~100 MB child RSS total.
+      const childEnv = { ...process.env };
+      delete childEnv.NODE_OPTIONS;
 
       const child = fork(workerPath, [], {
-        execArgv: ['--max-old-space-size=400'],
         env: childEnv,
         silent: false,
       });

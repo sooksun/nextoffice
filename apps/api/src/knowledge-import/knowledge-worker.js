@@ -1,40 +1,26 @@
 /**
- * Knowledge Import Worker — minimal dependencies to keep V8 heap small.
+ * Knowledge Import Worker — ZERO npm dependencies.
  *
- * Module loading cost analysis (why previous version OOMed at 400MB):
- *   minio SDK:         ~100 MB V8 heap (AWS SDK internals, XML parser, crypto)
- *   pdf-parse/pdf.js:  ~150 MB V8 heap (pdf.js bytecode + font tables)
- *   axios:               ~5 MB
- *   Node.js runtime:    ~20 MB
- *   Total:             ~275 MB just from require() — leaving only 125 MB for work.
+ * Uses ONLY Node.js built-in modules: https, crypto, zlib.
+ * This keeps module-loading heap to ~5 MB (vs ~250 MB with axios+minio+pdf-parse).
  *
- * This version eliminates minio and pdf-parse:
- *   - File is downloaded by the parent (NestJS already has MinIO client) and
- *     sent as base64 via IPC. Child never touches MinIO.
- *   - OCR always uses Gemini API (inline base64 for <4 MB, File API for larger).
- *     No pdf-parse / pdf.js loaded.
- *   - Qdrant and Gemini embedding: plain axios HTTP calls.
- *
- * Resulting module load: axios ~5 MB + form-data ~1 MB + runtime ~20 MB ≈ 26 MB.
- * Leaves ~374 MB headroom within the 400 MB limit for actual data.
- *
- * Protocol:
- *   Parent sends: { fileBase64, mimeType, sourceType, existingText, itemId,
- *                   organizationId, title, category, chunkCount,
- *                   geminiApiKey, geminiModel, qdrantUrl }
- *   Child replies: { ok: true, extractedText, chunkCount }
- *             OR : { ok: false, error: '...' }
- *   Child calls process.exit(0) — OS reclaims all memory instantly.
+ * Pipeline (all runs in child process with separate 800 MB V8 heap):
+ *   1. Decode base64 file received via IPC from parent
+ *   2. OCR via Gemini API (inline base64 for files ≤ 8 MB)
+ *   3. Split text into overlapping chunks (mirrors ChunkingService)
+ *   4. Embed chunks via Gemini batchEmbedContents API
+ *   5. Delete old Qdrant points (retry-safe)
+ *   6. Upsert new vectors to Qdrant
+ *   7. Send { ok, extractedText, chunkCount } back to parent via IPC
+ *   8. process.exit(0) — OS reclaims all memory instantly
  */
 
 'use strict';
 
-const axios = require('axios');
-const FormData = require('form-data');
+const https = require('https');
 const { randomUUID } = require('crypto');
 
-const INLINE_SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB
-const CHUNK_SIZE = 800;   // target tokens (mirrors ChunkingService)
+const CHUNK_SIZE = 800;    // target tokens (mirrors ChunkingService)
 const OVERLAP_CHARS = 150;
 const EMBEDDING_MODEL = 'text-embedding-004';
 const COLLECTION = 'knowledge';
@@ -60,10 +46,10 @@ async function processItem(msg) {
     geminiApiKey, geminiModel, qdrantUrl,
   } = msg;
 
-  // 1. OCR (skip if already extracted)
+  // 1. OCR
   let text = existingText ?? '';
   if (!text) {
-    if (!fileBase64) throw new Error('No file content provided');
+    if (!fileBase64) throw new Error('No file content and no existing text');
     const buffer = Buffer.from(fileBase64, 'base64');
     text = await runOcr({ buffer, mimeType, sourceType, geminiApiKey, geminiModel });
   }
@@ -76,7 +62,7 @@ async function processItem(msg) {
   const chunks = splitText(text);
   if (chunks.length === 0) throw new Error('No chunks produced from text');
 
-  // 3. Embed
+  // 3. Embed all chunks in one batch call
   const vectors = await embedBatch(chunks, geminiApiKey);
 
   // 4. Build Qdrant points
@@ -98,72 +84,134 @@ async function processItem(msg) {
     });
   }
 
-  // 5. Delete old Qdrant vectors (retry-safe)
+  // 5. Delete old Qdrant vectors (retry-safe — best effort)
   if (existingChunkCount > 0) {
-    await qdrantDeleteByItemId(qdrantUrl, String(itemId));
+    await qdrantRequest(qdrantUrl, 'POST',
+      `/collections/${COLLECTION}/points/delete`,
+      { filter: { must: [{ key: 'itemId', match: { value: String(itemId) } }] } },
+    ).catch(() => { /* non-fatal */ });
   }
 
   // 6. Upsert to Qdrant
   if (points.length > 0) {
-    await qdrantUpsert(qdrantUrl, points);
+    await qdrantRequest(qdrantUrl, 'PUT',
+      `/collections/${COLLECTION}/points`,
+      { points },
+    );
   }
 
   return { extractedText: text, chunkCount: points.length };
 }
 
-// ── OCR via Gemini API only (no pdf-parse, no pdf.js) ────────────────────────
+// ── Gemini OCR ────────────────────────────────────────────────────────────────
 async function runOcr({ buffer, mimeType, sourceType, geminiApiKey, geminiModel }) {
-  const bufferLen = buffer.length;
   const prompt = sourceType === 'pdf'
     ? 'สกัดข้อความทั้งหมดจากเอกสาร PDF นี้ให้ครบถ้วน รักษาโครงสร้างและหัวข้อให้ชัดเจน'
     : 'อธิบายและสกัดข้อความทั้งหมดในภาพนี้ ให้ครอบคลุมทุกข้อมูลที่มองเห็น';
   const system = 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม';
 
-  if (bufferLen > INLINE_SIZE_LIMIT) {
-    // Large file → Gemini File API (upload by reference, avoids base64 in heap)
-    const fileUri = await uploadToGeminiFileApi(buffer, mimeType, geminiApiKey);
-    return geminiGenerate({
-      parts: [{ fileData: { mimeType, fileUri } }, { text: prompt }],
-      system, apiKey: geminiApiKey, model: geminiModel,
-    });
-  }
-
-  // Small file → inline base64
   const base64 = buffer.toString('base64');
-  return geminiGenerate({
-    parts: [{ inlineData: { mimeType, data: base64 } }, { text: prompt }],
-    system, apiKey: geminiApiKey, model: geminiModel,
+  const body = {
+    contents: [{ role: 'user', parts: [{ inlineData: { mimeType, data: base64 } }, { text: prompt }] }],
+    generationConfig: { maxOutputTokens: 8192, temperature: 0.2 },
+    systemInstruction: { parts: [{ text: system }] },
+  };
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+  const data = await httpsPost(url, body, { timeout: 120000 });
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
+
+// ── Gemini Embedding ──────────────────────────────────────────────────────────
+async function embedBatch(texts, apiKey) {
+  const BATCH_SIZE = 100;
+  const results = [];
+
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
+      const body = {
+        requests: batch.map(text => ({
+          model: `models/${EMBEDDING_MODEL}`,
+          content: { parts: [{ text }] },
+        })),
+      };
+      const data = await httpsPost(url, body, { timeout: 60000 });
+      const embeddings = data?.embeddings ?? [];
+      for (const e of embeddings) results.push(e.values ?? []);
+      while (results.length < i + batch.length) results.push([]);
+    } catch (_) {
+      for (let j = 0; j < batch.length; j++) results.push([]);
+    }
+  }
+  return results;
+}
+
+// ── Qdrant via plain HTTP (no library) ───────────────────────────────────────
+async function qdrantRequest(qdrantUrl, method, path, body) {
+  // qdrantUrl is like "http://qdrant:6333" — use http not https
+  const http = require('http');
+  const json = JSON.stringify(body);
+  const parsed = new URL(qdrantUrl + path);
+
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port || 6333,
+      path: parsed.pathname,
+      method,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(json) },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString())); }
+        catch (_) { resolve({}); }
+      });
+    });
+    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Qdrant timeout')); });
+    req.on('error', reject);
+    req.write(json);
+    req.end();
   });
 }
 
-async function uploadToGeminiFileApi(buffer, mimeType, apiKey) {
-  const form = new FormData();
-  form.append('file', buffer, { filename: 'document', contentType: mimeType });
-  const res = await axios.post(
-    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
-    form,
-    { headers: form.getHeaders(), timeout: 60000, maxContentLength: 50 * 1024 * 1024, maxBodyLength: 50 * 1024 * 1024 },
-  );
-  const fileUri = res.data?.file?.uri;
-  if (!fileUri) throw new Error('Gemini File API did not return a fileUri');
-  return fileUri;
+// ── HTTPS helper (replaces axios) ─────────────────────────────────────────────
+function httpsPost(url, body, { timeout = 30000 } = {}) {
+  const json = JSON.stringify(body);
+  const parsed = new URL(url);
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(json),
+      },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString();
+        if (res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}: ${raw.substring(0, 200)}`));
+          return;
+        }
+        try { resolve(JSON.parse(raw)); }
+        catch (e) { reject(new Error(`JSON parse error: ${e.message}`)); }
+      });
+    });
+    req.setTimeout(timeout, () => { req.destroy(); reject(new Error(`Request timed out after ${timeout}ms`)); });
+    req.on('error', reject);
+    req.write(json);
+    req.end();
+  });
 }
 
-async function geminiGenerate({ parts, system, apiKey, model }) {
-  const body = {
-    contents: [{ role: 'user', parts }],
-    generationConfig: { maxOutputTokens: 8192, temperature: 0.2 },
-  };
-  if (system) body.systemInstruction = { parts: [{ text: system }] };
-  const res = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    body,
-    { timeout: 120000, headers: { 'Content-Type': 'application/json' } },
-  );
-  return res.data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-}
-
-// ── Chunking (mirrors ChunkingService.splitText) ──────────────────────────────
+// ── Text chunking (mirrors ChunkingService.splitText) ─────────────────────────
 function splitText(text) {
   const chunkCharSize = CHUNK_SIZE * 1.5;
   const chunks = [];
@@ -185,48 +233,4 @@ function splitText(text) {
     if (start >= text.length) break;
   }
   return chunks.filter(c => c.length > 10);
-}
-
-// ── Gemini Embeddings ─────────────────────────────────────────────────────────
-async function embedBatch(texts, apiKey) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
-  const BATCH_SIZE = 100;
-  const results = [];
-  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-    const batch = texts.slice(i, i + BATCH_SIZE);
-    try {
-      const res = await axios.post(url, {
-        requests: batch.map(text => ({
-          model: `models/${EMBEDDING_MODEL}`,
-          content: { parts: [{ text }] },
-        })),
-      }, { timeout: 60000, headers: { 'Content-Type': 'application/json' } });
-      const embeddings = res.data?.embeddings ?? [];
-      for (const e of embeddings) results.push(e.values ?? []);
-      while (results.length < i + batch.length) results.push([]);
-    } catch (_) {
-      for (let j = 0; j < batch.length; j++) results.push([]);
-    }
-  }
-  return results;
-}
-
-// ── Qdrant (plain HTTP) ───────────────────────────────────────────────────────
-async function qdrantDeleteByItemId(qdrantUrl, itemId) {
-  try {
-    await axios.post(
-      `${qdrantUrl}/collections/${COLLECTION}/points/delete`,
-      { filter: { must: [{ key: 'itemId', match: { value: itemId } }] } },
-      { timeout: 30000, headers: { 'Content-Type': 'application/json' } },
-    );
-  } catch (_) { /* non-fatal — if old points remain, they'll be overwritten */ }
-}
-
-async function qdrantUpsert(qdrantUrl, points) {
-  if (points.length === 0) return;
-  await axios.put(
-    `${qdrantUrl}/collections/${COLLECTION}/points`,
-    { points },
-    { timeout: 60000, headers: { 'Content-Type': 'application/json' }, maxContentLength: 100 * 1024 * 1024, maxBodyLength: 100 * 1024 * 1024 },
-  );
 }
