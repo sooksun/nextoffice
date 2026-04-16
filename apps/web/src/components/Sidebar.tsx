@@ -93,9 +93,9 @@ const NAV_GROUPS: NavGroup[] = [
     id: "doc-types",
     label: "หนังสือราชการ",
     items: [
-      { href: "/saraban/external", label: "หนังสือภายนอก", icon: FileText, disabled: true },
+      { href: "/saraban/external", label: "หนังสือภายนอก", icon: FileText },
       { href: "/saraban/memo", label: "หนังสือภายใน (บันทึกข้อความ)", icon: FileInput },
-      { href: "/saraban/stamp-doc", label: "หนังสือประทับตรา", icon: Stamp, disabled: true },
+      { href: "/saraban/stamp-doc", label: "หนังสือประทับตรา", icon: Stamp },
     ],
   },
   {
@@ -147,8 +147,8 @@ const NAV_GROUPS: NavGroup[] = [
     id: "e-saraban",
     label: "ระบบสารบรรณอิเล็กทรอนิกส์",
     items: [
-      { href: "/saraban/email", label: "ไปรษณีย์อิเล็กทรอนิกส์ (saraban@)", icon: Mail, disabled: true },
-      { href: "/saraban/e-doc", label: "หนังสืออิเล็กทรอนิกส์", icon: Laptop, disabled: true },
+      { href: "/saraban/email", label: "ไปรษณีย์อิเล็กทรอนิกส์ (saraban@)", icon: Mail },
+      { href: "/saraban/e-doc", label: "หนังสืออิเล็กทรอนิกส์", icon: Laptop },
     ],
   },
 
