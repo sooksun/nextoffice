@@ -264,7 +264,7 @@ function NavGroupSection({
       {/* Group header */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-[9px] uppercase tracking-widest text-white/35 font-bold hover:text-white/60 transition-colors group"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-[13px] uppercase tracking-widest text-white/35 font-bold hover:text-white/60 transition-colors group"
       >
         <span>{group.label}</span>
         <ChevronDown
@@ -340,7 +340,7 @@ function NavGroupSection({
                         return (
                           <span
                             key={child.label}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs cursor-not-allowed select-none"
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] cursor-not-allowed select-none"
                           >
                             <span className="w-1 h-1 rounded-full bg-white/10 shrink-0" />
                             <span className="text-white/20">{child.label}</span>
@@ -359,7 +359,7 @@ function NavGroupSection({
                           key={child.label}
                           href={child.href}
                           className={clsx(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
                             childActive
                               ? "bg-white/12 text-white"
                               : "text-white/45 hover:text-white/75 hover:bg-white/6",
