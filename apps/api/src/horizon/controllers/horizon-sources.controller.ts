@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Param, Query, Body, ParseIntPipe, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { HorizonSourceService } from '../services/horizon-source.service';
-import { HorizonFetchService } from '../services/horizon-fetch.service';
+import { HorizonPipelineService } from '../services/horizon-pipeline.service';
 
 @ApiTags('horizon-sources')
 @Controller('horizon/sources')
@@ -10,7 +10,7 @@ export class HorizonSourcesController {
 
   constructor(
     private readonly sourceService: HorizonSourceService,
-    private readonly fetchService: HorizonFetchService,
+    private readonly pipelineService: HorizonPipelineService,
   ) {}
 
   @Get()
@@ -66,9 +66,9 @@ export class HorizonSourcesController {
   }
 
   @Post(':id/fetch')
-  @ApiOperation({ summary: 'Trigger manual fetch for a source' })
+  @ApiOperation({ summary: 'Trigger full pipeline for a source (fetch → normalize → classify → embed)' })
   triggerFetch(@Param('id', ParseIntPipe) id: number) {
-    this.logger.log(`Manual fetch triggered for source #${id}`);
-    return this.fetchService.fetchSource(id);
+    this.logger.log(`Manual pipeline triggered for source #${id}`);
+    return this.pipelineService.runForSource(id);
   }
 }
