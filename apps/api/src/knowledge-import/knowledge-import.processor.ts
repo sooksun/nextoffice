@@ -54,6 +54,33 @@ export class KnowledgeImportProcessor {
       data: { status: 'PROCESSING' },
     });
 
+    // ── Pre-grow V8 old-space so the first auto-GC during this job is EFFECTIVE ──
+    //
+    // Problem: NestJS baseline + heap anchor fills ≈95% of V8 old-space.
+    // Any tiny allocation triggers GC → GC frees 0 bytes (all objects are live)
+    // → V8 marks GC "ineffective" → after 3 consecutive ineffective cycles → OOM.
+    //
+    // Why explicit global.gc() made it WORSE:
+    //   gc() compacts the heap, then V8 resets its target to live × 1.05 = 111 MB.
+    //   Only 5 MB headroom → the NEXT tiny allocation already triggers the cycle again.
+    //
+    // This fix:
+    //   1. Allocate ≈24 MB of small number arrays in regular old-space (each < 128 KB
+    //      so they land in regular old-space, not Large Object Space where GC is separate).
+    //   2. Immediately release them (block scope exit). They become garbage.
+    //   3. Do NOT call gc() — let V8's auto-GC decide when to run.
+    //   4. The first real allocation in the job (e.g. Prisma update) triggers auto-GC.
+    //   5. Auto-GC frees ≈24 MB → freed/live ≈ 18% → GC is EFFECTIVE (>5% threshold).
+    //   6. V8 resets its "ineffective counter", grows heap: target = live × 1.5 ≈ 159 MB.
+    //   7. Job proceeds with ≈53 MB of headroom. No OOM.
+    {
+      const _pg: number[][] = Array.from(
+        { length: 500 },
+        () => new Array(6_000).fill(1), // 500 × 48 KB = 24 MB in regular old-space
+      );
+      void _pg; // hold reference until block exit
+    } // _pg goes out of scope → 24 MB eligible for GC
+
     try {
       let text = item.extractedText ?? '';
 
@@ -61,10 +88,9 @@ export class KnowledgeImportProcessor {
         // Run OCR in an isolated method so all large locals (buffer, base64, axios response)
         // go out of scope when the method returns, allowing V8 to GC them before chunking.
         text = await this.runOcr(item.storagePath, item.mimeType ?? 'application/octet-stream', item.sourceType);
-        // runOcr's scope is now gone → base64/buffer/axios response are unreachable.
-        // Force a GC cycle to reclaim them before chunking allocates new objects.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (typeof (global as any).gc === 'function') (global as any).gc();
+        // Do NOT call global.gc() here — that would compact the heap and reset V8's
+        // target to live × 1.05 (only 5 MB headroom), defeating the pre-grow above.
+        // Let auto-GC run naturally; the ≈24 MB pre-grow garbage ensures it's effective.
         this.logger.log(`Extracted ${text.length} chars from ${item.sourceType} for item #${itemId}`);
       }
 
