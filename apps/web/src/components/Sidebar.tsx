@@ -94,7 +94,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "หนังสือราชการ",
     items: [
       { href: "/saraban/external", label: "หนังสือภายนอก", icon: FileText, disabled: true },
-      { href: "/saraban/memo", label: "หนังสือภายใน (บันทึกข้อความ)", icon: FileInput, disabled: true },
+      { href: "/saraban/memo", label: "หนังสือภายใน (บันทึกข้อความ)", icon: FileInput },
       { href: "/saraban/stamp-doc", label: "หนังสือประทับตรา", icon: Stamp, disabled: true },
     ],
   },
@@ -102,18 +102,18 @@ const NAV_GROUPS: NavGroup[] = [
     id: "directive",
     label: "หนังสือสั่งการ",
     items: [
-      { href: "/saraban/order", label: "คำสั่ง", icon: Gavel, disabled: true },
-      { href: "/saraban/regulation", label: "ระเบียบ", icon: ListChecks, disabled: true },
-      { href: "/saraban/rule", label: "ข้อบังคับ", icon: Scale, disabled: true },
+      { href: "/saraban/directive?sub=order", label: "คำสั่ง", icon: Gavel },
+      { href: "/saraban/directive?sub=regulation", label: "ระเบียบ", icon: ListChecks },
+      { href: "/saraban/directive?sub=rule", label: "ข้อบังคับ", icon: Scale },
     ],
   },
   {
     id: "pr-doc",
     label: "หนังสือประชาสัมพันธ์",
     items: [
-      { href: "/saraban/announcement", label: "ประกาศ", icon: Megaphone, disabled: true },
-      { href: "/saraban/statement", label: "แถลงการณ์", icon: FileText, disabled: true },
-      { href: "/saraban/news", label: "ข่าว", icon: Newspaper, disabled: true },
+      { href: "/saraban/pr?sub=announcement", label: "ประกาศ", icon: Megaphone },
+      { href: "/saraban/pr?sub=statement", label: "แถลงการณ์", icon: FileText },
+      { href: "/saraban/pr?sub=news", label: "ข่าว", icon: Newspaper },
     ],
   },
 
@@ -124,9 +124,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/saraban/inbound", label: "ทะเบียนหนังสือรับ", icon: ClipboardList, roles: SARABAN },
       { href: "/saraban/outbound", label: "ทะเบียนหนังสือส่ง", icon: ScrollText, roles: SARABAN },
-      { href: "/saraban/send-store", label: "บัญชีหนังสือส่งเก็บ", icon: BookMarked, disabled: true },
-      { href: "/saraban/stored-register", label: "ทะเบียนหนังสือเก็บ", icon: Archive, disabled: true },
-      { href: "/saraban/destroy-list", label: "บัญชีหนังสือขอทำลาย", icon: FolderOpen, disabled: true },
+      { href: "/saraban/send-store", label: "บัญชีหนังสือส่งเก็บ", icon: BookMarked },
+      { href: "/saraban/stored-register", label: "ทะเบียนหนังสือเก็บ", icon: Archive },
+      { href: "/saraban/destroy-list", label: "บัญชีหนังสือขอทำลาย", icon: FolderOpen },
       { href: "/saraban/reports", label: "รายงานสารบรรณ", icon: BarChart3, roles: SARABAN },
       { href: "/reports/district", label: "รายงานระดับเขต", icon: Network, roles: MANAGER },
     ],
