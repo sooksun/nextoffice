@@ -7,28 +7,26 @@ import { json } from 'express';
 import { AppModule } from './app.module';
 
 /**
- * V8 old-space heap anchor — 500 K plain JS objects (≈48 MB in regular old-space).
+ * V8 old-space heap anchor — stored on `global` so the job processor can RELEASE it.
  *
- * Root cause of OOM:
- *   NestJS baseline (≈88 MB) sits at 97% of V8's auto-sized initial old-space
- *   (≈90 MB). Any allocation during job processing triggers consecutive
- *   "ineffective" mark-compact GC cycles → fatal OOM.
+ * Strategy:
+ *   1. At startup: allocate 500 K plain JS objects (≈48 MB regular old-space).
+ *      This forces V8 to grow its heap from ~90 MB → ~136 MB initial target.
+ *      NestJS init proceeds with headroom.
+ *   2. At job start (KnowledgeImportProcessor.handleEmbed):
+ *      Set `global.__v8HeapAnchor = null` → 48 MB becomes garbage.
+ *      First auto-GC frees it: freed/live = 48/88 = 54% → EFFECTIVE.
+ *      V8 grows heap: target = 88 × 1.5 = 132 MB → job has ~44 MB headroom.
+ *   3. After job completes (finally block): recreate smaller anchor (≈24 MB)
+ *      so startup invariant holds for subsequent jobs.
  *
- * Why previous attempts FAILED:
- *   1. Uint8Array (1 MB each): backing store → EXTERNAL memory, not old-space.
- *      heapTotal unchanged, GC threshold unaffected.
- *   2. String 'a'.repeat(500_000) (500 KB each): V8 puts objects > ~128 KB in
- *      Large Object Space (LOS). LOS is tracked separately — old-space "near
- *      heap limit" check ignores LOS. heapTotal showed only +4 MB (just headers).
- *
- * This fix: plain JS objects are always < kMaxRegularHeapObjectSize (~512 KB)
- *   and land in REGULAR old-space — the space that matters for GC limits.
- *   500 K × ~96 bytes = ≈48 MB in regular old-space.
- *   Live old-space after NestJS init: 88 + 48 = 136 MB.
- *   V8 heap target: 136 × growth_factor ≈ 200–350 MB → ample headroom for jobs.
- *   Cost: ≈48 MB of the container's 4 GB + ~130 ms extra startup time.
+ * Why plain JS objects (not TypedArray, not strings):
+ *   - TypedArray: backing store → EXTERNAL memory, heapTotal unchanged.
+ *   - Large strings > ~128 KB → Large Object Space (LOS). LOS not checked by
+ *     old-space "near heap limit" policy. Only regular old-space matters.
+ *   - Plain { v: i } objects are always < kMaxRegularHeapObjectSize → regular old-space.
  */
-const _V8_HEAP_ANCHOR: Array<{ v: number }> = Array.from(
+(global as any).__v8HeapAnchor = Array.from(
   { length: 500_000 },
   (_, i) => ({ v: i }), // 500 K plain objects × ~96 bytes ≈ 48 MB in regular old-space
 );
@@ -41,7 +39,7 @@ const _V8_HEAP_ANCHOR: Array<{ v: number }> = Array.from(
 }
 
 async function bootstrap() {
-  void _V8_HEAP_ANCHOR; // prevent dead-code elimination
+  void (global as any).__v8HeapAnchor; // prevent dead-code elimination
   const app = await NestFactory.create(AppModule);
 
   app.use(

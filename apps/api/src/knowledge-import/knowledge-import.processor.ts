@@ -54,32 +54,19 @@ export class KnowledgeImportProcessor {
       data: { status: 'PROCESSING' },
     });
 
-    // ── Pre-grow V8 old-space so the first auto-GC during this job is EFFECTIVE ──
+    // ── Release V8 heap anchor to create effective GC headroom ──────────────
     //
-    // Problem: NestJS baseline + heap anchor fills ≈95% of V8 old-space.
-    // Any tiny allocation triggers GC → GC frees 0 bytes (all objects are live)
-    // → V8 marks GC "ineffective" → after 3 consecutive ineffective cycles → OOM.
+    // Strategy: main.ts allocates a 48 MB anchor on global.__v8HeapAnchor so
+    // that V8 auto-sizes its initial heap to ~136 MB (instead of ~90 MB baseline).
+    // At job start we release that anchor → 48 MB becomes garbage.
+    // First auto-GC: freed=48MB, live=88MB → freed/live=54% → EFFECTIVE.
+    // V8 resets its "ineffective counter" and grows heap: target = 88 × 1.5 = 132 MB.
+    // Job proceeds with ~44 MB of headroom through the entire OCR + chunking + embed cycle.
     //
-    // Why explicit global.gc() made it WORSE:
-    //   gc() compacts the heap, then V8 resets its target to live × 1.05 = 111 MB.
-    //   Only 5 MB headroom → the NEXT tiny allocation already triggers the cycle again.
-    //
-    // This fix:
-    //   1. Allocate ≈24 MB of small number arrays in regular old-space (each < 128 KB
-    //      so they land in regular old-space, not Large Object Space where GC is separate).
-    //   2. Immediately release them (block scope exit). They become garbage.
-    //   3. Do NOT call gc() — let V8's auto-GC decide when to run.
-    //   4. The first real allocation in the job (e.g. Prisma update) triggers auto-GC.
-    //   5. Auto-GC frees ≈24 MB → freed/live ≈ 18% → GC is EFFECTIVE (>5% threshold).
-    //   6. V8 resets its "ineffective counter", grows heap: target = live × 1.5 ≈ 159 MB.
-    //   7. Job proceeds with ≈53 MB of headroom. No OOM.
-    {
-      const _pg: number[][] = Array.from(
-        { length: 500 },
-        () => new Array(6_000).fill(1), // 500 × 48 KB = 24 MB in regular old-space
-      );
-      void _pg; // hold reference until block exit
-    } // _pg goes out of scope → 24 MB eligible for GC
+    // In the finally block below we recreate a smaller anchor (24 MB) so the
+    // invariant holds for the next job: enough anchor garbage to ensure the first
+    // GC of the NEXT job is also effective.
+    (global as any).__v8HeapAnchor = null; // release 48 MB → effective GC guaranteed
 
     try {
       let text = item.extractedText ?? '';
@@ -88,9 +75,6 @@ export class KnowledgeImportProcessor {
         // Run OCR in an isolated method so all large locals (buffer, base64, axios response)
         // go out of scope when the method returns, allowing V8 to GC them before chunking.
         text = await this.runOcr(item.storagePath, item.mimeType ?? 'application/octet-stream', item.sourceType);
-        // Do NOT call global.gc() here — that would compact the heap and reset V8's
-        // target to live × 1.05 (only 5 MB headroom), defeating the pre-grow above.
-        // Let auto-GC run naturally; the ≈24 MB pre-grow garbage ensures it's effective.
         this.logger.log(`Extracted ${text.length} chars from ${item.sourceType} for item #${itemId}`);
       }
 
@@ -181,6 +165,14 @@ export class KnowledgeImportProcessor {
         },
       });
       throw err;
+    } finally {
+      // Recreate a smaller anchor (≈24 MB) so the NEXT job also gets an effective
+      // first GC. Without this, subsequent jobs have no garbage to free → all GC
+      // cycles are ineffective (only live NestJS 88 MB objects remain) → OOM.
+      (global as any).__v8HeapAnchor = Array.from(
+        { length: 250_000 },
+        (_, i) => ({ v: i }), // 250 K objects × ~96 bytes ≈ 24 MB
+      );
     }
   }
 
