@@ -8,21 +8,16 @@ import clsx from "clsx";
 import DocumentUploadModal from "./DocumentUploadModal";
 import { getUser } from "@/lib/auth";
 import {
-  LayoutDashboard,
   FolderOpen,
-  Briefcase,
   Building2,
   HelpCircle,
   FilePlus,
   Shield,
   ScrollText,
   BookOpen,
-  Send,
   Users,
   Inbox,
-  BellRing,
   ClipboardList,
-  SendHorizontal,
   SlidersHorizontal,
   Radar,
   Globe,
@@ -43,19 +38,20 @@ import {
   MessageCircle,
   Sparkles,
   FileText,
-  FileInput,
-  Stamp,
-  Gavel,
-  ListChecks,
-  Scale,
-  Megaphone,
   Mail,
-  Laptop,
-  BookMarked,
   BarChart3,
+  Download,
+  Send,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: React.ElementType; roles?: string[]; disabled?: boolean; children?: Omit<NavItem, 'icon' | 'children'>[] };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  roles?: string[];
+  disabled?: boolean;
+  children?: Omit<NavItem, "icon" | "children">[];
+};
 
 type NavGroup = {
   id: string;
@@ -68,102 +64,116 @@ const SARABAN = ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "ADMIN"];
 const APPROVER = ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"];
 
 const NAV_GROUPS: NavGroup[] = [
-  // ─── หมวด 2: การรับและส่งหนังสือ ───────────────────────────────────
+  // ─── ภาพรวม ─────────────────────────────────────────────────────────
   {
-    id: "inbound",
-    label: "งานรับหนังสือ",
+    id: "overview",
+    label: "ภาพรวม",
     items: [
-      { href: "/inbox", label: "หนังสือเข้า", icon: Inbox },
-      { href: "/cases", label: "เคส / ติดตามงาน", icon: Briefcase, roles: ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
+      { href: "/saraban/reports", label: "สถิติการใช้งาน", icon: BarChart3, roles: SARABAN },
+      { href: "/cases", label: "รายงานเอกสารค้างรับ", icon: ClipboardList },
       { href: "/track", label: "ติดตาม QR Code", icon: QrCode },
-    ],
-  },
-  {
-    id: "outbound",
-    label: "งานส่งหนังสือ",
-    items: [
-      { href: "/outbound", label: "หนังสือออก", icon: SendHorizontal },
-      { href: "/outbound/new", label: "สร้างหนังสือออก", icon: Send, roles: SARABAN },
       { href: "/director/signing", label: "รอลงนาม ผอ.", icon: PenLine, roles: ["DIRECTOR", "VICE_DIRECTOR"] },
     ],
   },
 
-  // ─── หมวด 1: ชนิดของหนังสือ (ข้อ 10–27) ───────────────────────────
+  // ─── Documents ──────────────────────────────────────────────────────
   {
-    id: "doc-types",
-    label: "หนังสือราชการ",
+    id: "documents",
+    label: "Documents",
     items: [
-      { href: "/saraban/external", label: "หนังสือภายนอก", icon: FileText },
-      { href: "/saraban/memo", label: "หนังสือภายใน (บันทึกข้อความ)", icon: FileInput },
-      { href: "/saraban/stamp-doc", label: "หนังสือประทับตรา", icon: Stamp },
-    ],
-  },
-  {
-    id: "directive",
-    label: "หนังสือสั่งการ",
-    items: [
-      { href: "/saraban/directive?sub=order", label: "คำสั่ง", icon: Gavel },
-      { href: "/saraban/directive?sub=regulation", label: "ระเบียบ", icon: ListChecks },
-      { href: "/saraban/directive?sub=rule", label: "ข้อบังคับ", icon: Scale },
-    ],
-  },
-  {
-    id: "pr-doc",
-    label: "หนังสือประชาสัมพันธ์",
-    items: [
-      { href: "/saraban/pr?sub=announcement", label: "ประกาศ", icon: Megaphone },
-      { href: "/saraban/pr?sub=statement", label: "แถลงการณ์", icon: FileText },
-      { href: "/saraban/pr?sub=news", label: "ข่าว", icon: Newspaper },
+      {
+        href: "/inbox",
+        label: "รับ-ส่งเอกสาร",
+        icon: Inbox,
+        children: [
+          { href: "/inbox", label: "เอกสารเข้า" },
+          { href: "/outbound/new", label: "ส่งเอกสาร", roles: SARABAN },
+          { href: "/saraban/inbound", label: "ทะเบียนรับ", roles: SARABAN },
+          { href: "/saraban/outbound", label: "ทะเบียนส่ง", roles: SARABAN },
+        ],
+      },
+      {
+        href: "/presentation",
+        label: "แฟ้มนำเสนอ",
+        icon: FolderKanban,
+        disabled: true,
+        children: [
+          { href: "/presentation", label: "รับแฟ้มนำเสนอ", disabled: true },
+          { href: "/presentation/send", label: "ส่งแฟ้มนำเสนอ", disabled: true },
+          { href: "/presentation/register-in", label: "ทะเบียนแฟ้มรับ", disabled: true },
+          { href: "/presentation/register-out", label: "ทะเบียนแฟ้มส่ง", disabled: true },
+        ],
+      },
+      {
+        href: "/saraban/external",
+        label: "สารบรรณหน่วยงาน",
+        icon: ScrollText,
+        children: [
+          { href: "/outbound/new", label: "ออกเลขหนังสือส่ง", roles: SARABAN },
+          { href: "/inbox", label: "รับเอกสารนอกระบบ" },
+          { href: "/saraban/external", label: "หนังสือภายนอก" },
+          { href: "/saraban/memo", label: "หนังสือภายใน" },
+          { href: "/saraban/directive?sub=order", label: "หนังสือสั่งการ / คำสั่ง" },
+          { href: "/saraban/pr?sub=announcement", label: "หนังสือประชาสัมพันธ์" },
+          { href: "/saraban/stamp-doc", label: "หนังสือประทับตรา" },
+          { href: "/saraban/email", label: "ไปรษณีย์อิเล็กทรอนิกส์" },
+          { href: "/saraban/memo", label: "ออกเลขหนังสือเวียน", disabled: true },
+          { href: "/saraban/e-doc", label: "หนังสืออิเล็กทรอนิกส์" },
+        ],
+      },
     ],
   },
 
-  // ─── หมวด 3: ทะเบียน บัญชี และการเก็บรักษา ────────────────────────
+  // ─── E-Service ──────────────────────────────────────────────────────
   {
-    id: "registers",
-    label: "ทะเบียนและบัญชี",
+    id: "eservice-main",
+    label: "E-Service",
     items: [
-      { href: "/saraban/inbound", label: "ทะเบียนหนังสือรับ", icon: ClipboardList, roles: SARABAN },
-      { href: "/saraban/outbound", label: "ทะเบียนหนังสือส่ง", icon: ScrollText, roles: SARABAN },
-      { href: "/saraban/send-store", label: "บัญชีหนังสือส่งเก็บ", icon: BookMarked },
-      { href: "/saraban/stored-register", label: "ทะเบียนหนังสือเก็บ", icon: Archive },
-      { href: "/saraban/destroy-list", label: "บัญชีหนังสือขอทำลาย", icon: FolderOpen },
-      { href: "/saraban/reports", label: "รายงานสารบรรณ", icon: BarChart3, roles: SARABAN },
+      { href: "/messages", label: "ข้อความส่วนตัว", icon: MessageCircle, disabled: true },
+      { href: "/webboard", label: "เว็บบอร์ด", icon: Globe, disabled: true },
+      { href: "/news", label: "ข่าวประชาสัมพันธ์", icon: Newspaper, disabled: true },
+      { href: "/tender", label: "ข่าวประกวดราคา", icon: FileText, disabled: true },
+      { href: "/calendar", label: "ปฏิทินภารกิจ", icon: CalendarDays },
+    ],
+  },
+
+  // ─── Back Office ────────────────────────────────────────────────────
+  {
+    id: "backoffice",
+    label: "Back Office",
+    items: [
+      {
+        href: "/documents",
+        label: "จัดเก็บเอกสาร",
+        icon: FolderOpen,
+        children: [
+          { href: "/documents", label: "คลังเอกสาร" },
+          { href: "/saraban/archive", label: "เก็บเอกสาร / ทำลาย", roles: SARABAN },
+          { href: "/saraban/loans", label: "ยืม-คืนเอกสาร", roles: SARABAN },
+          { href: "/saraban/handover", label: "ส่งมอบครบ 20 ปี", roles: SARABAN },
+          { href: "/saraban/send-store", label: "บัญชีหนังสือส่งเก็บ" },
+          { href: "/saraban/stored-register", label: "ทะเบียนหนังสือเก็บ" },
+          { href: "/saraban/destroy-list", label: "บัญชีหนังสือขอทำลาย" },
+        ],
+      },
+      { href: "/download", label: "ดาวน์โหลด", icon: Download, disabled: true },
       { href: "/reports/district", label: "รายงานระดับเขต", icon: Network, roles: MANAGER },
     ],
   },
-  {
-    id: "storage",
-    label: "การเก็บรักษา ยืม และทำลาย",
-    items: [
-      { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
-      { href: "/saraban/archive", label: "เก็บเอกสาร / ทำลาย", icon: Archive, roles: SARABAN },
-      { href: "/saraban/loans", label: "ยืม-คืนเอกสาร", icon: BookOpen, roles: SARABAN },
-      { href: "/saraban/handover", label: "ส่งมอบครบ 20 ปี", icon: Archive, roles: SARABAN },
-    ],
-  },
 
-  // ─── หมวด 5: ระบบสารบรรณอิเล็กทรอนิกส์ (ฉ.4/2564) ────────────────
+  // ─── ลงเวลาปฏิบัติงาน ───────────────────────────────────────────────
   {
-    id: "e-saraban",
-    label: "ระบบสารบรรณอิเล็กทรอนิกส์",
-    items: [
-      { href: "/saraban/email", label: "ไปรษณีย์อิเล็กทรอนิกส์ (saraban@)", icon: Mail },
-      { href: "/saraban/e-doc", label: "หนังสืออิเล็กทรอนิกส์", icon: Laptop },
-    ],
-  },
-
-  // ─── ระบบอื่น (ไม่ใช่งานสารบรรณ) ────────────────────────────────────
-  {
-    id: "eservice",
+    id: "attendance",
     label: "ลงเวลาปฏิบัติงาน",
     items: [
-      { href: "/calendar", label: "ปฏิทิน", icon: CalendarDays },
       { href: "/attendance", label: "ลงเวลา", icon: Clock },
       { href: "/leave", label: "ลาหยุด", icon: CalendarDays },
       { href: "/leave/travel", label: "ไปราชการ", icon: MapPin },
       { href: "/leave/approvals", label: "รออนุมัติ", icon: CheckSquare, roles: APPROVER },
     ],
   },
+
+  // ─── จัดการงานอัจฉริยะ ──────────────────────────────────────────────
   {
     id: "intelligence",
     label: "จัดการงานอัจฉริยะ",
@@ -179,6 +189,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/projects", label: "โครงการ", icon: FolderKanban, roles: ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
     ],
   },
+
+  // ─── จัดการ ─────────────────────────────────────────────────────────
   {
     id: "admin",
     label: "จัดการ",
@@ -191,6 +203,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/settings/line-accounts", label: "เชื่อมต่อ LINE", icon: MessageCircle, roles: ["ADMIN", "DIRECTOR"] },
     ],
   },
+
+  // ─── ช่วยเหลือ ──────────────────────────────────────────────────────
   {
     id: "help",
     label: "ช่วยเหลือ & ข้อมูล",
@@ -207,14 +221,26 @@ function filterItems(items: NavItem[], roleCode: string): NavItem[] {
     .filter((item) => !item.roles || item.roles.includes(roleCode))
     .map((item) =>
       item.children
-        ? { ...item, children: item.children.filter((c) => !c.roles || c.roles.includes(roleCode)) }
+        ? {
+            ...item,
+            children: item.children.filter(
+              (c) => !c.roles || c.roles.includes(roleCode),
+            ),
+          }
         : item,
     );
 }
 
 function isGroupActive(items: NavItem[], pathname: string): boolean {
   return items.some(
-    ({ href }) => pathname === href || (href !== "/" && pathname.startsWith(href)),
+    ({ href, children }) =>
+      pathname === href ||
+      (href !== "/" && pathname.startsWith(href.split("?")[0])) ||
+      (children ?? []).some(
+        (c) =>
+          pathname === c.href ||
+          (c.href !== "/" && pathname.startsWith(c.href.split("?")[0])),
+      ),
   );
 }
 
@@ -255,13 +281,15 @@ function NavGroupSection({
       <div
         className={clsx(
           "overflow-hidden transition-all duration-200",
-          open ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0",
+          open ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0",
         )}
       >
         <div className="space-y-0.5 pb-1">
           {visibleItems.map(({ href, label, icon: Icon, children, disabled }) => {
-            const isActive = !disabled &&
-              (pathname === href || (href !== "/" && pathname.startsWith(href.split("?")[0])));
+            const isActive =
+              !disabled &&
+              (pathname === href ||
+                (href !== "/" && pathname.startsWith(href.split("?")[0])));
             const hasChildren = children && children.length > 0;
             return (
               <div key={href}>
@@ -271,42 +299,63 @@ function NavGroupSection({
                       <Icon size={14} />
                     </span>
                     <span className="truncate text-[13px] text-white/25">{label}</span>
-                    <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300/50 font-bold uppercase tracking-wider shrink-0 whitespace-nowrap">เร็วๆ นี้</span>
+                    <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300/50 font-bold uppercase tracking-wider shrink-0 whitespace-nowrap">
+                      เร็วๆ นี้
+                    </span>
                   </span>
                 ) : (
-                <Link
-                  href={href}
-                  className={clsx(
-                    "group/item flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "bg-white/15 text-white shadow-sm border border-white/10"
-                      : "text-white/60 hover:text-white/90 hover:bg-white/8",
-                  )}
-                >
-                  {/* Active indicator line */}
-                  {isActive && (
-                    <span className="absolute left-0 w-0.5 h-5 rounded-r-full bg-gradient-to-b from-indigo-300 to-violet-400" />
-                  )}
-                  <span className={clsx(
-                    "flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 shrink-0",
-                    isActive
-                      ? "bg-gradient-to-br from-indigo-400/30 to-violet-400/30 text-indigo-200"
-                      : "text-white/50 group-hover/item:text-white/80",
-                  )}>
-                    <Icon size={14} />
-                  </span>
-                  <span className="truncate text-[13px]">{label}</span>
-                  {isActive && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300 shrink-0" />
-                  )}
-                </Link>
+                  <Link
+                    href={href}
+                    className={clsx(
+                      "group/item flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "bg-white/15 text-white shadow-sm border border-white/10"
+                        : "text-white/60 hover:text-white/90 hover:bg-white/8",
+                    )}
+                  >
+                    {isActive && (
+                      <span className="absolute left-0 w-0.5 h-5 rounded-r-full bg-gradient-to-b from-indigo-300 to-violet-400" />
+                    )}
+                    <span
+                      className={clsx(
+                        "flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 shrink-0",
+                        isActive
+                          ? "bg-gradient-to-br from-indigo-400/30 to-violet-400/30 text-indigo-200"
+                          : "text-white/50 group-hover/item:text-white/80",
+                      )}
+                    >
+                      <Icon size={14} />
+                    </span>
+                    <span className="truncate text-[13px]">{label}</span>
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300 shrink-0" />
+                    )}
+                  </Link>
                 )}
-                {hasChildren && (
+
+                {/* Children sub-menu — only shown when parent is not disabled */}
+                {hasChildren && !disabled && (
                   <div className="ml-9 mt-0.5 space-y-0.5">
                     {children.map((child) => {
+                      if (child.disabled) {
+                        return (
+                          <span
+                            key={child.href}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs cursor-not-allowed select-none"
+                          >
+                            <span className="w-1 h-1 rounded-full bg-white/10 shrink-0" />
+                            <span className="text-white/20">{child.label}</span>
+                            <span className="ml-auto text-[7px] px-1 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300/30 font-bold tracking-wide whitespace-nowrap">
+                              เร็วๆ นี้
+                            </span>
+                          </span>
+                        );
+                      }
                       const childActive =
-                        pathname + (typeof window !== "undefined" ? window.location.search : "") === child.href ||
-                        child.href.split("?")[0] === pathname;
+                        pathname === child.href.split("?")[0] ||
+                        (child.href.includes("?")
+                          ? pathname + (typeof window !== "undefined" ? window.location.search : "") === child.href
+                          : false);
                       return (
                         <Link
                           key={child.href}
@@ -318,10 +367,12 @@ function NavGroupSection({
                               : "text-white/45 hover:text-white/75 hover:bg-white/6",
                           )}
                         >
-                          <span className={clsx(
-                            "w-1 h-1 rounded-full shrink-0",
-                            childActive ? "bg-indigo-300" : "bg-white/30"
-                          )} />
+                          <span
+                            className={clsx(
+                              "w-1 h-1 rounded-full shrink-0",
+                              childActive ? "bg-indigo-300" : "bg-white/30",
+                            )}
+                          />
                           {child.label}
                         </Link>
                       );
@@ -373,8 +424,10 @@ export default function Sidebar() {
       {/* Brand */}
       <div className="relative px-4 py-5 flex items-center gap-3">
         <div className="relative shrink-0">
-          <div className="absolute inset-0 rounded-xl blur-md opacity-40"
-            style={{ background: "linear-gradient(135deg, #6366f1, #9333ea)" }} />
+          <div
+            className="absolute inset-0 rounded-xl blur-md opacity-40"
+            style={{ background: "linear-gradient(135deg, #6366f1, #9333ea)" }}
+          />
           <Image
             src="/Favicon.png"
             alt="NextOffice"
@@ -384,25 +437,34 @@ export default function Sidebar() {
           />
         </div>
         <div>
-          <span className="text-lg font-bold leading-tight block"
+          <span
+            className="text-lg font-bold leading-tight block"
             style={{
               background: "linear-gradient(135deg, #e0e7ff, #ddd6fe, #f3e8ff)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",
-            }}>
+            }}
+          >
             Next Office
           </span>
           <div className="flex items-center gap-1 mt-0.5">
             <Sparkles size={8} className="text-violet-300 opacity-80" />
-            <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Education AI</p>
+            <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">
+              Education AI
+            </p>
           </div>
         </div>
       </div>
 
       {/* Divider */}
-      <div className="mx-4 mb-3 h-px"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)" }} />
+      <div
+        className="mx-4 mb-3 h-px"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
+        }}
+      />
 
       {/* New Document Upload */}
       <div className="relative px-4 mb-4">
@@ -411,13 +473,16 @@ export default function Sidebar() {
           className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-bold text-white rounded-xl transition-all duration-200 active:scale-95"
           style={{
             background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-            boxShadow: "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+            boxShadow:
+              "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow = "0 6px 28px rgba(124, 58, 237, 0.55), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
+            e.currentTarget.style.boxShadow =
+              "0 6px 28px rgba(124, 58, 237, 0.55), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow = "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
+            e.currentTarget.style.boxShadow =
+              "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
           }}
         >
           <FilePlus size={14} />
@@ -444,8 +509,13 @@ export default function Sidebar() {
       </nav>
 
       {/* Divider */}
-      <div className="mx-4 h-px"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)" }} />
+      <div
+        className="mx-4 h-px"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)",
+        }}
+      />
 
       {/* Bottom help link */}
       <div className="relative px-2 pb-4 pt-2">
