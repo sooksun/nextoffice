@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
-import { toast } from "react-toastify";
+import { toastSuccess, toastError, confirmDelete } from "@/lib/toast";
 
 type SourceType = "file" | "text";
 type Status = "PENDING" | "PROCESSING" | "DONE" | "ERROR";
@@ -70,10 +70,10 @@ export default function KnowledgeImportPage() {
         setItems(data);
         return data as KnowledgeItem[];
       } else if (!silent) {
-        toast.error("ไม่สามารถโหลดรายการความรู้ได้");
+        toastError("ไม่สามารถโหลดรายการความรู้ได้");
       }
     } catch {
-      if (!silent) toast.error("เกิดข้อผิดพลาดในการโหลดรายการ");
+      if (!silent) toastError("เกิดข้อผิดพลาดในการโหลดรายการ");
     } finally {
       if (!silent) setLoading(false);
     }
@@ -155,14 +155,18 @@ export default function KnowledgeImportPage() {
       // Reload list
       await loadItems();
     } catch (err: unknown) {
-      alert((err as Error).message || "เกิดข้อผิดพลาด");
+      toastError((err as Error).message || "เกิดข้อผิดพลาด");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (id: number, title: string) => {
-    if (!confirm(`ต้องการลบ "${title}" ออกจากระบบหรือไม่?\nการดำเนินการนี้จะลบข้อมูลออกจาก Vector Database ด้วย`)) return;
+  const handleDelete = async (id: number, itemTitle: string) => {
+    const ok = await confirmDelete(
+      `ต้องการลบ "${itemTitle}" ออกจากระบบหรือไม่? ข้อมูลใน Vector Database จะถูกลบด้วย`,
+      "ยืนยันการลบความรู้",
+    );
+    if (!ok) return;
     try {
       const token = getAuthToken();
       const res = await fetch(`${apiBase}/knowledge-import/${id}`, {
@@ -170,13 +174,13 @@ export default function KnowledgeImportPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
-        toast.success("ลบความรู้เรียบร้อย");
+        toastSuccess("ลบความรู้เรียบร้อยแล้ว");
         setItems((prev) => prev.filter((i) => i.id !== id));
       } else {
-        toast.error("ไม่สามารถลบได้");
+        toastError("ไม่สามารถลบได้");
       }
     } catch {
-      toast.error("เกิดข้อผิดพลาด");
+      toastError("เกิดข้อผิดพลาด");
     }
   };
 
@@ -188,13 +192,13 @@ export default function KnowledgeImportPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {
-        toast.success("เริ่มประมวลผลใหม่แล้ว");
+        toastSuccess("เริ่มประมวลผลใหม่แล้ว");
         await loadItems();
       } else {
-        toast.error("ไม่สามารถลองใหม่ได้");
+        toastError("ไม่สามารถลองใหม่ได้");
       }
     } catch {
-      toast.error("เกิดข้อผิดพลาด");
+      toastError("เกิดข้อผิดพลาด");
     }
   };
 

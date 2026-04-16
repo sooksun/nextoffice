@@ -15,6 +15,7 @@ export default function ToastProvider() {
       draggable
       pauseOnHover
       theme="light"
+      toastClassName="!rounded-2xl !shadow-lg"
     />
   );
 }
