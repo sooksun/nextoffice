@@ -22,7 +22,8 @@ const { randomUUID } = require('crypto');
 
 const CHUNK_SIZE = 800;    // target tokens (mirrors ChunkingService)
 const OVERLAP_CHARS = 150;
-const EMBEDDING_MODEL = 'text-embedding-004';
+const EMBEDDING_MODEL = 'gemini-embedding-001';
+const EMBEDDING_DIM = 768;
 const COLLECTION = 'knowledge';
 
 // ── Entry point ──────────────────────────────────────────────────────────────
@@ -151,6 +152,7 @@ async function embedBatch(texts, apiKey) {
         requests: batch.map(text => ({
           model: `models/${EMBEDDING_MODEL}`,
           content: { parts: [{ text }] },
+          outputDimensionality: EMBEDDING_DIM,
         })),
       };
       const data = await httpsPost(url, body, { timeout: 60000 });

@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
-const EMBEDDING_MODEL = 'text-embedding-004';
-const EMBEDDING_DIM = 768;
+const EMBEDDING_MODEL = 'gemini-embedding-001';
+const EMBEDDING_DIM = 768; // gemini-embedding-001 natively outputs 3072, we truncate via outputDimensionality
 
 @Injectable()
 export class EmbeddingService {
@@ -27,7 +27,7 @@ export class EmbeddingService {
 
     const response = await axios.post(
       url,
-      { model: `models/${EMBEDDING_MODEL}`, content: { parts: [{ text }] } },
+      { model: `models/${EMBEDDING_MODEL}`, content: { parts: [{ text }] }, outputDimensionality: EMBEDDING_DIM },
       { timeout: 30000, headers: { 'Content-Type': 'application/json' } },
     );
 
@@ -70,6 +70,7 @@ export class EmbeddingService {
             requests: batch.map((text) => ({
               model: `models/${EMBEDDING_MODEL}`,
               content: { parts: [{ text }] },
+              outputDimensionality: EMBEDDING_DIM,
             })),
           },
           { timeout: 60000, headers: { 'Content-Type': 'application/json' } },
