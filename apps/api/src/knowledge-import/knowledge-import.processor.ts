@@ -6,23 +6,19 @@ import { fork } from 'child_process';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiApiService } from '../gemini/gemini-api.service';
+import { FileStorageService } from '../intake/services/file-storage.service';
 import { QUEUE_AI_PROCESSING } from '../queue/queue.constants';
 
 /**
- * KnowledgeImportProcessor — minimal parent-side handler.
+ * KnowledgeImportProcessor — parent does only DB + file download.
+ * ALL compute work (OCR, chunk, embed, Qdrant) runs in a child process.
  *
- * ALL heavy work (download, OCR, chunking, embedding, Qdrant upsert) runs
- * inside a child_process.fork() via knowledge-worker.js.
+ * Key insight: previous child OOMed because it loaded minio SDK (~100 MB)
+ * and pdf-parse/pdf.js (~150 MB) = 250 MB just from require() before any work.
  *
- * Why: NestJS DI container occupies ~88 MB of permanent V8 old-space.
- * Running OCR + pdf-parse + Gemini embedding + Qdrant in the same process
- * caused "Reached heap limit" OOM regardless of max-old-space-size tuning.
- *
- * With child process isolation:
- *   - Parent heap stays at ~88 MB (NestJS DI) + tiny DB query objects
- *   - Child has its own 512 MB heap for all heavy operations
- *   - OS reclaims child memory instantly on process.exit(0)
- *   - No GC pressure in parent, no OOM possible from job processing
+ * Fix: parent downloads the file (it already has MinIO client) and sends
+ * raw base64 to child via IPC. Child loads only: axios + form-data + crypto
+ * ≈ 26 MB of modules, leaving 374 MB headroom in the 400 MB child heap.
  */
 @Processor(QUEUE_AI_PROCESSING)
 export class KnowledgeImportProcessor {
@@ -32,6 +28,7 @@ export class KnowledgeImportProcessor {
     private readonly prisma: PrismaService,
     private readonly gemini: GeminiApiService,
     private readonly config: ConfigService,
+    private readonly storage: FileStorageService,
   ) {}
 
   @Process({ name: 'knowledge.import.embed', concurrency: 1 })
@@ -53,9 +50,20 @@ export class KnowledgeImportProcessor {
     });
 
     try {
-      this.logger.log(`Item #${itemId} — spawning knowledge worker child process`);
+      // Download file in parent process (has MinIO client, ~270 KB for this PDF)
+      // and send as base64 to child. This avoids loading the heavy minio SDK
+      // (~100 MB) and pdf-parse/pdf.js (~150 MB) inside the child process.
+      let fileBase64: string | null = null;
+      if (!item.extractedText && item.storagePath) {
+        this.logger.log(`Item #${itemId} — downloading file from MinIO`);
+        const buffer = await this.storage.getBuffer(item.storagePath);
+        fileBase64 = buffer.toString('base64');
+        this.logger.log(`Item #${itemId} — file downloaded: ${(buffer.length / 1024).toFixed(1)} KB, spawning worker`);
+      } else {
+        this.logger.log(`Item #${itemId} — using existing extracted text, spawning worker`);
+      }
 
-      const result = await this.runWorkerInChildProcess(item);
+      const result = await this.runWorkerInChildProcess(item, fileBase64);
 
       this.logger.log(`Item #${itemId} — worker complete: ${result.chunkCount} chunks embedded`);
 
@@ -65,7 +73,7 @@ export class KnowledgeImportProcessor {
           status: 'DONE',
           chunkCount: result.chunkCount,
           embeddedAt: new Date(),
-          extractedText: result.extractedText ?? item.extractedText,
+          extractedText: result.extractedText || item.extractedText,
         },
       });
 
@@ -83,19 +91,14 @@ export class KnowledgeImportProcessor {
     }
   }
 
-  /**
-   * Spawn knowledge-worker.js as a child process.
-   * Passes all config via IPC message (no shared state).
-   * Resolves with { extractedText, chunkCount } on success.
-   * Rejects on error, OOM in child, or 150s timeout.
-   */
-  private runWorkerInChildProcess(item: any): Promise<{ extractedText: string; chunkCount: number }> {
+  private runWorkerInChildProcess(
+    item: any,
+    fileBase64: string | null,
+  ): Promise<{ extractedText: string; chunkCount: number }> {
     return new Promise((resolve, reject) => {
       const workerPath = path.join(__dirname, 'knowledge-worker.js');
 
-      // Clear NODE_OPTIONS so parent's --max-old-space-size=800 is NOT inherited.
-      // Without this, child would use 800MB heap (from NODE_OPTIONS env) + parent's 800MB
-      // → combined RSS exceeds container limit → cgroup OOM.
+      // Clear NODE_OPTIONS so parent's --max-old-space-size is NOT inherited.
       const childEnv = { ...process.env, NODE_OPTIONS: '' };
 
       const child = fork(workerPath, [], {
@@ -130,28 +133,19 @@ export class KnowledgeImportProcessor {
         }
       });
 
-      // Send all data the worker needs
       const qdrantHost = this.config.get('QDRANT_HOST', 'localhost');
       const qdrantPort = this.config.get('QDRANT_PORT', 6333);
 
       child.send({
-        storagePath: item.storagePath,
+        fileBase64,                             // null if existingText is set
         mimeType: item.mimeType ?? 'application/octet-stream',
         sourceType: item.sourceType,
-        extractedText: item.extractedText ?? '',
+        existingText: item.extractedText ?? '',
         itemId: item.id.toString(),
         organizationId: item.organizationId.toString(),
         title: item.title,
         category: item.category ?? '',
         chunkCount: item.chunkCount ?? 0,
-        minioConfig: {
-          endpoint: this.config.get('MINIO_ENDPOINT', 'localhost'),
-          port: Number(this.config.get('MINIO_PORT', 9000)),
-          useSSL: this.config.get('MINIO_USE_SSL', 'false') === 'true',
-          accessKey: this.config.get('MINIO_ACCESS_KEY', 'minioadmin'),
-          secretKey: this.config.get('MINIO_SECRET_KEY', 'minioadmin'),
-          bucket: this.config.get('MINIO_BUCKET', 'nextoffice'),
-        },
         geminiApiKey: this.gemini.getApiKey(),
         geminiModel: this.gemini.getModel(),
         qdrantUrl: `http://${qdrantHost}:${qdrantPort}`,

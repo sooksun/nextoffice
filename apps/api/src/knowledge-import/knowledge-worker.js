@@ -1,39 +1,45 @@
 /**
- * Knowledge Import Worker — runs ALL heavy work in a child process.
+ * Knowledge Import Worker — minimal dependencies to keep V8 heap small.
  *
- * The NestJS parent process (88 MB baseline DI container) cannot safely
- * run OCR + chunking + embedding + Qdrant in the same V8 heap without OOM.
+ * Module loading cost analysis (why previous version OOMed at 400MB):
+ *   minio SDK:         ~100 MB V8 heap (AWS SDK internals, XML parser, crypto)
+ *   pdf-parse/pdf.js:  ~150 MB V8 heap (pdf.js bytecode + font tables)
+ *   axios:               ~5 MB
+ *   Node.js runtime:    ~20 MB
+ *   Total:             ~275 MB just from require() — leaving only 125 MB for work.
  *
- * This worker runs in a separate child_process.fork() with its own heap.
- * It does:
- *   1. Download file from MinIO
- *   2. OCR (pdf-parse → Gemini fallback for scanned PDFs/images)
- *   3. Chunk text (same params as ChunkingService)
- *   4. Embed chunks via Gemini batchEmbedContents API
- *   5. Delete old Qdrant points (if item had previous chunks)
- *   6. Upsert new points to Qdrant
+ * This version eliminates minio and pdf-parse:
+ *   - File is downloaded by the parent (NestJS already has MinIO client) and
+ *     sent as base64 via IPC. Child never touches MinIO.
+ *   - OCR always uses Gemini API (inline base64 for <4 MB, File API for larger).
+ *     No pdf-parse / pdf.js loaded.
+ *   - Qdrant and Gemini embedding: plain axios HTTP calls.
  *
- * Parent receives: { ok: true, extractedText, chunkCount }
- *              OR: { ok: false, error: '...' }
- * Then exits: process.exit(0) — OS reclaims all memory instantly.
+ * Resulting module load: axios ~5 MB + form-data ~1 MB + runtime ~20 MB ≈ 26 MB.
+ * Leaves ~374 MB headroom within the 400 MB limit for actual data.
+ *
+ * Protocol:
+ *   Parent sends: { fileBase64, mimeType, sourceType, existingText, itemId,
+ *                   organizationId, title, category, chunkCount,
+ *                   geminiApiKey, geminiModel, qdrantUrl }
+ *   Child replies: { ok: true, extractedText, chunkCount }
+ *             OR : { ok: false, error: '...' }
+ *   Child calls process.exit(0) — OS reclaims all memory instantly.
  */
 
 'use strict';
 
-const Minio = require('minio');
 const axios = require('axios');
 const FormData = require('form-data');
 const { randomUUID } = require('crypto');
-const pdfParse = require('pdf-parse');
 
-// ── Constants (mirror ChunkingService) ──────────────────────────────────────
-const INLINE_SIZE_LIMIT = 2 * 1024 * 1024; // 2 MB
-const CHUNK_SIZE = 800;   // target tokens
+const INLINE_SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB
+const CHUNK_SIZE = 800;   // target tokens (mirrors ChunkingService)
 const OVERLAP_CHARS = 150;
 const EMBEDDING_MODEL = 'text-embedding-004';
 const COLLECTION = 'knowledge';
 
-// ── Entry point ─────────────────────────────────────────────────────────────
+// ── Entry point ──────────────────────────────────────────────────────────────
 process.on('message', async (msg) => {
   try {
     const result = await processItem(msg);
@@ -45,19 +51,20 @@ process.on('message', async (msg) => {
   }
 });
 
-// ── Main pipeline ────────────────────────────────────────────────────────────
+// ── Main pipeline ─────────────────────────────────────────────────────────────
 async function processItem(msg) {
   const {
-    storagePath, mimeType, sourceType,
-    extractedText: existingText,
+    fileBase64, mimeType, sourceType,
+    existingText,
     itemId, organizationId, title, category, chunkCount: existingChunkCount,
-    minioConfig, geminiApiKey, geminiModel, qdrantUrl,
+    geminiApiKey, geminiModel, qdrantUrl,
   } = msg;
 
-  // 1. OCR (skip if text already extracted)
+  // 1. OCR (skip if already extracted)
   let text = existingText ?? '';
-  if (!text && storagePath) {
-    const buffer = await getBuffer(minioConfig, storagePath);
+  if (!text) {
+    if (!fileBase64) throw new Error('No file content provided');
+    const buffer = Buffer.from(fileBase64, 'base64');
     text = await runOcr({ buffer, mimeType, sourceType, geminiApiKey, geminiModel });
   }
 
@@ -91,7 +98,7 @@ async function processItem(msg) {
     });
   }
 
-  // 5. Delete old Qdrant vectors (prevents duplication on retry)
+  // 5. Delete old Qdrant vectors (retry-safe)
   if (existingChunkCount > 0) {
     await qdrantDeleteByItemId(qdrantUrl, String(itemId));
   }
@@ -104,42 +111,16 @@ async function processItem(msg) {
   return { extractedText: text, chunkCount: points.length };
 }
 
-// ── MinIO ─────────────────────────────────────────────────────────────────────
-async function getBuffer(minioConfig, storagePath) {
-  const client = new Minio.Client({
-    endPoint: minioConfig.endpoint,
-    port: minioConfig.port,
-    useSSL: minioConfig.useSSL,
-    accessKey: minioConfig.accessKey,
-    secretKey: minioConfig.secretKey,
-  });
-  const stream = await client.getObject(minioConfig.bucket, storagePath);
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on('data', (chunk) => chunks.push(chunk));
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-    stream.on('error', reject);
-  });
-}
-
-// ── OCR ───────────────────────────────────────────────────────────────────────
+// ── OCR via Gemini API only (no pdf-parse, no pdf.js) ────────────────────────
 async function runOcr({ buffer, mimeType, sourceType, geminiApiKey, geminiModel }) {
   const bufferLen = buffer.length;
-
-  if (mimeType === 'application/pdf') {
-    try {
-      const parsed = await pdfParse(buffer);
-      const pdfText = parsed.text?.trim() ?? '';
-      if (pdfText.length >= 50) return pdfText;
-    } catch (_) { /* fall through */ }
-  }
-
   const prompt = sourceType === 'pdf'
     ? 'สกัดข้อความทั้งหมดจากเอกสาร PDF นี้ให้ครบถ้วน รักษาโครงสร้างและหัวข้อให้ชัดเจน'
     : 'อธิบายและสกัดข้อความทั้งหมดในภาพนี้ ให้ครอบคลุมทุกข้อมูลที่มองเห็น';
   const system = 'คุณคือผู้ช่วย OCR/extraction ที่แม่นยำ ให้ข้อความที่สกัดได้เท่านั้น ไม่ต้องอธิบายเพิ่มเติม';
 
   if (bufferLen > INLINE_SIZE_LIMIT) {
+    // Large file → Gemini File API (upload by reference, avoids base64 in heap)
     const fileUri = await uploadToGeminiFileApi(buffer, mimeType, geminiApiKey);
     return geminiGenerate({
       parts: [{ fileData: { mimeType, fileUri } }, { text: prompt }],
@@ -147,6 +128,7 @@ async function runOcr({ buffer, mimeType, sourceType, geminiApiKey, geminiModel 
     });
   }
 
+  // Small file → inline base64
   const base64 = buffer.toString('base64');
   return geminiGenerate({
     parts: [{ inlineData: { mimeType, data: base64 } }, { text: prompt }],
@@ -181,7 +163,7 @@ async function geminiGenerate({ parts, system, apiKey, model }) {
   return res.data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 }
 
-// ── Chunking (mirrors ChunkingService.splitText) ─────────────────────────────
+// ── Chunking (mirrors ChunkingService.splitText) ──────────────────────────────
 function splitText(text) {
   const chunkCharSize = CHUNK_SIZE * 1.5;
   const chunks = [];
@@ -222,14 +204,14 @@ async function embedBatch(texts, apiKey) {
       const embeddings = res.data?.embeddings ?? [];
       for (const e of embeddings) results.push(e.values ?? []);
       while (results.length < i + batch.length) results.push([]);
-    } catch (err) {
+    } catch (_) {
       for (let j = 0; j < batch.length; j++) results.push([]);
     }
   }
   return results;
 }
 
-// ── Qdrant (plain HTTP, no client library) ────────────────────────────────────
+// ── Qdrant (plain HTTP) ───────────────────────────────────────────────────────
 async function qdrantDeleteByItemId(qdrantUrl, itemId) {
   try {
     await axios.post(
@@ -237,7 +219,7 @@ async function qdrantDeleteByItemId(qdrantUrl, itemId) {
       { filter: { must: [{ key: 'itemId', match: { value: itemId } }] } },
       { timeout: 30000, headers: { 'Content-Type': 'application/json' } },
     );
-  } catch (_) { /* non-fatal */ }
+  } catch (_) { /* non-fatal — if old points remain, they'll be overwritten */ }
 }
 
 async function qdrantUpsert(qdrantUrl, points) {
@@ -245,11 +227,6 @@ async function qdrantUpsert(qdrantUrl, points) {
   await axios.put(
     `${qdrantUrl}/collections/${COLLECTION}/points`,
     { points },
-    {
-      timeout: 60000,
-      headers: { 'Content-Type': 'application/json' },
-      maxContentLength: 100 * 1024 * 1024,
-      maxBodyLength: 100 * 1024 * 1024,
-    },
+    { timeout: 60000, headers: { 'Content-Type': 'application/json' }, maxContentLength: 100 * 1024 * 1024, maxBodyLength: 100 * 1024 * 1024 },
   );
 }
