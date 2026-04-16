@@ -105,6 +105,14 @@ export class KnowledgeImportProcessor {
       const childEnv = { ...process.env };
       delete childEnv.NODE_OPTIONS;
 
+      // Force a major GC before spawning so the committed heap has headroom.
+      // With --expose-gc, this triggers a synchronous mark-compact. If the
+      // keepalive interval recently nulled its old reference, GC frees ~20 MB
+      // → effective cycle → V8 keeps committed at ~162 MB for the fork().
+      if (typeof (global as any).gc === 'function') {
+        (global as any).gc();
+      }
+
       const child = fork(workerPath, [], {
         env: childEnv,
         silent: false,

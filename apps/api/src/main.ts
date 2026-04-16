@@ -65,19 +65,21 @@ async function bootstrap() {
   console.log(`🚀 NextOffice API running on http://localhost:${port}`);
   console.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);
 
-  // Heap keepalive: prevents V8 idle GC from shrinking committed heap below NestJS
-  // baseline + job headroom. Without this, idle periods cause committed heap to decay
-  // from ~132 MB → ~92 MB (= live × 1.05 ≈ 88 × 1.05). When a job then allocates
-  // ~2 MB (file base64 + IPC JSON for child.send), GC triggers, finds 0 bytes
-  // freeable (all NestJS DI singletons are live) → 3× ineffective → FATAL OOM.
+  // Heap keepalive: prevents V8 idle GC from shrinking committed heap to the bare
+  // live-set minimum (~88 MB NestJS baseline × 1.05 = ~92 MB), leaving no room
+  // for fork() + IPC overhead → 3× ineffective mark-compact → FATAL OOM.
   //
-  // Mechanism: cycle ~10 MB of plain objects every 5 s. Old allocation is promoted
-  // to old-space (~1 s), becomes garbage when reference is replaced. Major GC frees
-  // the old 10 MB → 10/(88+10) = 10.2% > 5% threshold → EFFECTIVE → V8 keeps
-  // committed heap at ~147 MB → 57 MB headroom for job allocations.
+  // Key: null the OLD reference BEFORE creating the new array.
+  // Without this, during Array.from() both old+new are live → GC finds 0 freeable
+  // → still ineffective. With null-first: old 20 MB becomes garbage in old-space,
+  // Array.from() triggers GC, frees old 20 MB → 20/(88+20)=18.5% > 5% → EFFECTIVE
+  // → V8 keeps committed at (108)×1.5 = 162 MB → 54 MB headroom for any job.
   let _heapKeepAlive: Array<{ v: number }> | null = null;
-  setInterval(() => {
-    _heapKeepAlive = Array.from({ length: 300_000 }, (_, i) => ({ v: i }));
-  }, 5_000).unref();
+  function _refreshHeapKeepAlive() {
+    _heapKeepAlive = null; // release old → becomes old-space garbage, GC can free it
+    _heapKeepAlive = Array.from({ length: 500_000 }, (_, i) => ({ v: i })); // ~20 MB
+  }
+  _refreshHeapKeepAlive(); // immediate: raise live set before the first job arrives
+  setInterval(_refreshHeapKeepAlive, 3_000).unref(); // cycle every 3 s
 }
 bootstrap();
