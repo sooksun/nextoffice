@@ -230,3 +230,70 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 - **Font path** — Sarabun fonts + kruth02.png อยู่ที่ `apps/api/src/stamps/fonts/` (nest-cli copy ไป `dist/src/stamps/fonts/` ผ่าน assets config)
 - **Response classification** — เพิ่ม `responseType`/`requiresResponse`/`hasBeenReplied` ใน schema + classifier service + backfill script (`prisma/backfill-response-classification.js`)
 - **Outbound Word download** — `GET /outbound/documents/:id/word` endpoint คืน `.docx` buffer, frontend component: `apps/web/src/app/outbound/[id]/OutboundPdfButton.tsx`
+
+---
+
+### Knowledge Import Pipeline (session 2026-04-16) — COMPLETED & STABLE
+
+**สถานะ:** ทำงานได้ครบ pipeline แล้ว — Upload → OCR → Chunk → Embed → Qdrant → DONE
+
+#### Architecture
+```
+POST /knowledge-import (multipart)
+  → KnowledgeImportService.create() → MinIO upload + DB record (status=PENDING)
+  → Bull queue 'knowledge.import.embed'
+  → KnowledgeImportProcessor.handleEmbed()
+      ├─ ดาวน์โหลดไฟล์จาก MinIO (base64)
+      └─ runWorkerInline() → knowledge-worker.js::processItem()
+           ├─ Gemini Vision OCR → extractedText
+           ├─ splitText() → chunks (~1200 chars, overlap 150)
+           ├─ embedBatch() → Gemini gemini-embedding-001 (768 dim)
+           └─ Qdrant upsert → collection 'knowledge'
+  → status=DONE, chunkCount saved
+```
+
+#### Critical Files
+| File | หน้าที่ |
+|---|---|
+| `apps/api/src/knowledge-import/knowledge-worker.js` | standalone JS worker (zero npm deps) |
+| `apps/api/src/knowledge-import/knowledge-import.processor.ts` | Bull processor, calls worker inline |
+| `apps/api/src/rag/services/embedding.service.ts` | EmbeddingService (ใช้ gemini-embedding-001) |
+| `apps/web/src/app/knowledge/import/page.tsx` | Frontend UI + auto-poll |
+
+#### Bug ที่แก้แล้ว (session 2026-04-16)
+
+**[CRITICAL] Infinite loop ใน splitText() → V8 heap OOM**
+- สาเหตุ: `start = breakPoint - OVERLAP_CHARS` เมื่อ `breakPoint >= text.length` ทำให้ loop วนซ้ำไม่จบ สร้าง string ล้านๆ ก้อนจน heap หมด
+- แก้: เพิ่ม `if (breakPoint >= text.length) break;` ก่อน overlap calculation
+- แก้ทั้ง 2 ไฟล์: `knowledge-worker.js` + `rag/services/chunking.service.ts`
+
+**[CRITICAL] Embedding model deprecated**
+- `text-embedding-004` ถูกลบออกจาก Gemini API v1beta → HTTP 404
+- แก้: เปลี่ยนเป็น `gemini-embedding-001` + `outputDimensionality: 768`
+- แก้ทั้ง 2 ไฟล์: `knowledge-worker.js` + `rag/services/embedding.service.ts`
+
+**[PERF] Fork overhead eliminated**
+- เดิม: `child_process.fork()` knowledge-worker.js → โหลด module ใหม่ทุกครั้ง
+- แก้: `runWorkerInline()` ใช้ `require(workerPath)` (cached) เรียกตรง — ประหยัด heap ~250 MB
+- Worker ยังรัน fork ได้ถ้า `process.send` มี (backward compat)
+
+**[UX] Frontend ไม่ auto-refresh สถานะ**
+- แก้: เพิ่ม polling loop ทุก 4 วินาที เมื่อมี item ที่ status=PENDING/PROCESSING
+- หยุดอัตโนมัติเมื่อทุก item เป็น terminal state (DONE/ERROR)
+- ไฟล์: `apps/web/src/app/knowledge/import/page.tsx` → `fetchItems(silent=true)` + useEffect polling
+
+#### Embedding Spec
+- Model: `gemini-embedding-001`
+- Dimension: 768 (truncated via `outputDimensionality`)
+- Batch size: 100 texts per batchEmbedContents call
+- Qdrant collection: `knowledge`, cosine similarity
+
+#### Deploy note
+เมื่อแก้ไข `knowledge-worker.js` หรือ processor → rebuild **api** container:
+```bash
+docker compose build api && docker compose up -d api
+```
+เมื่อแก้ไข frontend → rebuild **web** container:
+```bash
+docker compose build web && docker compose up -d web
+```
