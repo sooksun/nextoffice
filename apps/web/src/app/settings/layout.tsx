@@ -6,6 +6,6 @@ export default async function SettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireRole(["ADMIN"]);
+  await requireRole(["ADMIN", "DIRECTOR"]);
   return <>{children}</>;
 }
