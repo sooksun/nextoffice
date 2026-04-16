@@ -64,5 +64,20 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`🚀 NextOffice API running on http://localhost:${port}`);
   console.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);
+
+  // Heap keepalive: prevents V8 idle GC from shrinking committed heap below NestJS
+  // baseline + job headroom. Without this, idle periods cause committed heap to decay
+  // from ~132 MB → ~92 MB (= live × 1.05 ≈ 88 × 1.05). When a job then allocates
+  // ~2 MB (file base64 + IPC JSON for child.send), GC triggers, finds 0 bytes
+  // freeable (all NestJS DI singletons are live) → 3× ineffective → FATAL OOM.
+  //
+  // Mechanism: cycle ~10 MB of plain objects every 5 s. Old allocation is promoted
+  // to old-space (~1 s), becomes garbage when reference is replaced. Major GC frees
+  // the old 10 MB → 10/(88+10) = 10.2% > 5% threshold → EFFECTIVE → V8 keeps
+  // committed heap at ~147 MB → 57 MB headroom for job allocations.
+  let _heapKeepAlive: Array<{ v: number }> | null = null;
+  setInterval(() => {
+    _heapKeepAlive = Array.from({ length: 300_000 }, (_, i) => ({ v: i }));
+  }, 5_000).unref();
 }
 bootstrap();
