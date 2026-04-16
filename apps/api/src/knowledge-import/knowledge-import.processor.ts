@@ -93,8 +93,14 @@ export class KnowledgeImportProcessor {
     return new Promise((resolve, reject) => {
       const workerPath = path.join(__dirname, 'knowledge-worker.js');
 
+      // Clear NODE_OPTIONS so parent's --max-old-space-size=800 is NOT inherited.
+      // Without this, child would use 800MB heap (from NODE_OPTIONS env) + parent's 800MB
+      // → combined RSS exceeds container limit → cgroup OOM.
+      const childEnv = { ...process.env, NODE_OPTIONS: '' };
+
       const child = fork(workerPath, [], {
-        execArgv: ['--max-old-space-size=512'],
+        execArgv: ['--max-old-space-size=400'],
+        env: childEnv,
         silent: false,
       });
 
