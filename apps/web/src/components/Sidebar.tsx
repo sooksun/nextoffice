@@ -117,7 +117,7 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/saraban/pr?sub=announcement", label: "หนังสือประชาสัมพันธ์" },
           { href: "/saraban/stamp-doc", label: "หนังสือประทับตรา" },
           { href: "/saraban/email", label: "ไปรษณีย์อิเล็กทรอนิกส์" },
-          { href: "/saraban/memo", label: "ออกเลขหนังสือเวียน", disabled: true },
+          { href: "/saraban/circular", label: "ออกเลขหนังสือเวียน", disabled: true },
           { href: "/saraban/e-doc", label: "หนังสืออิเล็กทรอนิกส์" },
         ],
       },
@@ -307,7 +307,7 @@ function NavGroupSection({
                   <Link
                     href={href}
                     className={clsx(
-                      "group/item flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
+                      "relative group/item flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
                       isActive
                         ? "bg-white/15 text-white shadow-sm border border-white/10"
                         : "text-white/60 hover:text-white/90 hover:bg-white/8",
@@ -340,7 +340,7 @@ function NavGroupSection({
                       if (child.disabled) {
                         return (
                           <span
-                            key={child.href}
+                            key={child.label}
                             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs cursor-not-allowed select-none"
                           >
                             <span className="w-1 h-1 rounded-full bg-white/10 shrink-0" />
@@ -351,14 +351,13 @@ function NavGroupSection({
                           </span>
                         );
                       }
+                      const childBase = child.href.split("?")[0];
                       const childActive =
-                        pathname === child.href.split("?")[0] ||
-                        (child.href.includes("?")
-                          ? pathname + (typeof window !== "undefined" ? window.location.search : "") === child.href
-                          : false);
+                        pathname === childBase ||
+                        (childBase !== "/" && pathname.startsWith(childBase));
                       return (
                         <Link
-                          key={child.href}
+                          key={child.label}
                           href={child.href}
                           className={clsx(
                             "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
