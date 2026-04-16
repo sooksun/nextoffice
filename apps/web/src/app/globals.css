@@ -1,59 +1,59 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* ─── Primary ─── */
-  --color-primary: #00236f;
-  --color-primary-container: #1e3a8a;
-  --color-primary-fixed: #dce1ff;
-  --color-primary-fixed-dim: #b6c4ff;
+  /* ─── Primary — Indigo ─── */
+  --color-primary: #4f46e5;
+  --color-primary-container: #3730a3;
+  --color-primary-fixed: #e0e7ff;
+  --color-primary-fixed-dim: #c7d2fe;
   --color-on-primary: #ffffff;
-  --color-on-primary-container: #90a8ff;
-  --color-on-primary-fixed: #00164e;
-  --color-on-primary-fixed-variant: #264191;
+  --color-on-primary-container: #c7d2fe;
+  --color-on-primary-fixed: #1e1b4b;
+  --color-on-primary-fixed-variant: #3730a3;
 
-  /* ─── Secondary ─── */
-  --color-secondary: #4b41e1;
-  --color-secondary-container: #645efb;
-  --color-secondary-fixed: #e2dfff;
-  --color-secondary-fixed-dim: #c3c0ff;
+  /* ─── Secondary — Violet ─── */
+  --color-secondary: #7c3aed;
+  --color-secondary-container: #6d28d9;
+  --color-secondary-fixed: #ede9fe;
+  --color-secondary-fixed-dim: #ddd6fe;
   --color-on-secondary: #ffffff;
-  --color-on-secondary-container: #fffbff;
+  --color-on-secondary-container: #ede9fe;
 
-  /* ─── Tertiary ─── */
-  --color-tertiary: #410073;
-  --color-tertiary-container: #5f00a5;
-  --color-tertiary-fixed: #f0dbff;
-  --color-tertiary-fixed-dim: #ddb8ff;
+  /* ─── Tertiary — Purple ─── */
+  --color-tertiary: #9333ea;
+  --color-tertiary-container: #7e22ce;
+  --color-tertiary-fixed: #f3e8ff;
+  --color-tertiary-fixed-dim: #e9d5ff;
   --color-on-tertiary: #ffffff;
-  --color-on-tertiary-container: #ca95ff;
+  --color-on-tertiary-container: #e9d5ff;
 
   /* ─── Error ─── */
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
+  --color-error: #dc2626;
+  --color-error-container: #fee2e2;
   --color-on-error: #ffffff;
-  --color-on-error-container: #93000a;
+  --color-on-error-container: #7f1d1d;
 
-  /* ─── Surface ─── */
-  --color-surface: #f6fafe;
-  --color-surface-dim: #d6dade;
-  --color-surface-bright: #f6fafe;
+  /* ─── Surface — Light lavender tinted ─── */
+  --color-surface: #f5f3ff;
+  --color-surface-dim: #ddd6fe;
+  --color-surface-bright: #faf9ff;
   --color-surface-lowest: #ffffff;
-  --color-surface-low: #f0f4f8;
-  --color-surface-mid: #eaeef2;
-  --color-surface-high: #e4e9ed;
-  --color-surface-highest: #dfe3e7;
-  --color-surface-variant: #dfe3e7;
-  --color-on-surface: #171c1f;
-  --color-on-surface-variant: #444651;
+  --color-surface-low: #f0eeff;
+  --color-surface-mid: #e8e5ff;
+  --color-surface-high: #ddd6fe;
+  --color-surface-highest: #d1c4fe;
+  --color-surface-variant: #ede9fe;
+  --color-on-surface: #1e1b2e;
+  --color-on-surface-variant: #4c4675;
 
   /* ─── Outline ─── */
-  --color-outline: #757682;
-  --color-outline-variant: #c5c5d3;
+  --color-outline: #6b63a8;
+  --color-outline-variant: #c4beed;
 
   /* ─── Inverse ─── */
-  --color-inverse-surface: #2c3134;
-  --color-inverse-on-surface: #edf1f5;
-  --color-inverse-primary: #b6c4ff;
+  --color-inverse-surface: #1e1b4b;
+  --color-inverse-on-surface: #f0eeff;
+  --color-inverse-primary: #a5b4fc;
 
   /* ─── Fonts ─── */
   --font-headline: var(--font-sarabun);
@@ -83,27 +83,27 @@
   --radius: 0.75rem;
 }
 
-/* ─── shadcn HSL CSS variables (used by big-calendar & UI components) ─── */
+/* ─── shadcn HSL CSS variables ─── */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
+  --background: 248 100% 99%;
+  --foreground: 245 40% 12%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
+  --card-foreground: 245 40% 12%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary-hsl: 228 100% 22%;
+  --popover-foreground: 245 40% 12%;
+  --primary-hsl: 245 72% 58%;
   --primary-foreground: 0 0% 100%;
-  --secondary-hsl: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
-  --destructive: 0 72% 41%;
+  --secondary-hsl: 248 100% 97%;
+  --secondary-foreground: 245 40% 20%;
+  --muted: 248 60% 96%;
+  --muted-foreground: 248 20% 50%;
+  --accent: 248 60% 96%;
+  --accent-foreground: 245 40% 20%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 228 100% 22%;
+  --border: 248 40% 88%;
+  --input: 248 40% 88%;
+  --ring: 245 72% 58%;
 }
 
 /* ─── big-calendar custom utilities ─── */
@@ -111,7 +111,7 @@
   background-image: repeating-linear-gradient(-60deg, hsl(var(--border)) 0 0.5px, transparent 0.5px 8px);
 }
 
-/* ─── shadcn dialog animations ─── */
+/* ─── Animations ─────────────────────────────────────────────────── */
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes zoom-in-95 { from { transform: scale(0.95); } to { transform: scale(1); } }
@@ -119,9 +119,47 @@
 @keyframes slide-in-from-left-1\/2 { from { transform: translateX(-50%); } }
 @keyframes slide-in-from-top-48 { from { transform: translateY(-48%); } }
 
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Gentle float for cards */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Gradient shift for animated backgrounds */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Glow pulse for active elements */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(124, 58, 237, 0.25); }
+  50% { box-shadow: 0 0 16px 4px rgba(124, 58, 237, 0.4); }
+}
+
+/* Slide up reveal */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Spin slow */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 [data-state="open"] .animate-in { animation: fade-in 200ms ease-out, zoom-in-95 200ms ease-out; }
 [data-state="closed"] .animate-out { animation: fade-out 200ms ease-in, zoom-out-95 200ms ease-in; }
 
+/* ─── Global base ────────────────────────────────────────────── */
 body {
   background-color: var(--color-surface);
   color: var(--color-on-surface);
@@ -134,31 +172,118 @@ h1, h2, h3, h4, .font-headline {
   font-family: var(--font-sarabun), 'Sarabun', system-ui, sans-serif;
 }
 
+/* ─── Scrollbar ─── */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #c5c5d3; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.25);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.5);
+}
 
-/* Shared form / button utilities */
+/* ─── Sidebar dark scrollbar ─── */
+.sidebar-scrollbar::-webkit-scrollbar { width: 3px; }
+.sidebar-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+/* ─── Shared form utilities ─── */
 .input-text {
-  @apply rounded-xl border border-outline-variant/30 bg-surface-lowest px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30;
+  @apply rounded-xl border border-outline-variant/40 bg-white/80 px-3 py-2 text-sm text-on-surface
+         focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50
+         backdrop-blur-sm transition-all;
 }
 .input-select {
-  @apply rounded-xl border border-outline-variant/30 bg-surface-lowest px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30;
+  @apply rounded-xl border border-outline-variant/40 bg-white/80 px-3 py-2 text-sm text-on-surface
+         focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50
+         backdrop-blur-sm transition-all;
 }
 .input-date {
-  @apply rounded-xl border border-outline-variant/30 bg-surface-lowest px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30;
+  @apply rounded-xl border border-outline-variant/40 bg-white/80 px-3 py-2 text-sm text-on-surface
+         focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50
+         backdrop-blur-sm transition-all;
 }
 .label-sm {
   @apply block text-sm font-semibold text-on-surface-variant mb-1;
 }
+
+/* ─── Gradient button ─── */
 .btn-primary {
-  @apply rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:opacity-90 transition-opacity;
+  @apply rounded-xl px-4 py-2 text-sm font-semibold text-white
+         bg-gradient-to-r from-indigo-500 to-violet-600
+         shadow-lg shadow-violet-500/30
+         hover:shadow-violet-500/50 hover:brightness-110
+         active:scale-95 transition-all duration-200;
 }
 .btn-ghost {
-  @apply rounded-xl border border-outline-variant/30 px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-bright transition-colors;
+  @apply rounded-xl border border-outline-variant/40 px-4 py-2 text-sm font-semibold
+         text-on-surface-variant hover:bg-surface-mid hover:border-primary/30
+         hover:text-primary transition-all duration-200;
 }
 
-/* ── react-datepicker overrides ───────────────────────────────────────── */
+/* ─── Glassmorphism card ─── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(196, 190, 237, 0.4);
+  box-shadow: 0 4px 24px rgba(124, 58, 237, 0.06);
+}
+
+/* ─── Gradient text ─── */
+.gradient-text {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Gradient border ─── */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ─── Shimmer skeleton ─── */
+.shimmer {
+  background: linear-gradient(90deg,
+    rgba(196, 190, 237, 0.1) 25%,
+    rgba(196, 190, 237, 0.3) 50%,
+    rgba(196, 190, 237, 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ─── Glow utilities ─── */
+.glow-primary {
+  box-shadow: 0 0 20px rgba(79, 70, 229, 0.3), 0 4px 12px rgba(79, 70, 229, 0.2);
+}
+.glow-violet {
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3), 0 4px 12px rgba(124, 58, 237, 0.2);
+}
+
+/* ─── Slide up animation utility ─── */
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
+}
+
+/* ─── react-datepicker overrides ─── */
 .react-datepicker-wrapper { width: 100%; }
 .react-datepicker__input-container { width: 100%; }
 
@@ -172,10 +297,9 @@ h1, h2, h3, h4, .font-headline {
   width: 100%;
 }
 .react-datepicker__header {
-  @apply bg-surface-bright border-b border-outline-variant/20 rounded-t-2xl pt-2;
-  background-color: var(--color-surface-bright, #f8f8f8) !important;
+  @apply border-b border-outline-variant/20 rounded-t-2xl pt-2;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe) !important;
 }
-/* Day-of-week header row */
 .react-datepicker__day-names {
   display: flex !important;
   justify-content: space-around;
@@ -189,13 +313,11 @@ h1, h2, h3, h4, .font-headline {
   width: 2rem;
   height: 2rem;
 }
-/* Calendar grid rows */
 .react-datepicker__week {
   display: flex !important;
   justify-content: space-around;
 }
 .react-datepicker__month { @apply p-2; }
-/* Day cells */
 .react-datepicker__day {
   display: inline-flex !important;
   align-items: center;
@@ -206,7 +328,8 @@ h1, h2, h3, h4, .font-headline {
 }
 .react-datepicker__day--selected,
 .react-datepicker__day--keyboard-selected {
-  @apply bg-primary text-on-primary hover:bg-primary hover:text-on-primary font-bold rounded-lg;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed) !important;
+  @apply text-white hover:text-white font-bold rounded-lg;
 }
 .react-datepicker__day--outside-month { @apply text-outline/40; }
 .react-datepicker__day--today { @apply font-bold underline; }
@@ -221,17 +344,11 @@ h1, h2, h3, h4, .font-headline {
 
 /* ─── Registry Print Styles ─── */
 @media print {
-  /* Hide non-essential UI */
-  .no-print,
-  nav,
-  aside,
-  header,
-  [data-sidebar],
-  [data-chat-panel] { display: none !important; }
+  .no-print, nav, aside, header,
+  [data-sidebar], [data-chat-panel] { display: none !important; }
 
   body { background: white !important; }
 
-  /* Full-width content */
   main, [data-main-content] {
     margin: 0 !important;
     padding: 0 !important;
@@ -253,7 +370,6 @@ h1, h2, h3, h4, .font-headline {
     margin-bottom: 4pt !important;
   }
 
-  /* Registry table print formatting */
   .registry-table {
     font-size: 9pt !important;
     border-collapse: collapse !important;

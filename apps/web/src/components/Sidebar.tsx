@@ -41,9 +41,9 @@ import {
   QrCode,
   PenLine,
   MessageCircle,
+  Sparkles,
 } from "lucide-react";
 
-// undefined = ทุก role เห็นได้
 type NavItem = { href: string; label: string; icon: React.ElementType; roles?: string[]; children?: Omit<NavItem, 'icon' | 'children'>[] };
 
 type NavGroup = {
@@ -166,17 +166,17 @@ function NavGroupSection({
   if (visibleItems.length === 0) return null;
 
   return (
-    <div>
+    <div className="mb-1">
       {/* Group header */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-2 mt-1 text-[10px] uppercase tracking-widest text-outline font-bold hover:text-primary transition-colors group"
+        className="w-full flex items-center justify-between px-3 py-1.5 text-[9px] uppercase tracking-widest text-white/35 font-bold hover:text-white/60 transition-colors group"
       >
         <span>{group.label}</span>
         <ChevronDown
-          size={13}
+          size={11}
           className={clsx(
-            "transition-transform duration-200",
+            "transition-transform duration-200 opacity-60",
             open ? "rotate-0" : "-rotate-90",
           )}
         />
@@ -199,17 +199,31 @@ function NavGroupSection({
                 <Link
                   href={href}
                   className={clsx(
-                    "flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-medium transition-colors",
+                    "group/item flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
                     isActive
-                      ? "bg-primary/10 text-primary font-bold"
-                      : "text-on-surface-variant hover:text-primary hover:bg-surface-bright",
+                      ? "bg-white/15 text-white shadow-sm border border-white/10"
+                      : "text-white/60 hover:text-white/90 hover:bg-white/8",
                   )}
                 >
-                  <Icon size={17} />
-                  {label}
+                  {/* Active indicator line */}
+                  {isActive && (
+                    <span className="absolute left-0 w-0.5 h-5 rounded-r-full bg-gradient-to-b from-indigo-300 to-violet-400" />
+                  )}
+                  <span className={clsx(
+                    "flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 shrink-0",
+                    isActive
+                      ? "bg-gradient-to-br from-indigo-400/30 to-violet-400/30 text-indigo-200"
+                      : "text-white/50 group-hover/item:text-white/80",
+                  )}>
+                    <Icon size={14} />
+                  </span>
+                  <span className="truncate text-[13px]">{label}</span>
+                  {isActive && (
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300 shrink-0" />
+                  )}
                 </Link>
                 {hasChildren && (
-                  <div className="ml-8 mt-0.5 space-y-0.5">
+                  <div className="ml-9 mt-0.5 space-y-0.5">
                     {children.map((child) => {
                       const childActive =
                         pathname + (typeof window !== "undefined" ? window.location.search : "") === child.href ||
@@ -219,13 +233,16 @@ function NavGroupSection({
                           key={child.href}
                           href={child.href}
                           className={clsx(
-                            "flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
                             childActive
-                              ? "bg-primary/10 text-primary font-bold"
-                              : "text-on-surface-variant hover:text-primary hover:bg-surface-bright",
+                              ? "bg-white/12 text-white"
+                              : "text-white/45 hover:text-white/75 hover:bg-white/6",
                           )}
                         >
-                          <span className="w-1 h-1 rounded-full bg-current opacity-50 shrink-0" />
+                          <span className={clsx(
+                            "w-1 h-1 rounded-full shrink-0",
+                            childActive ? "bg-indigo-300" : "bg-white/30"
+                          )} />
                           {child.label}
                         </Link>
                       );
@@ -252,27 +269,77 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <aside className="w-64 shrink-0 bg-surface-low flex flex-col border-r border-outline-variant/20 font-[family-name:var(--font-be-vietnam-pro)] text-sm font-medium">
-      {/* Brand */}
-      <div className="px-5 py-5 flex items-center gap-3">
-        <Image
-          src="/nextlogo3-Recovered.png"
-          alt="NextOffice"
-          width={40}
-          height={40}
-          className="rounded-xl shadow-lg"
+    <aside
+      className="relative w-64 shrink-0 flex flex-col font-[family-name:var(--font-be-vietnam-pro)] text-sm font-medium overflow-hidden"
+      style={{
+        background: "linear-gradient(160deg, #0f172a 0%, #1e1b4b 45%, #2d1b69 100%)",
+      }}
+    >
+      {/* Decorative background orbs */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute -top-16 -left-16 w-48 h-48 rounded-full opacity-20"
+          style={{ background: "radial-gradient(circle, #7c3aed, transparent 70%)" }}
         />
+        <div
+          className="absolute top-1/2 -right-20 w-56 h-56 rounded-full opacity-10"
+          style={{ background: "radial-gradient(circle, #6366f1, transparent 70%)" }}
+        />
+        <div
+          className="absolute -bottom-20 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full opacity-15"
+          style={{ background: "radial-gradient(circle, #9333ea, transparent 70%)" }}
+        />
+      </div>
+
+      {/* Brand */}
+      <div className="relative px-4 py-5 flex items-center gap-3">
+        <div className="relative shrink-0">
+          <div className="absolute inset-0 rounded-xl blur-md opacity-40"
+            style={{ background: "linear-gradient(135deg, #6366f1, #9333ea)" }} />
+          <Image
+            src="/nextlogo3-Recovered.png"
+            alt="NextOffice"
+            width={38}
+            height={38}
+            className="relative rounded-xl shadow-lg"
+          />
+        </div>
         <div>
-          <span className="text-xl font-bold text-primary leading-tight block">Next Office</span>
-          <p className="text-[10px] uppercase tracking-widest text-outline font-bold">Education AI</p>
+          <span className="text-lg font-bold leading-tight block"
+            style={{
+              background: "linear-gradient(135deg, #e0e7ff, #ddd6fe, #f3e8ff)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}>
+            Next Office
+          </span>
+          <div className="flex items-center gap-1 mt-0.5">
+            <Sparkles size={8} className="text-violet-300 opacity-80" />
+            <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">Education AI</p>
+          </div>
         </div>
       </div>
 
+      {/* Divider */}
+      <div className="mx-4 mb-3 h-px"
+        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)" }} />
+
       {/* New Document Upload */}
-      <div className="px-4 mb-3">
+      <div className="relative px-4 mb-4">
         <button
           onClick={() => setUploadOpen(true)}
-          className="w-full py-3 px-4 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
+          className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-bold text-white rounded-xl transition-all duration-200 active:scale-95"
+          style={{
+            background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+            boxShadow: "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = "0 6px 28px rgba(124, 58, 237, 0.55), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
+          }}
         >
           <FilePlus size={14} />
           <span>+ เอกสารใหม่ด้วย AI</span>
@@ -281,7 +348,7 @@ export default function Sidebar() {
       <DocumentUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
 
       {/* Nav — foldable groups */}
-      <nav className="flex-1 px-3 overflow-y-auto custom-scrollbar">
+      <nav className="relative flex-1 px-2 overflow-y-auto sidebar-scrollbar">
         {NAV_GROUPS.map((group) => {
           const visibleItems = filterItems(group.items, roleCode);
           return (
@@ -294,19 +361,23 @@ export default function Sidebar() {
             />
           );
         })}
+        <div className="h-4" />
       </nav>
 
-      {/* Standalone bottom link */}
-      <div className="px-3 pb-4 pt-2 border-t border-outline-variant/20">
+      {/* Divider */}
+      <div className="mx-4 h-px"
+        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)" }} />
+
+      {/* Bottom help link */}
+      <div className="relative px-2 pb-4 pt-2">
         <Link
           href="/help"
-          className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs text-on-surface-variant hover:text-primary hover:bg-surface-bright transition-colors"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-white/40 hover:text-white/70 hover:bg-white/8 transition-all duration-200"
         >
-          <HelpCircle size={16} />
+          <HelpCircle size={14} />
           ศูนย์ช่วยเหลือ
         </Link>
       </div>
-
     </aside>
   );
 }
