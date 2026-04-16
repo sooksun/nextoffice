@@ -53,7 +53,7 @@ function NewInboxForm() {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${apiBase}/intake/web-upload`, {
+      const res = await fetch(`${apiBase}/intake/store-only`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,

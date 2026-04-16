@@ -67,6 +67,50 @@ export class IntakeService {
   }
 
   /**
+   * Store-only upload: save file to MinIO, create intake record, NO AI processing.
+   * Used by manual document registration form.
+   */
+  async storeOnly(
+    file: Express.Multer.File,
+    organizationId?: number,
+  ) {
+    const sha256 = this.storage.computeSha256(file.buffer);
+    const originalFileName = (() => {
+      try { return Buffer.from(file.originalname, 'latin1').toString('utf8'); }
+      catch { return file.originalname; }
+    })();
+
+    const intake = await this.prisma.documentIntake.create({
+      data: {
+        sourceChannel: 'manual',
+        organizationId: organizationId ? BigInt(organizationId) : null,
+        originalFileName,
+        mimeType: file.mimetype,
+        fileExtension: file.originalname?.split('.').pop() || null,
+        fileSize: BigInt(file.size),
+        sha256,
+        uploadStatus: 'received',
+        ocrStatus: 'skipped',
+        classifierStatus: 'skipped',
+        aiStatus: 'skipped',
+      },
+    });
+
+    const storagePath = this.storage.buildStoragePath('manual', file.mimetype, intake.id.toString());
+    await this.storage.saveBuffer(storagePath, file.buffer, file.mimetype);
+    await this.prisma.documentIntake.update({
+      where: { id: intake.id },
+      data: { storagePath, uploadStatus: 'stored' },
+    });
+
+    return {
+      id: Number(intake.id),
+      originalFileName,
+      mimeType: file.mimetype,
+    };
+  }
+
+  /**
    * Synchronous web upload: OCR → Classify → Extract in one request.
    * Returns full AI analysis result immediately.
    */

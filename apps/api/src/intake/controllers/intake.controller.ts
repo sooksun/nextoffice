@@ -83,6 +83,27 @@ export class IntakeController {
     );
   }
 
+  @Post('store-only')
+  @ApiOperation({ summary: 'Upload file as attachment only — no AI processing' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async storeOnly(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: any,
+  ) {
+    if (!file) throw new BadRequestException('กรุณาเลือกไฟล์');
+    return this.svc.storeOnly(
+      file,
+      user.organizationId ? Number(user.organizationId) : undefined,
+    );
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get document intake status' })
   async findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
