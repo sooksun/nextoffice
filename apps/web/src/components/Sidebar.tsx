@@ -297,7 +297,7 @@ export default function Sidebar() {
           <div className="absolute inset-0 rounded-xl blur-md opacity-40"
             style={{ background: "linear-gradient(135deg, #6366f1, #9333ea)" }} />
           <Image
-            src="/nextlogo3-Recovered.png"
+            src="/Favicon.png"
             alt="NextOffice"
             width={38}
             height={38}
