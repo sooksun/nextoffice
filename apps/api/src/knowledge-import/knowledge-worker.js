@@ -62,6 +62,7 @@ async function processItem(msg) {
     const buffer = Buffer.from(fileBase64, 'base64');
     text = await runOcr({ buffer, mimeType, sourceType, geminiApiKey, geminiModel });
   }
+  console.log(`[worker] item#${itemId} OCR text length: ${text.length} chars`);
 
   if (!text || text.trim().length < 10) {
     throw new Error('Extracted text too short or empty');
@@ -69,10 +70,13 @@ async function processItem(msg) {
 
   // 2. Chunk
   const chunks = splitText(text);
+  console.log(`[worker] item#${itemId} chunks: ${chunks.length}`);
   if (chunks.length === 0) throw new Error('No chunks produced from text');
 
   // 3. Embed all chunks in one batch call
   const vectors = await embedBatch(chunks, geminiApiKey);
+  const validVectors = vectors.filter(v => v && v.length > 0).length;
+  console.log(`[worker] item#${itemId} embeddings: ${validVectors}/${vectors.length} valid`);
 
   // 4. Build Qdrant points
   const points = [];
@@ -103,10 +107,13 @@ async function processItem(msg) {
 
   // 6. Upsert to Qdrant
   if (points.length > 0) {
-    await qdrantRequest(qdrantUrl, 'PUT',
+    const qdRes = await qdrantRequest(qdrantUrl, 'PUT',
       `/collections/${COLLECTION}/points`,
       { points },
     );
+    console.log(`[worker] item#${itemId} qdrant upsert: ${JSON.stringify(qdRes).substring(0, 200)}`);
+  } else {
+    console.warn(`[worker] item#${itemId} no points to upsert — skipping qdrant`);
   }
 
   return { extractedText: text, chunkCount: points.length };
@@ -150,7 +157,8 @@ async function embedBatch(texts, apiKey) {
       const embeddings = data?.embeddings ?? [];
       for (const e of embeddings) results.push(e.values ?? []);
       while (results.length < i + batch.length) results.push([]);
-    } catch (_) {
+    } catch (err) {
+      console.error(`[worker] embedBatch error: ${err.message}`);
       for (let j = 0; j < batch.length; j++) results.push([]);
     }
   }
