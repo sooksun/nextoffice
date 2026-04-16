@@ -80,12 +80,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 1G
     env_file:
       - .env.production
     environment:
       NODE_ENV: production
-      NODE_OPTIONS: "--max-old-space-size=4096 --expose-gc"
+      NODE_OPTIONS: "--max-old-space-size=800 --expose-gc"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       MINIO_ENDPOINT: minio
