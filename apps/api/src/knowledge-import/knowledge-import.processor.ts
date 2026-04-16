@@ -75,6 +75,24 @@ export class KnowledgeImportProcessor {
         // Run OCR in an isolated method so all large locals (buffer, base64, axios response)
         // go out of scope when the method returns, allowing V8 to GC them before chunking.
         text = await this.runOcr(item.storagePath, item.mimeType ?? 'application/octet-stream', item.sourceType);
+
+        // ── Force GC immediately after OCR to collect residue before heap log ──────
+        //
+        // Problem: during the 20-30s OCR wait, V8's idle GC shrinks the committed
+        // heap from ~132 MB (after the initial effective GC freed the anchor) back
+        // down to ~113 MB. The OCR residue (axios response, pdf-parse buffers) is
+        // still unreclaimed at this point → used≈110 MB, total≈113 MB → 3 MB headroom.
+        // The very next logger.log() allocation triggers 3 consecutive "ineffective"
+        // mark-compact GC cycles → FATAL OOM.
+        //
+        // Fix: call gc() BEFORE any further allocation. At this moment, runOcr()'s
+        // locals are all out of scope → ~18 MB of garbage is freeable.
+        // gc() frees it → freed/total ≈ 16% → EFFECTIVE → V8 resets ineffective counter
+        // and we proceed with ~21 MB of headroom for chunking + embedding.
+        if (typeof (global as any).gc === 'function') {
+          (global as any).gc();
+        }
+
         this.logger.log(`Extracted ${text.length} chars from ${item.sourceType} for item #${itemId}`);
       }
 
