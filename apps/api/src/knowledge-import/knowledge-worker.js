@@ -26,16 +26,25 @@ const EMBEDDING_MODEL = 'text-embedding-004';
 const COLLECTION = 'knowledge';
 
 // ── Entry point ──────────────────────────────────────────────────────────────
-process.on('message', async (msg) => {
-  try {
-    const result = await processItem(msg);
-    process.send({ ok: true, ...result });
-  } catch (err) {
-    process.send({ ok: false, error: err?.message ?? String(err) });
-  } finally {
-    process.exit(0);
-  }
-});
+// Only listen for IPC messages when running as a forked child process.
+// When require()'d from the parent (inline mode), this block is skipped.
+if (typeof process.send === 'function') {
+  process.on('message', async (msg) => {
+    try {
+      const result = await processItem(msg);
+      process.send({ ok: true, ...result });
+    } catch (err) {
+      process.send({ ok: false, error: err?.message ?? String(err) });
+    } finally {
+      process.exit(0);
+    }
+  });
+}
+
+// Export for inline use from parent process (no fork, no IPC overhead)
+if (typeof module !== 'undefined') {
+  module.exports = { processItem, splitText, embedBatch };
+}
 
 // ── Main pipeline ─────────────────────────────────────────────────────────────
 async function processItem(msg) {
