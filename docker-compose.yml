@@ -85,7 +85,7 @@ services:
       - .env.production
     environment:
       NODE_ENV: production
-      NODE_OPTIONS: "--max-old-space-size=800 --expose-gc"
+      NODE_OPTIONS: "--max-old-space-size=1536 --expose-gc"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       MINIO_ENDPOINT: minio

@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bull';
 import * as path from 'path';
+import * as v8 from 'v8';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiApiService } from '../gemini/gemini-api.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
@@ -35,9 +36,23 @@ export class KnowledgeImportProcessor {
     private readonly storage: FileStorageService,
   ) {}
 
+  private logHeap(label: string) {
+    const stats = v8.getHeapStatistics();
+    const mem = process.memoryUsage();
+    this.logger.warn(
+      `[HEAP] ${label}: ` +
+      `used=${(mem.heapUsed / 1048576).toFixed(0)}MB ` +
+      `committed=${(mem.heapTotal / 1048576).toFixed(0)}MB ` +
+      `limit=${(stats.heap_size_limit / 1048576).toFixed(0)}MB ` +
+      `rss=${(mem.rss / 1048576).toFixed(0)}MB ` +
+      `external=${(mem.external / 1048576).toFixed(0)}MB`,
+    );
+  }
+
   @Process({ name: 'knowledge.import.embed', concurrency: 1 })
   async handleEmbed(job: Job<{ itemId: string }>) {
     const itemId = BigInt(job.data.itemId);
+    this.logHeap(`job-start item#${itemId}`);
     this.logger.log(`Processing knowledge.import.embed for item #${itemId}`);
 
     const item = await this.prisma.userKnowledgeItem.findUnique({
@@ -57,21 +72,15 @@ export class KnowledgeImportProcessor {
       // Download file (parent has MinIO client already loaded)
       let fileBase64: string | null = null;
       if (!item.extractedText && item.storagePath) {
+        this.logHeap(`pre-download item#${itemId}`);
         this.logger.log(`Item #${itemId} — downloading file from MinIO`);
         const buffer = await this.storage.getBuffer(item.storagePath);
         fileBase64 = buffer.toString('base64');
         this.logger.log(
           `Item #${itemId} — file downloaded: ${(buffer.length / 1024).toFixed(1)} KB`,
         );
+        this.logHeap(`post-download item#${itemId}`);
       }
-
-      // Log heap state for diagnostics
-      const mem = process.memoryUsage();
-      this.logger.log(
-        `Item #${itemId} — heap: used=${(mem.heapUsed / 1048576).toFixed(1)}MB ` +
-        `total=${(mem.heapTotal / 1048576).toFixed(1)}MB ` +
-        `rss=${(mem.rss / 1048576).toFixed(1)}MB`,
-      );
 
       // Run worker INLINE — no fork(), no IPC, no heap pressure
       this.logger.log(`Item #${itemId} — running inline worker`);
