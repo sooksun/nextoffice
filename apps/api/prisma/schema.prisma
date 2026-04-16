@@ -68,6 +68,13 @@ model Organization {
   handoverRecords      HandoverRecord[]
   dispatchEntries      DispatchEntry[]
   documentLoans        DocumentLoan[]
+  circularDocuments    CircularDocument[]
+  presentationFiles    PresentationFile[]
+  downloadFiles        DownloadFile[]
+  newsPosts            NewsPost[]
+  tenderPosts          TenderPost[]
+  webboardThreads      WebboardThread[]
+  privateMessages      PrivateMessage[]
 
   @@index([parentOrganizationId])
   @@map("organizations")
@@ -716,8 +723,18 @@ model User {
   handoversCreated      HandoverRecord[]   @relation("HandoverCreatedBy")
   handoversApproved     HandoverRecord[]   @relation("HandoverApprovedBy")
   dispatchesSent        DispatchEntry[]    @relation("DispatchSentBy")
-  loansBorrowed         DocumentLoan[]     @relation("LoanBorrower")
-  loansApproved         DocumentLoan[]     @relation("LoanApprovedBy")
+  loansBorrowed             DocumentLoan[]       @relation("LoanBorrower")
+  loansApproved             DocumentLoan[]       @relation("LoanApprovedBy")
+  circularDocuments         CircularDocument[]   @relation("CircularCreatedBy")
+  presentationFilesSent     PresentationFile[]   @relation("PresentationSender")
+  presentationFilesReceived PresentationFile[]   @relation("PresentationReceiver")
+  downloadFilesUploaded     DownloadFile[]       @relation("DownloadFileUploadedBy")
+  newsPosts                 NewsPost[]           @relation("NewsPostAuthor")
+  tenderPosts               TenderPost[]         @relation("TenderPostAuthor")
+  webboardThreads           WebboardThread[]     @relation("WebboardThreadAuthor")
+  webboardReplies           WebboardReply[]      @relation("WebboardReplyAuthor")
+  messagesSent              PrivateMessage[]     @relation("MessageSender")
+  messagesReceived          PrivateMessage[]     @relation("MessageReceiver")
 
   @@index([email])
   @@index([roleCode])
@@ -1703,4 +1720,215 @@ model DocumentLoan {
   @@index([borrowerUserId])
   @@index([status])
   @@map("document_loans")
+}
+
+// ─────────────────────────────────────────────
+// PHASE: หนังสือเวียน (Circular Documents)
+// ─────────────────────────────────────────────
+
+model CircularDocument {
+  id              BigInt    @id @default(autoincrement())
+  organizationId  BigInt    @map("organization_id")
+  circularNo      String    @map("circular_no") @db.VarChar(50)
+  subject         String    @db.VarChar(500)
+  body            String?   @db.LongText
+  urgencyLevel    String    @map("urgency_level") @db.VarChar(30) @default("normal")
+  issuedDate      DateTime  @map("issued_date")
+  fileUrl         String?   @map("file_url") @db.VarChar(500)
+  status          String    @db.VarChar(30) @default("draft")
+  createdByUserId BigInt    @map("created_by_user_id")
+  createdAt       DateTime  @map("created_at") @default(now())
+  updatedAt       DateTime  @map("updated_at") @updatedAt
+
+  organization       Organization         @relation(fields: [organizationId], references: [id])
+  createdBy          User                 @relation("CircularCreatedBy", fields: [createdByUserId], references: [id])
+  circularRecipients CircularRecipient[]
+
+  @@index([organizationId])
+  @@index([createdByUserId])
+  @@index([status])
+  @@map("circular_documents")
+}
+
+model CircularRecipient {
+  id                 BigInt    @id @default(autoincrement())
+  circularDocumentId BigInt    @map("circular_document_id")
+  recipientName      String    @map("recipient_name") @db.VarChar(255)
+  receivedAt         DateTime? @map("received_at")
+  acknowledgedAt     DateTime? @map("acknowledged_at")
+
+  circularDocument CircularDocument @relation(fields: [circularDocumentId], references: [id])
+
+  @@index([circularDocumentId])
+  @@map("circular_recipients")
+}
+
+// ─────────────────────────────────────────────
+// PHASE: แฟ้มนำเสนอ (Presentation Files)
+// ─────────────────────────────────────────────
+
+model PresentationFile {
+  id             BigInt    @id @default(autoincrement())
+  organizationId BigInt    @map("organization_id")
+  title          String    @db.VarChar(500)
+  description    String?   @db.Text
+  fileUrl        String?   @map("file_url") @db.VarChar(500)
+  senderUserId   BigInt    @map("sender_user_id")
+  receiverUserId BigInt?   @map("receiver_user_id")
+  status         String    @db.VarChar(30) @default("pending")
+  directorNote   String?   @map("director_note") @db.Text
+  submittedAt    DateTime  @map("submitted_at") @default(now())
+  reviewedAt     DateTime? @map("reviewed_at")
+  createdAt      DateTime  @map("created_at") @default(now())
+  updatedAt      DateTime  @map("updated_at") @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  sender       User         @relation("PresentationSender", fields: [senderUserId], references: [id])
+  receiver     User?        @relation("PresentationReceiver", fields: [receiverUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([senderUserId])
+  @@index([receiverUserId])
+  @@index([status])
+  @@map("presentation_files")
+}
+
+// ─────────────────────────────────────────────
+// PHASE: ดาวน์โหลด (Download Files)
+// ─────────────────────────────────────────────
+
+model DownloadFile {
+  id               BigInt   @id @default(autoincrement())
+  organizationId   BigInt   @map("organization_id")
+  title            String   @db.VarChar(500)
+  description      String?  @db.Text
+  category         String   @db.VarChar(100) @default("general")
+  fileUrl          String   @map("file_url") @db.VarChar(500)
+  fileName         String   @map("file_name") @db.VarChar(255)
+  fileSize         BigInt?  @map("file_size")
+  mimeType         String?  @map("mime_type") @db.VarChar(100)
+  downloadCount    Int      @map("download_count") @default(0)
+  isPublic         Boolean  @map("is_public") @default(true)
+  uploadedByUserId BigInt   @map("uploaded_by_user_id")
+  createdAt        DateTime @map("created_at") @default(now())
+  updatedAt        DateTime @map("updated_at") @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  uploadedBy   User         @relation("DownloadFileUploadedBy", fields: [uploadedByUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([category])
+  @@map("download_files")
+}
+
+// ─────────────────────────────────────────────
+// PHASE: E-Service
+// ─────────────────────────────────────────────
+
+model NewsPost {
+  id             BigInt    @id @default(autoincrement())
+  organizationId BigInt    @map("organization_id")
+  title          String    @db.VarChar(500)
+  content        String    @db.LongText
+  imageUrl       String?   @map("image_url") @db.VarChar(500)
+  authorUserId   BigInt    @map("author_user_id")
+  publishedAt    DateTime? @map("published_at")
+  isPinned       Boolean   @map("is_pinned") @default(false)
+  viewCount      Int       @map("view_count") @default(0)
+  status         String    @db.VarChar(30) @default("draft")
+  createdAt      DateTime  @map("created_at") @default(now())
+  updatedAt      DateTime  @map("updated_at") @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  author       User         @relation("NewsPostAuthor", fields: [authorUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("news_posts")
+}
+
+model TenderPost {
+  id             BigInt    @id @default(autoincrement())
+  organizationId BigInt    @map("organization_id")
+  title          String    @db.VarChar(500)
+  content        String    @db.LongText
+  budget         Decimal?  @db.Decimal(15, 2)
+  deadline       DateTime?
+  tenderType     String    @map("tender_type") @db.VarChar(50) @default("price_check")
+  status         String    @db.VarChar(30) @default("open")
+  authorUserId   BigInt    @map("author_user_id")
+  fileUrl        String?   @map("file_url") @db.VarChar(500)
+  createdAt      DateTime  @map("created_at") @default(now())
+  updatedAt      DateTime  @map("updated_at") @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  author       User         @relation("TenderPostAuthor", fields: [authorUserId], references: [id])
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("tender_posts")
+}
+
+model WebboardThread {
+  id             BigInt    @id @default(autoincrement())
+  organizationId BigInt    @map("organization_id")
+  category       String    @db.VarChar(100) @default("general")
+  title          String    @db.VarChar(500)
+  content        String    @db.LongText
+  authorUserId   BigInt    @map("author_user_id")
+  isPinned       Boolean   @map("is_pinned") @default(false)
+  isClosed       Boolean   @map("is_closed") @default(false)
+  viewCount      Int       @map("view_count") @default(0)
+  replyCount     Int       @map("reply_count") @default(0)
+  lastReplyAt    DateTime? @map("last_reply_at")
+  createdAt      DateTime  @map("created_at") @default(now())
+  updatedAt      DateTime  @map("updated_at") @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  author       User            @relation("WebboardThreadAuthor", fields: [authorUserId], references: [id])
+  replies      WebboardReply[]
+
+  @@index([organizationId])
+  @@index([category])
+  @@map("webboard_threads")
+}
+
+model WebboardReply {
+  id           BigInt   @id @default(autoincrement())
+  threadId     BigInt   @map("thread_id")
+  authorUserId BigInt   @map("author_user_id")
+  content      String   @db.LongText
+  createdAt    DateTime @map("created_at") @default(now())
+  updatedAt    DateTime @map("updated_at") @updatedAt
+
+  thread WebboardThread @relation(fields: [threadId], references: [id])
+  author User           @relation("WebboardReplyAuthor", fields: [authorUserId], references: [id])
+
+  @@index([threadId])
+  @@map("webboard_replies")
+}
+
+model PrivateMessage {
+  id              BigInt    @id @default(autoincrement())
+  organizationId  BigInt    @map("organization_id")
+  senderUserId    BigInt    @map("sender_user_id")
+  receiverUserId  BigInt    @map("receiver_user_id")
+  subject         String?   @db.VarChar(500)
+  content         String    @db.LongText
+  isRead          Boolean   @map("is_read") @default(false)
+  readAt          DateTime? @map("read_at")
+  parentMessageId BigInt?   @map("parent_message_id")
+  createdAt       DateTime  @map("created_at") @default(now())
+
+  organization  Organization    @relation(fields: [organizationId], references: [id])
+  sender        User            @relation("MessageSender", fields: [senderUserId], references: [id])
+  receiver      User            @relation("MessageReceiver", fields: [receiverUserId], references: [id])
+  parentMessage PrivateMessage? @relation("MessageThread", fields: [parentMessageId], references: [id])
+  replies       PrivateMessage[] @relation("MessageThread")
+
+  @@index([organizationId])
+  @@index([senderUserId])
+  @@index([receiverUserId])
+  @@index([isRead])
+  @@map("private_messages")
 }

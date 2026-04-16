@@ -36,6 +36,13 @@ import { TrackingModule } from './tracking/tracking.module';
 import { DispatchModule } from './dispatch/dispatch.module';
 import { LoansModule } from './loans/loans.module';
 import { HandoverModule } from './handover/handover.module';
+import { CircularModule } from './circular/circular.module';
+import { PresentationModule } from './presentation/presentation.module';
+import { DownloadModule } from './download/download.module';
+import { NewsModule } from './news/news.module';
+import { TenderModule } from './tender/tender.module';
+import { WebboardModule } from './webboard/webboard.module';
+import { MessagesModule } from './messages/messages.module';
 
 @Module({
   imports: [
@@ -78,6 +85,13 @@ import { HandoverModule } from './handover/handover.module';
     DispatchModule,
     LoansModule,
     HandoverModule,
+    CircularModule,
+    PresentationModule,
+    DownloadModule,
+    NewsModule,
+    TenderModule,
+    WebboardModule,
+    MessagesModule,
   ],
 })
 export class AppModule {}
