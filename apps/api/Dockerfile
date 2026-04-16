@@ -44,4 +44,4 @@ WORKDIR /app/apps/api
 
 EXPOSE 3000
 
-CMD ["node", "--max-old-space-size=1536", "--expose-gc", "dist/src/main"]
+CMD ["node", "--max-old-space-size=800", "--expose-gc", "dist/src/main"]

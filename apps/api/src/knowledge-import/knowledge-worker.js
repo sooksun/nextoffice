@@ -237,9 +237,12 @@ function splitText(text) {
       if (lastBreak > chunkCharSize * 0.5) breakPoint = start + lastBreak + 1;
     }
     chunks.push(text.substring(start, breakPoint).trim());
+    // If we've reached the end of text, we're done — no more chunks needed.
+    // Without this check: start = textLen - 150, next loop breakPoint = textLen,
+    // start = textLen - 150 again → INFINITE LOOP filling heap until OOM.
+    if (breakPoint >= text.length) break;
     start = breakPoint - OVERLAP_CHARS;
     if (start < 0) start = 0;
-    if (start >= text.length) break;
   }
   return chunks.filter(c => c.length > 10);
 }

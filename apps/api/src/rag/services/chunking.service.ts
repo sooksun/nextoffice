@@ -40,9 +40,9 @@ export class ChunkingService {
         }
       }
       chunks.push(text.substring(start, breakPoint).trim());
+      if (breakPoint >= text.length) break; // last chunk done — exit before overlap math
       start = breakPoint - OVERLAP_CHARS;
       if (start < 0) start = 0;
-      if (start >= text.length) break;
     }
     return chunks.filter((c) => c.length > 10);
   }
