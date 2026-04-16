@@ -42,9 +42,20 @@ import {
   PenLine,
   MessageCircle,
   Sparkles,
+  FileText,
+  FileInput,
+  Stamp,
+  Gavel,
+  ListChecks,
+  Scale,
+  Megaphone,
+  Mail,
+  Laptop,
+  BookMarked,
+  BarChart3,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: React.ElementType; roles?: string[]; children?: Omit<NavItem, 'icon' | 'children'>[] };
+type NavItem = { href: string; label: string; icon: React.ElementType; roles?: string[]; disabled?: boolean; children?: Omit<NavItem, 'icon' | 'children'>[] };
 
 type NavGroup = {
   id: string;
@@ -57,23 +68,91 @@ const SARABAN = ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "ADMIN"];
 const APPROVER = ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"];
 
 const NAV_GROUPS: NavGroup[] = [
+  // ─── หมวด 2: การรับและส่งหนังสือ ───────────────────────────────────
   {
-    id: "document",
-    label: "รับ-ส่งเอกสาร",
+    id: "inbound",
+    label: "งานรับหนังสือ",
     items: [
       { href: "/inbox", label: "หนังสือเข้า", icon: Inbox },
+      { href: "/cases", label: "เคส / ติดตามงาน", icon: Briefcase, roles: ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
+      { href: "/track", label: "ติดตาม QR Code", icon: QrCode },
+    ],
+  },
+  {
+    id: "outbound",
+    label: "งานส่งหนังสือ",
+    items: [
       { href: "/outbound", label: "หนังสือออก", icon: SendHorizontal },
       { href: "/outbound/new", label: "สร้างหนังสือออก", icon: Send, roles: SARABAN },
-      { href: "/saraban/inbound", label: "ทะเบียนรับ", icon: ClipboardList, roles: SARABAN },
-      { href: "/saraban/outbound", label: "ทะเบียนส่ง", icon: ScrollText, roles: SARABAN },
-      { href: "/saraban/dispatch", label: "สมุดส่ง/ใบรับ", icon: Send, roles: SARABAN },
-      { href: "/saraban/loans", label: "ยืม-คืนเอกสาร", icon: BookOpen, roles: SARABAN },
-      { href: "/saraban/handover", label: "บัญชีส่งมอบ 20 ปี", icon: Archive, roles: SARABAN },
-      { href: "/saraban/archive", label: "คลังเอกสาร/ทำลาย", icon: FolderOpen, roles: SARABAN },
-      { href: "/track", label: "ติดตาม QR Code", icon: QrCode },
       { href: "/director/signing", label: "รอลงนาม ผอ.", icon: PenLine, roles: ["DIRECTOR", "VICE_DIRECTOR"] },
     ],
   },
+
+  // ─── หมวด 1: ชนิดของหนังสือ (ข้อ 10–27) ───────────────────────────
+  {
+    id: "doc-types",
+    label: "หนังสือราชการ",
+    items: [
+      { href: "/saraban/external", label: "หนังสือภายนอก", icon: FileText, disabled: true },
+      { href: "/saraban/memo", label: "หนังสือภายใน (บันทึกข้อความ)", icon: FileInput, disabled: true },
+      { href: "/saraban/stamp-doc", label: "หนังสือประทับตรา", icon: Stamp, disabled: true },
+    ],
+  },
+  {
+    id: "directive",
+    label: "หนังสือสั่งการ",
+    items: [
+      { href: "/saraban/order", label: "คำสั่ง", icon: Gavel, disabled: true },
+      { href: "/saraban/regulation", label: "ระเบียบ", icon: ListChecks, disabled: true },
+      { href: "/saraban/rule", label: "ข้อบังคับ", icon: Scale, disabled: true },
+    ],
+  },
+  {
+    id: "pr-doc",
+    label: "หนังสือประชาสัมพันธ์",
+    items: [
+      { href: "/saraban/announcement", label: "ประกาศ", icon: Megaphone, disabled: true },
+      { href: "/saraban/statement", label: "แถลงการณ์", icon: FileText, disabled: true },
+      { href: "/saraban/news", label: "ข่าว", icon: Newspaper, disabled: true },
+    ],
+  },
+
+  // ─── หมวด 3: ทะเบียน บัญชี และการเก็บรักษา ────────────────────────
+  {
+    id: "registers",
+    label: "ทะเบียนและบัญชี",
+    items: [
+      { href: "/saraban/inbound", label: "ทะเบียนหนังสือรับ", icon: ClipboardList, roles: SARABAN },
+      { href: "/saraban/outbound", label: "ทะเบียนหนังสือส่ง", icon: ScrollText, roles: SARABAN },
+      { href: "/saraban/send-store", label: "บัญชีหนังสือส่งเก็บ", icon: BookMarked, disabled: true },
+      { href: "/saraban/stored-register", label: "ทะเบียนหนังสือเก็บ", icon: Archive, disabled: true },
+      { href: "/saraban/destroy-list", label: "บัญชีหนังสือขอทำลาย", icon: FolderOpen, disabled: true },
+      { href: "/saraban/reports", label: "รายงานสารบรรณ", icon: BarChart3, roles: SARABAN },
+      { href: "/reports/district", label: "รายงานระดับเขต", icon: Network, roles: MANAGER },
+    ],
+  },
+  {
+    id: "storage",
+    label: "การเก็บรักษา ยืม และทำลาย",
+    items: [
+      { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
+      { href: "/saraban/archive", label: "เก็บเอกสาร / ทำลาย", icon: Archive, roles: SARABAN },
+      { href: "/saraban/loans", label: "ยืม-คืนเอกสาร", icon: BookOpen, roles: SARABAN },
+      { href: "/saraban/handover", label: "ส่งมอบครบ 20 ปี", icon: Archive, roles: SARABAN },
+    ],
+  },
+
+  // ─── หมวด 5: ระบบสารบรรณอิเล็กทรอนิกส์ (ฉ.4/2564) ────────────────
+  {
+    id: "e-saraban",
+    label: "ระบบสารบรรณอิเล็กทรอนิกส์",
+    items: [
+      { href: "/saraban/email", label: "ไปรษณีย์อิเล็กทรอนิกส์ (saraban@)", icon: Mail, disabled: true },
+      { href: "/saraban/e-doc", label: "หนังสืออิเล็กทรอนิกส์", icon: Laptop, disabled: true },
+    ],
+  },
+
+  // ─── ระบบอื่น (ไม่ใช่งานสารบรรณ) ────────────────────────────────────
   {
     id: "eservice",
     label: "ลงเวลาปฏิบัติงาน",
@@ -83,16 +162,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/leave", label: "ลาหยุด", icon: CalendarDays },
       { href: "/leave/travel", label: "ไปราชการ", icon: MapPin },
       { href: "/leave/approvals", label: "รออนุมัติ", icon: CheckSquare, roles: APPROVER },
-    ],
-  },
-  {
-    id: "backoffice",
-    label: "หลังบ้านสารบรรณ",
-    items: [
-      { href: "/documents", label: "คลังเอกสาร", icon: FolderOpen },
-      { href: "/cases", label: "เคส", icon: Briefcase, roles: ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
-      { href: "/saraban/reports", label: "รายงานสารบรรณ", icon: ScrollText, roles: SARABAN },
-      { href: "/reports/district", label: "รายงานระดับเขต", icon: Network, roles: MANAGER },
     ],
   },
   {
@@ -190,12 +259,21 @@ function NavGroupSection({
         )}
       >
         <div className="space-y-0.5 pb-1">
-          {visibleItems.map(({ href, label, icon: Icon, children }) => {
-            const isActive =
-              pathname === href || (href !== "/" && pathname.startsWith(href.split("?")[0]));
+          {visibleItems.map(({ href, label, icon: Icon, children, disabled }) => {
+            const isActive = !disabled &&
+              (pathname === href || (href !== "/" && pathname.startsWith(href.split("?")[0])));
             const hasChildren = children && children.length > 0;
             return (
               <div key={href}>
+                {disabled ? (
+                  <span className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium cursor-not-allowed select-none">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-lg shrink-0 text-white/20">
+                      <Icon size={14} />
+                    </span>
+                    <span className="truncate text-[13px] text-white/25">{label}</span>
+                    <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300/50 font-bold uppercase tracking-wider shrink-0 whitespace-nowrap">เร็วๆ นี้</span>
+                  </span>
+                ) : (
                 <Link
                   href={href}
                   className={clsx(
@@ -222,6 +300,7 @@ function NavGroupSection({
                     <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300 shrink-0" />
                   )}
                 </Link>
+                )}
                 {hasChildren && (
                   <div className="ml-9 mt-0.5 space-y-0.5">
                     {children.map((child) => {
