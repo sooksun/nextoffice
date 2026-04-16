@@ -58,8 +58,8 @@ export default function KnowledgeImportPage() {
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-  const loadItems = useCallback(async () => {
-    setLoading(true);
+  const fetchItems = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const token = getAuthToken();
       const res = await fetch(`${apiBase}/knowledge-import`, {
@@ -68,15 +68,43 @@ export default function KnowledgeImportPage() {
       if (res.ok) {
         const data = await res.json();
         setItems(data);
-      } else {
+        return data as KnowledgeItem[];
+      } else if (!silent) {
         toast.error("ไม่สามารถโหลดรายการความรู้ได้");
       }
     } catch {
-      toast.error("เกิดข้อผิดพลาดในการโหลดรายการ");
+      if (!silent) toast.error("เกิดข้อผิดพลาดในการโหลดรายการ");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
+    return null;
   }, [apiBase]);
+
+  const loadItems = useCallback(() => fetchItems(false), [fetchItems]);
+
+  // Auto-poll every 4 s while any item is PENDING or PROCESSING
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      const latest = await fetchItems(true);
+      const hasActive = latest?.some(
+        (i) => i.status === "PENDING" || i.status === "PROCESSING"
+      );
+      if (hasActive) {
+        timer = setTimeout(poll, 4000);
+      }
+    };
+
+    const hasActive = items.some(
+      (i) => i.status === "PENDING" || i.status === "PROCESSING"
+    );
+    if (hasActive) {
+      timer = setTimeout(poll, 4000);
+    }
+
+    return () => clearTimeout(timer);
+  }, [items, fetchItems]);
 
   useEffect(() => {
     loadItems();
