@@ -8,6 +8,7 @@ import { PdfSigningService } from '../digital-signature/pdf-signing.service';
 import { FileStorageService } from '../intake/services/file-storage.service';
 import { TemplatesService } from '../templates/templates.service';
 import { GeminiApiService } from '../gemini/gemini-api.service';
+import { QueryCacheService } from '../rag/services/query-cache.service';
 
 @Injectable()
 export class OutboundService {
@@ -21,10 +22,29 @@ export class OutboundService {
     @Optional() private readonly fileStorage: FileStorageService,
     private readonly templates: TemplatesService,
     private readonly gemini: GeminiApiService,
+    @Optional() private readonly queryCache: QueryCacheService,
   ) {}
 
   private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
   private readonly RESTRICTED_LETTER_TYPES = ['secret_letter'];
+
+  /**
+   * Fire-and-forget: drop chat-cache entries for this outbound doc's pages.
+   * Called after status transitions (approve/reject/send) so the next chat
+   * query sees fresh state, not a 10-minute-stale summary.
+   */
+  private invalidateOutboundCache(id: number): void {
+    if (!this.queryCache) return;
+    const routes: Array<[string, number | null]> = [
+      [`/outbound/${id}`, id],
+      ['/outbound', null],
+    ];
+    for (const [route, entityId] of routes) {
+      this.queryCache
+        .invalidateByPage(route, entityId)
+        .catch((err) => this.logger.warn(`Cache invalidate ${route}: ${err.message}`));
+    }
+  }
 
   async findAll(organizationId: number, status?: string, letterType?: string, roleCode?: string) {
     const where: any = { organizationId: BigInt(organizationId) };
@@ -209,6 +229,8 @@ export class OutboundService {
       }
     }
 
+    this.invalidateOutboundCache(id);
+
     return { id: Number(updated.id), documentNo };
   }
 
@@ -259,6 +281,8 @@ export class OutboundService {
       await this.outboundQueue.add('send-email', { outboundDocId: id });
       this.logger.log(`Queued email send for outbound doc #${id}`);
     }
+
+    this.invalidateOutboundCache(id);
 
     return { id: Number(updated.id), status: 'sent' };
   }
@@ -718,6 +742,7 @@ ${typePrompt}
       where: { id: BigInt(id) },
       data: { status: 'draft', bodyText: note ? `[ส่งกลับแก้ไข]: ${note}` : undefined },
     });
+    this.invalidateOutboundCache(id);
     return { id: Number(updated.id), status: 'draft' };
   }
 

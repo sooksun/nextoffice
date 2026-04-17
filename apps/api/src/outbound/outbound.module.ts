@@ -7,9 +7,10 @@ import { IntakeModule } from '../intake/intake.module';
 import { TemplatesModule } from '../templates/templates.module';
 import { AuthModule } from '../auth/auth.module';
 import { GeminiModule } from '../gemini/gemini.module';
+import { RagModule } from '../rag/rag.module';
 
 @Module({
-  imports: [QueueModule, DigitalSignatureModule, IntakeModule, TemplatesModule, AuthModule, GeminiModule],
+  imports: [QueueModule, DigitalSignatureModule, IntakeModule, TemplatesModule, AuthModule, GeminiModule, RagModule],
   controllers: [OutboundController],
   providers: [OutboundService],
   exports: [OutboundService],
