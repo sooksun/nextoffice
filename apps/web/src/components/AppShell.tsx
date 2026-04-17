@@ -6,7 +6,6 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import ChatPanel from "@/components/ChatPanel";
 import ImpersonateBanner from "@/components/ImpersonateBanner";
-import AdminSwitchPanel from "@/components/AdminSwitchPanel";
 
 const SHELL_EXCLUDED = ["/login"];
 
@@ -31,7 +30,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Suspense><ChatPanel /></Suspense>
         </div>
       </div>
-      <AdminSwitchPanel />
     </>
   );
 }

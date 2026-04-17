@@ -84,10 +84,24 @@ export default function AdminSwitchPanel() {
   if (!visible) return null;
 
   return (
-    <div ref={panelRef} className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
-      {/* Panel */}
+    <div ref={panelRef} className="relative">
+      {/* Toggle button — sits inline in header */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
+          impersonating
+            ? "bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300"
+            : "bg-primary/10 hover:bg-primary/20 text-primary border-primary/30"
+        }`}
+        title="Admin: สลับ User"
+      >
+        <UserCog size={13} />
+        {impersonating ? `${currentUser?.fullName} (ทดสอบ)` : "สลับ User"}
+      </button>
+
+      {/* Dropdown panel */}
       {open && (
-        <div className="w-80 bg-surface-lowest border border-outline-variant/30 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 w-80 bg-surface-lowest border border-outline-variant/30 rounded-2xl shadow-2xl overflow-hidden z-50">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-primary/10 to-primary/5 border-b border-outline-variant/20">
             <div className="flex items-center gap-2">
@@ -182,20 +196,6 @@ export default function AdminSwitchPanel() {
           </div>
         </div>
       )}
-
-      {/* Toggle button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg font-semibold text-sm transition-all ${
-          impersonating
-            ? "bg-amber-500 hover:bg-amber-600 text-white"
-            : "bg-primary hover:bg-primary/90 text-on-primary"
-        }`}
-        title="Admin: สลับ User"
-      >
-        <UserCog size={16} />
-        {impersonating ? `${currentUser?.fullName} (ทดสอบ)` : "สลับ User"}
-      </button>
     </div>
   );
 }

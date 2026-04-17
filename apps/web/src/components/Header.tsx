@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getUser, getToken, logout, isImpersonating } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import ImpersonateMenu from "./ImpersonateMenu";
+import AdminSwitchPanel from "./AdminSwitchPanel";
 
 const NAV_TABS = [
   { label: "ภาพรวม", href: "/" },
@@ -127,6 +128,7 @@ export default function Header() {
 
       {/* Right: Actions + User */}
       <div className="flex items-center gap-1.5">
+        <AdminSwitchPanel />
         {user?.roleCode === "ADMIN" && !impersonating && <ImpersonateMenu />}
 
         {/* Notifications */}
