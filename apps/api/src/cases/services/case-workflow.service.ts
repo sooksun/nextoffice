@@ -9,6 +9,7 @@ import { PdfStampService } from '../../stamps/services/pdf-stamp.service';
 import { StampStorageService } from '../../stamps/services/stamp-storage.service';
 import { FileStorageService } from '../../intake/services/file-storage.service';
 import { PdfSigningService } from '../../digital-signature/pdf-signing.service';
+import { QueryCacheService } from '../../rag/services/query-cache.service';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ['registered'],
@@ -35,7 +36,36 @@ export class CaseWorkflowService {
     @Optional() private readonly stampStorage: StampStorageService,
     @Optional() private readonly fileStorage: FileStorageService,
     @Optional() private readonly pdfSigning: PdfSigningService,
+    @Optional() private readonly queryCache: QueryCacheService,
   ) {}
+
+  /**
+   * Drop chat-cache entries that may reference this case. Call after any
+   * mutation that changes what an AI answer about the case would say
+   * (status change, assignment change, endorsement edit, etc.).
+   *
+   * Invalidates both the detail-page scope (`/cases/:id`, `/inbox/:id`)
+   * and the list-page scope (`/cases`, `/inbox`) because the list page
+   * can also summarize statuses.
+   *
+   * Fire-and-forget — never blocks the mutation it rides on.
+   */
+  private invalidateCaseCache(caseId: number): void {
+    if (!this.queryCache) return;
+    const routes: Array<[string, number | null]> = [
+      [`/cases/${caseId}`, caseId],
+      [`/inbox/${caseId}`, caseId],
+      ['/cases', null],
+      ['/inbox', null],
+    ];
+    for (const [route, entityId] of routes) {
+      this.queryCache
+        .invalidateByPage(route, entityId)
+        .catch((err) =>
+          this.logger.warn(`Cache invalidate ${route} failed: ${err.message}`),
+        );
+    }
+  }
 
   /** Parse intake ID จาก description field (format: "intake:{id}") */
   private parseIntakeId(description: string | null): number | null {
@@ -300,6 +330,8 @@ export class CaseWorkflowService {
       this.logger.warn(`PDF stamp generation failed: ${e.message}`);
     }
 
+    this.invalidateCaseCache(caseId);
+
     return {
       case: this.serialize(updated),
       assignments: created.map((a) => ({
@@ -326,6 +358,7 @@ export class CaseWorkflowService {
     });
 
     this.logger.log(`Case #${caseId} status: ${c.status} → ${newStatus}`);
+    this.invalidateCaseCache(caseId);
 
     // Notify status change
     if (this.notifications) {
@@ -374,6 +407,7 @@ export class CaseWorkflowService {
       from: assignment.status,
       to: newStatus,
     });
+    this.invalidateCaseCache(Number(assignment.inboundCaseId));
 
     // If all responsible assignments are completed, move case to in_progress → completed
     if (newStatus === 'completed') {
@@ -532,6 +566,7 @@ export class CaseWorkflowService {
       where: { id: BigInt(endorsementId) },
       data: { noteText },
     });
+    this.invalidateCaseCache(Number(endorsement.inboundCaseId));
     return {
       id: Number(updated.id),
       noteText: updated.noteText,
