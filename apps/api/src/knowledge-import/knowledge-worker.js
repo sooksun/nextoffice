@@ -19,6 +19,7 @@
 
 const https = require('https');
 const { randomUUID } = require('crypto');
+const { splitStructured, splitFlat } = require('./thai-structure-parser.js');
 
 const CHUNK_SIZE = 800;    // target tokens (mirrors ChunkingService)
 const OVERLAP_CHARS = 150;
@@ -47,6 +48,12 @@ if (typeof module !== 'undefined') {
   module.exports = { processItem, splitText, embedBatch };
 }
 
+// splitText (legacy) — kept for back-compat; new callers should use
+// splitStructured() from ./thai-structure-parser.js
+function splitText(text) {
+  return splitFlat(text);
+}
+
 // ── Main pipeline ─────────────────────────────────────────────────────────────
 async function processItem(msg) {
   const {
@@ -69,20 +76,26 @@ async function processItem(msg) {
     throw new Error('Extracted text too short or empty');
   }
 
-  // 2. Chunk
-  const chunks = splitText(text);
-  console.log(`[worker] item#${itemId} chunks: ${chunks.length}`);
-  if (chunks.length === 0) throw new Error('No chunks produced from text');
+  // 2. Chunk — structure-aware: detects หมวด/ข้อ/มาตรา/วรรค/(n)/ก.
+  // Falls back to flat char splitting if no structure is detected.
+  const structured = splitStructured(text, title);
+  console.log(
+    `[worker] item#${itemId} chunks: ${structured.length} ` +
+    `(structured=${structured.some(c => c.semanticLabel)})`,
+  );
+  if (structured.length === 0) throw new Error('No chunks produced from text');
 
   // 3. Embed all chunks in one batch call
-  const vectors = await embedBatch(chunks, geminiApiKey);
+  const texts = structured.map((c) => c.text);
+  const vectors = await embedBatch(texts, geminiApiKey);
   const validVectors = vectors.filter(v => v && v.length > 0).length;
   console.log(`[worker] item#${itemId} embeddings: ${validVectors}/${vectors.length} valid`);
 
-  // 4. Build Qdrant points
+  // 4. Build Qdrant points (preserve structure metadata)
   const points = [];
-  for (let i = 0; i < chunks.length; i++) {
+  for (let i = 0; i < structured.length; i++) {
     if (!vectors[i] || vectors[i].length === 0) continue;
+    const c = structured[i];
     points.push({
       id: randomUUID(),
       vector: vectors[i],
@@ -93,7 +106,10 @@ async function processItem(msg) {
         title: title ?? '',
         category: category ?? '',
         chunkIndex: i,
-        text: chunks[i].substring(0, 500),
+        sectionTitle: c.sectionTitle ?? null,
+        semanticLabel: c.semanticLabel ?? null,
+        breadcrumb: c.breadcrumb ?? null,
+        text: c.text.substring(0, 500),
       },
     });
   }
@@ -230,29 +246,5 @@ function httpsPost(url, body, { timeout = 30000 } = {}) {
   });
 }
 
-// ── Text chunking (mirrors ChunkingService.splitText) ─────────────────────────
-function splitText(text) {
-  const chunkCharSize = CHUNK_SIZE * 1.5;
-  const chunks = [];
-  let start = 0;
-  while (start < text.length) {
-    const end = Math.min(start + chunkCharSize, text.length);
-    let breakPoint = end;
-    if (end < text.length) {
-      const sub = text.substring(start, end);
-      const lastBreak = Math.max(
-        sub.lastIndexOf('\n'), sub.lastIndexOf('ฯ'),
-        sub.lastIndexOf('。'), sub.lastIndexOf('. '),
-      );
-      if (lastBreak > chunkCharSize * 0.5) breakPoint = start + lastBreak + 1;
-    }
-    chunks.push(text.substring(start, breakPoint).trim());
-    // If we've reached the end of text, we're done — no more chunks needed.
-    // Without this check: start = textLen - 150, next loop breakPoint = textLen,
-    // start = textLen - 150 again → INFINITE LOOP filling heap until OOM.
-    if (breakPoint >= text.length) break;
-    start = breakPoint - OVERLAP_CHARS;
-    if (start < 0) start = 0;
-  }
-  return chunks.filter(c => c.length > 10);
-}
+// Chunking moved to ./thai-structure-parser.js
+// Kept CHUNK_SIZE/OVERLAP_CHARS constants above as docs only — parser has its own.
