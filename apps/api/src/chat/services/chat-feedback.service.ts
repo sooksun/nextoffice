@@ -96,25 +96,30 @@ export class ChatFeedbackService {
   /**
    * Satisfaction rate broken down per page route.
    * Only returns pages with >= 3 feedback events (min sample size).
+   *
+   * Note on SQL: MariaDB rejects aggregate aliases referenced inside HAVING
+   * ("Reference 'up' not supported (reference to group function)", error 1247)
+   * — so we use COUNT(*) for filtering + ordering instead of `(up + down)`.
+   * Aliases renamed to up_count/down_count to avoid any reserved-word drama.
    */
   async statsByPage(rangeDays = 30, minSamples = 3) {
     const since = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
-    const rows: Array<{ page_route: string | null; up: bigint; down: bigint }> =
+    const rows: Array<{ page_route: string | null; up_count: bigint | number; down_count: bigint | number }> =
       await this.prisma.$queryRawUnsafe(
         `SELECT page_route,
-                SUM(CASE WHEN rating = 'up'   THEN 1 ELSE 0 END) AS up,
-                SUM(CASE WHEN rating = 'down' THEN 1 ELSE 0 END) AS down
+                SUM(CASE WHEN rating = 'up'   THEN 1 ELSE 0 END) AS up_count,
+                SUM(CASE WHEN rating = 'down' THEN 1 ELSE 0 END) AS down_count
          FROM chat_feedback
          WHERE created_at >= ?
          GROUP BY page_route
-         HAVING (up + down) >= ?
-         ORDER BY (up + down) DESC`,
+         HAVING COUNT(*) >= ?
+         ORDER BY COUNT(*) DESC`,
         since,
         minSamples,
       );
     return rows.map((r) => {
-      const up = Number(r.up);
-      const down = Number(r.down);
+      const up = Number(r.up_count);
+      const down = Number(r.down_count);
       const total = up + down;
       return {
         pageRoute: r.page_route ?? '(no context)',
