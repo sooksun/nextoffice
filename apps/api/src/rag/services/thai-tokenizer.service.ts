@@ -1,5 +1,11 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import * as wordcut from 'wordcut';
+
+// CJS require instead of `import * as` — wordcut's `cut()` is inherited
+// from WordcutCore via Object.create() prototype chain. TypeScript's
+// __importStar only copies own enumerable properties, so `.cut` would
+// be missing at runtime. Plain require() keeps the prototype intact.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const wordcut = require('wordcut');
 
 @Injectable()
 export class ThaiTokenizerService implements OnModuleInit {
