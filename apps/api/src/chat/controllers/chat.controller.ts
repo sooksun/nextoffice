@@ -1,10 +1,13 @@
-import { Controller, Post, Body, HttpCode, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Post, Get, Body, Query, HttpCode, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, MaxLength, IsOptional, IsNumber, ValidateNested, IsArray, IsIn, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ChatService } from '../services/chat.service';
 import { ChatFeedbackService } from '../services/chat-feedback.service';
+import { QueryCacheService } from '../../rag/services/query-cache.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 class PageContextDto {
@@ -94,6 +97,7 @@ export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly feedbackService: ChatFeedbackService,
+    private readonly queryCache: QueryCacheService,
   ) {}
 
   @Post('message')
@@ -130,5 +134,45 @@ export class ChatController {
       pageRoute: body.pageRoute,
       pageEntityId: body.pageEntityId ?? null,
     });
+  }
+
+  // ── Admin analytics (ADMIN/DIRECTOR only) ─────────────────────────
+
+  @Get('admin/overview')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: 'Chat analytics overview — feedback + cache stats' })
+  @ApiQuery({ name: 'days', required: false, description: 'Rolling window in days (default 30)' })
+  async adminOverview(@Query('days') days?: string) {
+    const rangeDays = Number(days) || 30;
+    const [feedback, cache] = await Promise.all([
+      this.feedbackService.stats(rangeDays),
+      this.queryCache.stats(),
+    ]);
+    return { feedback, cache };
+  }
+
+  @Get('admin/feedback/top-negative')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: 'Top 👎 queries — candidates for expanding KB' })
+  adminTopNegative(@Query('days') days?: string, @Query('limit') limit?: string) {
+    return this.feedbackService.topNegativeQueries(Number(days) || 30, Number(limit) || 20);
+  }
+
+  @Get('admin/feedback/by-page')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: 'Satisfaction rate broken down per page route' })
+  adminStatsByPage(@Query('days') days?: string) {
+    return this.feedbackService.statsByPage(Number(days) || 30, 3);
+  }
+
+  @Get('admin/feedback/recent')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: 'Recent feedback entries (latest first)' })
+  adminRecentFeedback(@Query('limit') limit?: string) {
+    return this.feedbackService.recent(Number(limit) || 30);
   }
 }
