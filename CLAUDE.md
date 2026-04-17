@@ -297,3 +297,99 @@ docker compose build api && docker compose up -d api
 ```bash
 docker compose build web && docker compose up -d web
 ```
+
+---
+
+### RAG System Architecture (session 2026-04-18) — COMPLETED & STABLE
+
+**สถานะ:** pipeline ทำงานได้ครบ — Hybrid Search + Reranker + Reasoning → CaseOptions
+
+#### Pipeline (end-to-end)
+
+```
+User Query / Case Description
+  │
+  ▼
+QueryRewriterService          ← LLM expansion (ข้ามถ้า query ≤ 25 chars)
+  │
+  ▼
+HybridSearchService           ← RRF fusion (vector + keyword)
+  ├─ EmbeddingService         → Gemini gemini-embedding-001, dim=768
+  ├─ VectorStoreService       → Qdrant cosine search, pool=20
+  ├─ ThaiTokenizerService     → TF-IDF keyword scoring
+  ├─ RRF(k=60)                → normalize + merge ranks
+  └─ MMR(λ=0.7)               → diversify top candidates
+  │
+  ▼
+RerankerService               ← Gemini 2.0 Flash, score 0–10, min=3
+  │
+  ▼
+RetrievalService              ← final score blend + persist CaseRetrievalResult
+  │                             hybrid path: rerank×0.60 + hybrid×0.25 + contextFit×0.15
+  │                             fallback path: semantic×0.40 + trust×0.25 + freshness×0.15 + contextFit×0.20
+  ▼
+ReasoningService              ← Gemini Flash, top 3 horizon + top 3 policy
+  └─ Save CaseOption + CaseOptionReference
+```
+
+#### Services & Critical Files
+
+| Service | File | หน้าที่ |
+|---|---|---|
+| `RetrievalService` | `rag/services/retrieval.service.ts` | orchestrator — เลือก hybrid vs fallback, persist results |
+| `HybridSearchService` | `rag/services/hybrid-search.service.ts` | RRF + MMR fusion |
+| `RerankerService` | `rag/services/reranker.service.ts` | LLM reranking pass |
+| `ReasoningService` | `rag/services/reasoning.service.ts` | generate CaseOptions via LLM |
+| `EmbeddingService` | `rag/services/embedding.service.ts` | Gemini embedding (single + batch) |
+| `VectorStoreService` | `rag/services/vector-store.service.ts` | Qdrant client wrapper |
+| `QueryRewriterService` | `rag/services/query-rewriter.service.ts` | query expansion (pronoun resolution) |
+| `QueryCacheService` | `rag/services/query-cache.service.ts` | answer cache (10 min page / 24 hr knowledge) |
+| `HorizonRagService` | `rag/services/horizon-rag.service.ts` | best-practice horizon search |
+| `PolicyRagService` | `rag/services/policy-rag.service.ts` | policy/regulation search (trust + freshness score) |
+| `ThaiTokenizerService` | `rag/services/thai-tokenizer.service.ts` | TF-IDF keyword search |
+
+#### Qdrant Collections
+
+| Collection | Content | Distance |
+|---|---|---|
+| `knowledge` | policy clauses + horizon practices (from KnowledgeImport) | Cosine |
+| `documents` | chunked document text (from DocumentsModule) | Cosine |
+
+#### Key Config Values
+
+| Parameter | Value | หมายเหตุ |
+|---|---|---|
+| Embedding model | `gemini-embedding-001` | เปลี่ยนจาก text-embedding-004 ที่ deprecated |
+| Embedding dim | 768 | truncated via `outputDimensionality` |
+| Reranker model | `gemini-2.0-flash` | `GEMINI_MODEL` env var |
+| Hybrid pool size | 20 candidates | ก่อน rerank |
+| Final top-K | 8 | หลัง rerank + filter |
+| Rerank min score | 3/10 | ต่ำกว่านี้ตัดทิ้ง |
+| RRF k | 60 | Cormack et al. 2009 default |
+| MMR λ | 0.7 | relevance-biased (ลด redundancy 30%) |
+| Vector score threshold | 0.3 | ต่ำกว่านี้ไม่นำเข้า pool |
+| Min hybrid score | 0.05 | filter ก่อน MMR |
+| Chunk size | 1200 chars / 800 tokens | |
+| Chunk overlap | 150 chars | |
+
+#### Cases Integration Points
+
+**1. Generate CaseOptions** (`ReasoningService.generateCaseOptions`)
+- เรียกหลัง intake pipeline สร้าง InboundCase
+- ดึง top 3 horizon + top 3 policy → เขียน CaseOption + CaseOptionReference
+
+**2. Recommend Assignment** (`CasesService.recommendAssignment`)
+- เรียกเมื่อ Director ต้องการคำแนะนำ routing
+- ใช้ PolicyRagService + HorizonRagService โดยตรง (ไม่ผ่าน hybrid)
+- คืนชื่อกลุ่ม + draft director note
+
+#### Policy Scoring Rules
+
+- **Trust score**: mandatory rule +0.2, recommended +0.1, national scope +0.1
+- **Freshness score**: ≤1yr=0.95, ≤2yr=0.90, ≤5yr=0.80, ≤10yr=0.65, >10yr=0.50
+
+#### Known Issue — Gemini 429 Rate Limit
+
+- `knowledge-worker.js` เพิ่ม `httpsPostWithRetry` แล้ว: retry สูงสุด 5 ครั้ง, delay 5s→10s→20s→40s→60s
+- ครอบทั้ง OCR call และ embedding batch call
+- ถ้า item ผิดพลาดด้วย 429 ให้กด **ลองใหม่** ในหน้า `/knowledge/import` — จะ retry อัตโนมัติ
