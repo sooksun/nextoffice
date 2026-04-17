@@ -3,6 +3,9 @@ import axios from 'axios';
 import { PolicyRagService } from '../../rag/services/policy-rag.service';
 import { HorizonRagService } from '../../rag/services/horizon-rag.service';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
+import { QueryRewriterService, ChatTurn } from '../../rag/services/query-rewriter.service';
+import { RerankerService, RerankCandidate } from '../../rag/services/reranker.service';
+import { QueryCacheService, CacheScope } from '../../rag/services/query-cache.service';
 import { PageContextService, PageContext } from './page-context.service';
 
 export interface ChatSource {
@@ -10,6 +13,7 @@ export interface ChatSource {
   title: string;
   summary: string;
   score: number;
+  rerankScore?: number;
 }
 
 export interface ChatResponse {
@@ -17,6 +21,21 @@ export interface ChatResponse {
   sources: ChatSource[];
   queryId: string;
   pageContext?: { pageName: string };
+  rewrittenQuery?: string;
+  cached?: boolean;
+}
+
+// Retrieval pool sizes — fetch more candidates, rerank down to top-K
+const POLICY_POOL_SIZE = 8;
+const HORIZON_POOL_SIZE = 6;
+const FINAL_TOP_K = 6;
+
+// Item shape used for reranking — carries enough to rebuild ChatSource after
+interface SourceCandidate extends RerankCandidate {
+  type: 'policy' | 'horizon';
+  score: number;
+  title: string;
+  summary: string;
 }
 
 @Injectable()
@@ -28,47 +47,119 @@ export class ChatService {
     private readonly policyRag: PolicyRagService,
     private readonly horizonRag: HorizonRagService,
     private readonly pageCtxService: PageContextService,
+    private readonly rewriter: QueryRewriterService,
+    private readonly reranker: RerankerService,
+    private readonly cache: QueryCacheService,
   ) {}
 
-  async chat(query: string, pageContext?: PageContext, userId?: number): Promise<ChatResponse> {
+  async chat(
+    query: string,
+    pageContext?: PageContext,
+    userId?: number,
+    history: ChatTurn[] = [],
+  ): Promise<ChatResponse> {
     const queryId = `chat-${Date.now()}`;
 
-    // Resolve page context in parallel with RAG searches
+    // ── Step 0: Cache lookup ──────────────────────────────────────
+    // Skip cache when we have conversation history — follow-up queries
+    // depend on prior turns and wouldn't be safe to share across calls.
+    const scope: CacheScope = {
+      userId: userId ?? null,
+      pageRoute: pageContext?.route ?? null,
+      pageEntityId: pageContext?.entityId ?? null,
+    };
+    const shouldUseCache = history.length === 0;
+
+    if (shouldUseCache) {
+      const hit = await this.cache.lookup(query, scope);
+      if (hit) {
+        this.logger.debug(`Cache HIT: "${query.slice(0, 60)}"`);
+        return {
+          answer: hit.answer,
+          sources: hit.sources,
+          queryId,
+          cached: true,
+          ...(hit.pageContextName ? { pageContext: { pageName: hit.pageContextName } } : {}),
+          ...(hit.rewrittenQuery ? { rewrittenQuery: hit.rewrittenQuery } : {}),
+        };
+      }
+    }
+
+    // ── Step 1: Rewrite query (uses history if provided) ───────────
+    const rewrite = await this.rewriter.rewrite(query, history);
+    const searchQuery = rewrite.rewritten;
+    if (!rewrite.skipped && rewrite.rewritten !== rewrite.original) {
+      this.logger.debug(`Query rewritten: "${rewrite.original}" → "${rewrite.rewritten}"`);
+    }
+
+    // ── Step 2: Retrieve larger candidate pool + page context in parallel
     const [policyResults, horizonResults, resolvedCtx] = await Promise.all([
-      this.policyRag.search(query, 4),
-      this.horizonRag.search(query, 3),
+      this.policyRag.search(searchQuery, POLICY_POOL_SIZE),
+      this.horizonRag.search(searchQuery, HORIZON_POOL_SIZE),
       pageContext ? this.pageCtxService.resolve(pageContext, userId) : Promise.resolve(null),
     ]);
 
-    const sources: ChatSource[] = [
-      ...policyResults.map((p) => ({
+    // ── Step 3: Build unified candidate list for reranking ─────────
+    const candidates: SourceCandidate[] = [
+      ...policyResults.map((p, i) => ({
+        id: `policy-${i}`,
         type: 'policy' as const,
         title: p.title || 'ระเบียบ',
         summary: p.summary || '',
         score: p.semanticScore ?? 0,
+        text: `${p.title || 'ระเบียบ'}: ${p.summary || ''}`,
       })),
-      ...horizonResults.map((h) => ({
+      ...horizonResults.map((h, i) => ({
+        id: `horizon-${i}`,
         type: 'horizon' as const,
         title: h.title || 'แนวโน้ม',
         summary: h.summary || '',
         score: h.semanticScore ?? 0,
+        text: `${h.title || 'แนวโน้ม'}: ${h.summary || ''}`,
       })),
-    ].filter((s) => s.score > 0.05);
+    ].filter((c) => c.summary.length > 0 || c.title.length > 3);
 
-    const ragContext = [
-      ...policyResults.map((p) => `[ระเบียบ/นโยบาย] ${p.title}:\n${p.summary || ''}`),
-      ...horizonResults.map((h) => `[แนวโน้ม/แนวปฏิบัติ] ${h.title}:\n${h.summary || ''}`),
-    ]
-      .filter(Boolean)
+    // ── Step 4: LLM rerank → top FINAL_TOP_K ───────────────────────
+    // Reranker uses ORIGINAL query (what the user actually asked) for scoring,
+    // while retrieval used the rewritten version for recall.
+    const reranked = await this.reranker.rerank(query, candidates, FINAL_TOP_K, { minScore: 3 });
+
+    const sources: ChatSource[] = reranked.map((r) => ({
+      type: r.candidate.type,
+      title: r.candidate.title,
+      summary: r.candidate.summary,
+      score: r.candidate.score,
+      rerankScore: r.rerankScore,
+    }));
+
+    // ── Step 5: Build RAG context from reranked sources ────────────
+    const ragContext = sources
+      .map((s) =>
+        s.type === 'policy'
+          ? `[ระเบียบ/นโยบาย] ${s.title}:\n${s.summary}`
+          : `[แนวโน้ม/แนวปฏิบัติ] ${s.title}:\n${s.summary}`,
+      )
       .join('\n\n');
 
     const answer = await this.callGemini(query, ragContext, resolvedCtx);
+
+    // ── Save to cache (skip if we had history) ─────────────────────
+    if (shouldUseCache) {
+      void this.cache.save(query, scope, {
+        answer,
+        sources,
+        rewrittenQuery: rewrite.rewritten !== rewrite.original ? rewrite.rewritten : undefined,
+        pageContextName: resolvedCtx?.pageName,
+      });
+    }
 
     return {
       answer,
       sources,
       queryId,
+      cached: false,
       ...(resolvedCtx ? { pageContext: { pageName: resolvedCtx.pageName } } : {}),
+      ...(rewrite.skipped || rewrite.rewritten === rewrite.original ? {} : { rewrittenQuery: rewrite.rewritten }),
     };
   }
 

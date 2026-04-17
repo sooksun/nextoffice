@@ -16,7 +16,9 @@
     "seed:sarabun": "node -r dotenv/config dist/prisma/seed-sarabun.js",
     "seed:school": "npx ts-node prisma/seed-school.ts",
     "seed:all": "npm run seed:admin && npm run seed:sarabun && npm run seed:school",
-    "backfill:response-type": "npx ts-node -r dotenv/config prisma/backfill-response-classification.ts"
+    "backfill:response-type": "npx ts-node -r dotenv/config prisma/backfill-response-classification.ts",
+    "reindex:documents": "npx ts-node -r dotenv/config prisma/reindex-documents.ts",
+    "reindex:documents:prod": "node -r dotenv/config dist/prisma/reindex-documents.js"
   },
   "jest": {
     "moduleFileExtensions": [

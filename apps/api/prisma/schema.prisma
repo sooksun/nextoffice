@@ -1932,3 +1932,57 @@ model PrivateMessage {
   @@index([isRead])
   @@map("private_messages")
 }
+
+// ─────────────────────────────────────────────
+// RAG: Query Cache — cache chat answers keyed by (normalized query + scope)
+// Scope = organization + pageRoute + pageEntityId, so the same question on
+// different pages/orgs gets separate cache entries.
+// ─────────────────────────────────────────────
+
+model QueryCache {
+  id              BigInt    @id @default(autoincrement())
+  queryHash       String    @unique @map("query_hash") @db.VarChar(64)  // SHA-256 hex of normalized query + scope
+  normalizedQuery String    @map("normalized_query") @db.VarChar(2000)
+
+  answer          String    @db.LongText
+  sources         Json?
+  rewrittenQuery  String?   @map("rewritten_query") @db.VarChar(2000)
+  pageContextName String?   @map("page_context_name") @db.VarChar(255)
+
+  organizationId  BigInt?   @map("organization_id")
+  pageRoute       String?   @map("page_route") @db.VarChar(255)
+  pageEntityId    BigInt?   @map("page_entity_id")
+
+  hitCount        Int       @default(0) @map("hit_count")
+  lastHitAt       DateTime? @map("last_hit_at")
+  expiresAt       DateTime  @map("expires_at")
+  createdAt       DateTime  @map("created_at") @default(now())
+
+  @@index([expiresAt])
+  @@index([organizationId, queryHash])
+  @@index([lastHitAt])
+  @@map("query_cache")
+}
+
+// ─────────────────────────────────────────────
+// RAG: Chat feedback — 👍/👎 signals from users on assistant answers.
+// Used for analytics + spotting unanswered-question patterns to expand KB.
+// ─────────────────────────────────────────────
+
+model ChatFeedback {
+  id           BigInt   @id @default(autoincrement())
+  queryId      String   @unique @map("query_id") @db.VarChar(64)
+  userId       BigInt?  @map("user_id")
+  rating       String   @db.VarChar(10)           // "up" | "down"
+  comment      String?  @db.Text
+  userQuery    String?  @map("user_query") @db.Text
+  assistantAnswer String? @map("assistant_answer") @db.LongText
+  pageRoute    String?  @map("page_route") @db.VarChar(255)
+  pageEntityId BigInt?  @map("page_entity_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([rating])
+  @@index([createdAt])
+  @@map("chat_feedback")
+}

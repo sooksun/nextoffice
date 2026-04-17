@@ -4,36 +4,19 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Send,
-  Bot,
-  User,
-  BookOpen,
-  TrendingUp,
   Loader2,
   X,
   MessageSquareText,
-  ChevronDown,
-  ChevronUp,
   MapPin,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { ChatBubble, type ChatMessage, type FeedbackRating } from "./chat/ChatBubble";
+import type { Citation } from "./chat/CitationCard";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-type SourceType = "policy" | "horizon";
-
-interface Source {
-  type: SourceType;
-  title: string;
-  summary: string;
-  score: number;
-}
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  sources?: Source[];
-}
+type Source = Citation;
+type Message = ChatMessage;
 
 interface PageContext {
   route: string;
@@ -183,83 +166,7 @@ function getSuggestions(pathname: string): string[] {
   return DEFAULT_SUGGESTIONS;
 }
 
-// ─── sub-components ───────────────────────────────────────────────────────────
-
-function PanelSourceCard({ source }: { source: Source }) {
-  const isPolicy = source.type === "policy";
-  return (
-    <div className="text-[11px] bg-surface-low border border-outline-variant/10 rounded-xl px-2.5 py-2">
-      <div className="flex items-center gap-1.5 mb-0.5">
-        {isPolicy ? (
-          <BookOpen size={10} className="text-secondary shrink-0" />
-        ) : (
-          <TrendingUp size={10} className="text-tertiary shrink-0" />
-        )}
-        <span className={`font-bold ${isPolicy ? "text-secondary" : "text-tertiary"}`}>
-          {isPolicy ? "ระเบียบ" : "แนวโน้ม"}
-        </span>
-        <span className="ml-auto text-outline font-mono text-[10px]">
-          {Math.round(source.score * 100)}%
-        </span>
-      </div>
-      <p className="font-medium text-on-surface leading-snug line-clamp-2">{source.title}</p>
-    </div>
-  );
-}
-
-function PanelMessage({ message }: { message: Message }) {
-  const [showSources, setShowSources] = useState(false);
-  const isUser = message.role === "user";
-  const hasSources = (message.sources?.length ?? 0) > 0;
-
-  return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[90%] ${isUser ? "" : "w-full"}`}>
-        <div className={`flex items-start gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
-          <div
-            className={`shrink-0 w-6 h-6 rounded-lg flex items-center justify-center ${
-              isUser ? "bg-primary" : "bg-secondary"
-            }`}
-          >
-            {isUser ? (
-              <User size={12} className="text-on-primary" />
-            ) : (
-              <Bot size={12} className="text-on-secondary" />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div
-              className={`px-3 py-2 rounded-xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
-                isUser
-                  ? "bg-primary text-on-primary rounded-tr-sm"
-                  : "bg-surface-low border border-outline-variant/10 text-on-surface rounded-tl-sm"
-              }`}
-            >
-              {message.content}
-            </div>
-            {hasSources && (
-              <button
-                onClick={() => setShowSources((v) => !v)}
-                className="mt-1 flex items-center gap-1 text-[10px] text-secondary hover:text-primary transition-colors font-bold"
-              >
-                <BookOpen size={9} />
-                {showSources ? "ซ่อน" : "ดู"}อ้างอิง ({message.sources!.length})
-                {showSources ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
-              </button>
-            )}
-            {hasSources && showSources && (
-              <div className="mt-1 space-y-1">
-                {message.sources!.map((s, i) => (
-                  <PanelSourceCard key={i} source={s} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Chat-specific sub-components now live under ./chat/ (CitationCard, ChatBubble).
 
 // ─── main component ───────────────────────────────────────────────────────────
 
@@ -315,6 +222,42 @@ export default function ChatPanel() {
     }
   }, [pathname]);
 
+  async function submitFeedback(messageId: string, rating: FeedbackRating) {
+    const target = messages.find((m) => m.id === messageId);
+    if (!target || !target.queryId || target.feedbackPending || target.feedback === rating) return;
+
+    // Optimistic UI
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, feedback: rating, feedbackPending: true } : m,
+      ),
+    );
+
+    try {
+      await apiFetch("/chat/feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          queryId: target.queryId,
+          rating,
+          userQuery: target.userQuery,
+          assistantAnswer: target.content.slice(0, 8000),
+          pageRoute: pageContext.route,
+          pageEntityId: pageContext.entityId,
+        }),
+      });
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, feedbackPending: false } : m)),
+      );
+    } catch {
+      // Roll back on failure
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, feedback: undefined, feedbackPending: false } : m,
+        ),
+      );
+    }
+  }
+
   async function send(query: string) {
     const trimmed = query.trim();
     if (!trimmed || loading) return;
@@ -324,18 +267,23 @@ export default function ChatPanel() {
       role: "user",
       content: trimmed,
     };
+    // Snapshot recent turns (pre-append) — the new user msg is sent as `query`,
+    // not history. Keep last 6 turns (≈ 3 exchanges) to stay under backend's
+    // 10-turn cap and control prompt cost.
+    const history = messages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
 
     try {
-      const data = await apiFetch<{ answer: string; sources: Source[] }>(
+      const data = await apiFetch<{ answer: string; sources: Source[]; queryId?: string }>(
         "/chat/message",
         {
           method: "POST",
           body: JSON.stringify({
             query: trimmed,
             pageContext,
+            history,
           }),
         },
       );
@@ -346,6 +294,8 @@ export default function ChatPanel() {
           role: "assistant",
           content: data.answer ?? "ขออภัย ไม่สามารถตอบได้",
           sources: data.sources ?? [],
+          queryId: data.queryId,
+          userQuery: trimmed,
         },
       ]);
     } catch (err) {
@@ -386,7 +336,7 @@ export default function ChatPanel() {
         <div className="shrink-0 px-4 py-3 border-b border-outline-variant/10">
           <div className="flex items-center gap-2">
             <div className="bg-secondary p-1.5 rounded-lg shadow-sm shadow-secondary/20">
-              <Bot size={14} className="text-on-secondary" />
+              <img src="/Favicon.png" alt="AI" className="w-3.5 h-3.5 object-contain brightness-0 invert" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-xs font-black text-primary uppercase tracking-wider">AI NextOffice</h3>
@@ -422,7 +372,7 @@ export default function ChatPanel() {
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-2">
               <div className="bg-secondary/10 p-3 rounded-2xl mb-3">
-                <Bot size={24} className="text-secondary" />
+                <img src="/Favicon.png" alt="AI" className="w-6 h-6 object-contain" style={{ filter: "invert(29%) sepia(97%) saturate(500%) hue-rotate(230deg) brightness(90%)" }} />
               </div>
               <p className="text-xs text-on-surface-variant mb-1">
                 AI ผู้ช่วยงานสารบรรณ NextOffice
@@ -452,12 +402,12 @@ export default function ChatPanel() {
           ) : (
             <div className="space-y-3">
               {messages.map((msg) => (
-                <PanelMessage key={msg.id} message={msg} />
+                <ChatBubble key={msg.id} message={msg} onFeedback={submitFeedback} />
               ))}
               {loading && (
                 <div className="flex items-start gap-2">
                   <div className="w-6 h-6 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                    <Bot size={12} className="text-on-secondary" />
+                    <img src="/Favicon.png" alt="AI" className="w-3 h-3 object-contain brightness-0 invert" />
                   </div>
                   <div className="bg-surface-low border border-outline-variant/10 rounded-xl rounded-tl-sm px-3 py-2">
                     <div className="flex gap-1 items-center h-3">

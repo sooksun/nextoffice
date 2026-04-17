@@ -7,5 +7,9 @@
     "outDir": "./dist",
     "rootDir": "./"
   },
-  "include": ["prisma/seed-admin.ts", "prisma/seed-sarabun.ts"]
+  "include": [
+    "prisma/seed-admin.ts",
+    "prisma/seed-sarabun.ts",
+    "prisma/reindex-documents.ts"
+  ]
 }
