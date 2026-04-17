@@ -10,6 +10,7 @@
   "include": [
     "prisma/seed-admin.ts",
     "prisma/seed-sarabun.ts",
-    "prisma/reindex-documents.ts"
+    "prisma/reindex-documents.ts",
+    "prisma/eval-retrieval.ts"
   ]
 }

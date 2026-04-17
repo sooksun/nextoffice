@@ -1,0 +1,77 @@
+{
+  "description": "Ground-truth dataset for retrieval evaluation. Each entry is a user query with the expected set of relevant document IDs. Hand-crafted from seeded regulations/policies. Extend as new docs are added.",
+  "queries": [
+    {
+      "id": "q1-sarabun",
+      "query": "ระเบียบงานสารบรรณ พ.ศ. 2526 กำหนดอะไรบ้าง",
+      "relevantDocIds": [128],
+      "tags": ["regulation", "title-match"]
+    },
+    {
+      "id": "q2-sarabun-types",
+      "query": "หนังสือราชการมีกี่ประเภท",
+      "relevantDocIds": [128],
+      "tags": ["regulation", "keyword-match"]
+    },
+    {
+      "id": "q3-leave",
+      "query": "การลาของข้าราชการครูทำอย่างไร",
+      "relevantDocIds": [132],
+      "tags": ["regulation"]
+    },
+    {
+      "id": "q4-leave-rules",
+      "query": "ระเบียบว่าด้วยการลา พ.ศ. 2555",
+      "relevantDocIds": [132],
+      "tags": ["regulation", "title-match"]
+    },
+    {
+      "id": "q5-safety",
+      "query": "นโยบายความปลอดภัยในสถานศึกษา",
+      "relevantDocIds": [131],
+      "tags": ["policy", "title-match"]
+    },
+    {
+      "id": "q6-safety-moe",
+      "query": "MOE Safety Center คืออะไร",
+      "relevantDocIds": [131],
+      "tags": ["policy", "acronym"]
+    },
+    {
+      "id": "q7-drugs",
+      "query": "การป้องกันยาเสพติดในโรงเรียน",
+      "relevantDocIds": [130],
+      "tags": ["policy"]
+    },
+    {
+      "id": "q8-digital",
+      "query": "การพัฒนาทักษะดิจิทัลของครู",
+      "relevantDocIds": [129],
+      "tags": ["policy"]
+    },
+    {
+      "id": "q9-education-plan",
+      "query": "แผนการศึกษาแห่งชาติ พ.ศ. 2560-2579",
+      "relevantDocIds": [134],
+      "tags": ["policy", "title-match"]
+    },
+    {
+      "id": "q10-reduce-burden",
+      "query": "นโยบายลดภาระครูและบุคลากรทางการศึกษา",
+      "relevantDocIds": [133],
+      "tags": ["policy"]
+    },
+    {
+      "id": "q11-obec-priorities",
+      "query": "นโยบายและจุดเน้นของ สพฐ. ปีงบประมาณ 2568",
+      "relevantDocIds": [127],
+      "tags": ["policy", "title-match"]
+    },
+    {
+      "id": "q12-multi",
+      "query": "นโยบายการศึกษาของ สพฐ.",
+      "relevantDocIds": [127, 133, 129],
+      "tags": ["policy", "broad"]
+    }
+  ]
+}
