@@ -151,7 +151,7 @@ async function runOcr({ buffer, mimeType, sourceType, geminiApiKey, geminiModel 
   };
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
-  const data = await httpsPost(url, body, { timeout: 120000 });
+  const data = await httpsPostWithRetry(url, body, { timeout: 120000 });
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 }
 
@@ -171,7 +171,7 @@ async function embedBatch(texts, apiKey) {
           outputDimensionality: EMBEDDING_DIM,
         })),
       };
-      const data = await httpsPost(url, body, { timeout: 60000 });
+      const data = await httpsPostWithRetry(url, body, { timeout: 60000 });
       const embeddings = data?.embeddings ?? [];
       for (const e of embeddings) results.push(e.values ?? []);
       while (results.length < i + batch.length) results.push([]);
@@ -210,6 +210,25 @@ async function qdrantRequest(qdrantUrl, method, path, body) {
     req.write(json);
     req.end();
   });
+}
+
+// ── HTTPS with retry on 429 ───────────────────────────────────────────────────
+async function httpsPostWithRetry(url, body, opts = {}) {
+  const MAX_RETRIES = 5;
+  let delay = 5000;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await httpsPost(url, body, opts);
+    } catch (err) {
+      if (attempt < MAX_RETRIES && err.message.startsWith('HTTP 429')) {
+        console.warn(`[worker] Gemini 429 — retry in ${delay / 1000}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        await new Promise(r => setTimeout(r, delay));
+        delay = Math.min(delay * 2, 60000);
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 // ── HTTPS helper (replaces axios) ─────────────────────────────────────────────
