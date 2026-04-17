@@ -32,8 +32,12 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 
-# Production deps only — also use npm install for platform compat
-RUN rm -f package-lock.json && npm install --omit=dev --legacy-peer-deps
+# Production deps only — also use npm install for platform compat.
+# Add prisma CLI + @prisma/config so `npx prisma db push` works inside the
+# runner without needing to install devDeps at runtime (needed whenever a
+# new model is added — see QueryCache/ChatFeedback incident).
+RUN rm -f package-lock.json && npm install --omit=dev --legacy-peer-deps \
+    && npm install --no-save --legacy-peer-deps prisma @prisma/config
 
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/generated ./apps/api/generated
