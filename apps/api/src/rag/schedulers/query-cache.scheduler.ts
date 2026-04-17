@@ -20,11 +20,7 @@ export class QueryCacheScheduler {
   async cleanupExpired() {
     try {
       const count = await this.cache.cleanupExpired();
-      if (count > 0) {
-        this.logger.log(`Cron: pruned ${count} expired cache entries`);
-      } else {
-        this.logger.debug('Cron: no expired cache entries to prune');
-      }
+      this.logger.log(`Cron: cache cleanup swept — pruned ${count} expired entries`);
     } catch (err: any) {
       this.logger.warn(`Cron: cache cleanup failed: ${err?.message ?? err}`);
     }
