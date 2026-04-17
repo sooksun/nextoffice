@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw, Trash2, Eye, AlertTriangle, X } from "lucide-react";
 import { getAuthToken } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { toastSuccess, toastError, confirmDelete } from "@/lib/toast";
 
 type SourceType = "file" | "text";
@@ -19,6 +20,28 @@ interface KnowledgeItem {
   errorMessage: string | null;
   createdAt: string;
   uploadedBy: { id: number; fullName: string };
+}
+
+interface ChunkInfo {
+  id: string;
+  chunkIndex: number;
+  sectionTitle: string | null;
+  semanticLabel: string | null;
+  breadcrumb: string | null;
+  text: string;
+}
+
+interface InspectionData {
+  item: {
+    id: number;
+    title: string;
+    category: string | null;
+    status: Status;
+    chunkCount: number;
+    extractedText: string | null;
+  };
+  qdrantChunkCount: number;
+  chunks: ChunkInfo[];
 }
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -54,9 +77,18 @@ export default function KnowledgeImportPage() {
   const [submitting, setSubmitting] = useState(false);
   const [items, setItems] = useState<KnowledgeItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [inspecting, setInspecting] = useState<InspectionData | null>(null);
+  const [inspectLoading, setInspectLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+  useEffect(() => {
+    const u = getUser();
+    setIsAdmin(u?.roleCode === "ADMIN");
+  }, []);
 
   const fetchItems = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -184,6 +216,106 @@ export default function KnowledgeImportPage() {
     }
   };
 
+  const handleInspect = async (item: KnowledgeItem) => {
+    setInspectLoading(true);
+    setInspecting({
+      item: {
+        id: item.id,
+        title: item.title,
+        category: item.category,
+        status: item.status,
+        chunkCount: item.chunkCount,
+        extractedText: null,
+      },
+      qdrantChunkCount: 0,
+      chunks: [],
+    });
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const [detailRes, chunksRes] = await Promise.all([
+        fetch(`${apiBase}/knowledge-import/${item.id}`, { headers }),
+        fetch(`${apiBase}/knowledge-import/${item.id}/chunks`, { headers }),
+      ]);
+      if (!detailRes.ok || !chunksRes.ok) {
+        throw new Error("โหลดข้อมูลไม่สำเร็จ");
+      }
+      const detail = await detailRes.json();
+      const chunksData = await chunksRes.json();
+      setInspecting({
+        item: {
+          id: detail.id,
+          title: detail.title,
+          category: detail.category,
+          status: detail.status,
+          chunkCount: detail.chunkCount,
+          extractedText: detail.extractedText,
+        },
+        qdrantChunkCount: chunksData.qdrantChunkCount,
+        chunks: chunksData.chunks,
+      });
+    } catch (err: unknown) {
+      toastError((err as Error).message || "ไม่สามารถตรวจสอบข้อมูลได้");
+      setInspecting(null);
+    } finally {
+      setInspectLoading(false);
+    }
+  };
+
+  const handleAdminResetOrg = async () => {
+    const ok = await confirmDelete(
+      "ต้องการลบ vectors ทั้งหมดขององค์กรใน Qdrant และรีเซ็ตทุก item เป็น PENDING หรือไม่? ข้อมูลต้นฉบับ (ไฟล์ + ข้อความ) จะยังอยู่ สามารถ retry ได้หลังรีเซ็ต",
+      "ยืนยันการ Reset ความรู้องค์กร",
+    );
+    if (!ok) return;
+    setResetting(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`${apiBase}/knowledge-import/admin/reset-org`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "รีเซ็ตไม่สำเร็จ");
+      }
+      const data = await res.json();
+      toastSuccess(`รีเซ็ตสำเร็จ (${data.itemsReset} รายการ)`);
+      await loadItems();
+    } catch (err: unknown) {
+      toastError((err as Error).message || "เกิดข้อผิดพลาด");
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleAdminResetQdrant = async () => {
+    const ok = await confirmDelete(
+      "⚠️ ลบทั้ง Qdrant collection 'knowledge' (ทุกองค์กร) และสร้างใหม่ ใช้เฉพาะกรณี migrate embedding model เท่านั้น — ทุก item ทุกองค์กรจะถูก reset เป็น PENDING",
+      "ยืนยัน Drop Collection (DESTRUCTIVE)",
+    );
+    if (!ok) return;
+    setResetting(true);
+    try {
+      const token = getAuthToken();
+      const res = await fetch(`${apiBase}/knowledge-import/admin/reset-qdrant`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || "รีเซ็ตไม่สำเร็จ");
+      }
+      const data = await res.json();
+      toastSuccess(`Drop + recreate สำเร็จ (${data.itemsReset} รายการถูกรีเซ็ต)`);
+      await loadItems();
+    } catch (err: unknown) {
+      toastError((err as Error).message || "เกิดข้อผิดพลาด");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const handleRetry = async (id: number) => {
     try {
       const token = getAuthToken();
@@ -221,6 +353,40 @@ export default function KnowledgeImportPage() {
           <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
+
+      {isAdmin && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-800 text-sm">เครื่องมือ Admin — Reset ฐานความรู้ RAG</h3>
+              <p className="text-xs text-red-700 mt-1">
+                ใช้เมื่อข้อมูลความรู้ผิดพลาด/ไม่สามารถใช้ได้ ระบบจะลบ vectors ใน Qdrant และตั้งให้ item เป็น PENDING
+                (ต้องกดลองใหม่เพื่อ re-embed) ข้อมูลต้นฉบับในฐานข้อมูลและ MinIO จะไม่ถูกลบ
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleAdminResetOrg}
+              disabled={resetting}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {resetting ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+              Reset ความรู้องค์กรนี้
+            </button>
+            <button
+              onClick={handleAdminResetQdrant}
+              disabled={resetting}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-red-300 text-red-700 text-sm font-medium rounded-xl hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Drop + recreate Qdrant knowledge collection (ทุกองค์กร)"
+            >
+              <Trash2 size={14} />
+              Drop Qdrant Collection (ทุกองค์กร)
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Upload Form */}
       <div className="bg-surface rounded-2xl border border-outline-variant/20 p-6 space-y-5">
@@ -350,6 +516,147 @@ export default function KnowledgeImportPage() {
         </button>
       </div>
 
+      {/* Inspection modal */}
+      {inspecting && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setInspecting(null)}
+        >
+          <div
+            className="bg-surface rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between p-5 border-b border-outline-variant/20">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-on-surface truncate">{inspecting.item.title}</h3>
+                <div className="flex flex-wrap gap-3 mt-1 text-xs text-on-surface-variant">
+                  <span>หมวดหมู่: {inspecting.item.category ?? "-"}</span>
+                  <span>Chunks (DB): {inspecting.item.chunkCount}</span>
+                  <span>Chunks (Qdrant): {inspecting.qdrantChunkCount}</span>
+                  <span>ข้อความสกัดได้: {inspecting.item.extractedText?.length ?? 0} ตัวอักษร</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setInspecting(null)}
+                className="p-1 rounded-lg text-on-surface-variant hover:bg-surface-bright"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {inspectLoading ? (
+                <div className="py-12 text-center text-on-surface-variant">
+                  <Loader2 size={24} className="animate-spin mx-auto mb-2" />
+                  กำลังโหลด...
+                </div>
+              ) : (
+                <>
+                  {inspecting.item.chunkCount !== inspecting.qdrantChunkCount && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 flex gap-2">
+                      <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong>จำนวน chunks ไม่ตรงกัน</strong> — DB บันทึก {inspecting.item.chunkCount} แต่ Qdrant มี {inspecting.qdrantChunkCount}
+                        อาจเกิดจากลบ collection หรือ re-embed ไม่ครบ กดลองใหม่เพื่อ re-embed
+                      </div>
+                    </div>
+                  )}
+
+                  <section>
+                    <h4 className="text-sm font-semibold text-on-surface mb-2">
+                      ข้อความที่สกัดได้ (OCR output)
+                    </h4>
+                    <div className="max-h-64 overflow-y-auto p-3 rounded-xl bg-surface-bright border border-outline-variant/20 text-xs text-on-surface-variant whitespace-pre-wrap font-mono">
+                      {inspecting.item.extractedText?.trim() || <em className="text-on-surface-variant/60">ไม่มีข้อความที่สกัดได้</em>}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h4 className="text-sm font-semibold text-on-surface mb-2">
+                      Chunks ใน Qdrant ({inspecting.chunks.length})
+                    </h4>
+                    {inspecting.chunks.length === 0 ? (
+                      <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+                        ไม่พบ chunks ใน Qdrant — ความรู้นี้ไม่สามารถใช้ค้นหาได้
+                        กดปุ่ม &quot;ลองใหม่&quot; เพื่อ re-embed หรือลบรายการนี้ออก
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {inspecting.chunks.map((c) => (
+                          <div
+                            key={c.id}
+                            className="p-3 rounded-xl bg-surface-bright border border-outline-variant/20 text-xs"
+                          >
+                            <div className="flex flex-wrap gap-2 mb-1.5 text-[10px] uppercase tracking-wider text-on-surface-variant">
+                              <span className="font-semibold">#{c.chunkIndex + 1}</span>
+                              {c.semanticLabel && (
+                                <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary normal-case">
+                                  {c.semanticLabel}
+                                </span>
+                              )}
+                              {c.sectionTitle && (
+                                <span className="normal-case text-on-surface">{c.sectionTitle}</span>
+                              )}
+                              {c.breadcrumb && (
+                                <span className="normal-case text-on-surface-variant/70">{c.breadcrumb}</span>
+                              )}
+                            </div>
+                            <p className="text-on-surface whitespace-pre-wrap leading-relaxed">
+                              {c.text || <em className="text-on-surface-variant/60">(empty payload)</em>}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 p-4 border-t border-outline-variant/20">
+              <div className="text-xs text-on-surface-variant">
+                {!inspectLoading && (
+                  inspecting.chunks.length > 0
+                    ? <span className="text-green-700 flex items-center gap-1"><CheckCircle size={14} /> ข้อมูลพร้อมใช้งานใน RAG</span>
+                    : <span className="text-red-700 flex items-center gap-1"><XCircle size={14} /> ข้อมูลไม่พร้อมใช้งาน — แนะนำให้ลบหรือ re-embed</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const id = inspecting.item.id;
+                    const title = inspecting.item.title;
+                    setInspecting(null);
+                    handleDelete(id, title);
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl"
+                >
+                  <Trash2 size={14} />
+                  ลบรายการนี้
+                </button>
+                <button
+                  onClick={() => {
+                    const id = inspecting.item.id;
+                    setInspecting(null);
+                    handleRetry(id);
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-xl"
+                >
+                  <RotateCcw size={14} />
+                  ประมวลผลใหม่
+                </button>
+                <button
+                  onClick={() => setInspecting(null)}
+                  className="px-3 py-1.5 text-sm bg-surface-bright text-on-surface rounded-xl hover:bg-outline-variant/20"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* History table */}
       <div className="bg-surface rounded-2xl border border-outline-variant/20 overflow-hidden">
         <div className="p-4 border-b border-outline-variant/20">
@@ -415,6 +722,16 @@ export default function KnowledgeImportPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
+                        {item.status === "DONE" && (
+                          <button
+                            onClick={() => handleInspect(item)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="ดูเนื้อหาที่สกัดได้และ chunks ใน Qdrant"
+                          >
+                            <Eye size={12} />
+                            ตรวจสอบ
+                          </button>
+                        )}
                         {(item.status === "ERROR" || item.status === "PROCESSING") && (
                           <button
                             onClick={() => handleRetry(item.id)}

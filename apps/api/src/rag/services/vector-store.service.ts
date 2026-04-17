@@ -83,6 +83,56 @@ export class VectorStoreService implements OnModuleInit {
     });
   }
 
+  /** List all Qdrant points for a knowledge item (used for inspection UI). */
+  async listChunksByItemId(
+    itemId: bigint,
+    limit = 200,
+  ): Promise<Array<{ id: string; payload: Record<string, any> }>> {
+    if (!this.client) return [];
+    try {
+      const res = await this.client.scroll(COLLECTION_KNOWLEDGE, {
+        filter: { must: [{ key: 'itemId', match: { value: itemId.toString() } }] },
+        limit,
+        with_payload: true,
+        with_vector: false,
+      });
+      return (res?.points ?? []).map((p) => ({
+        id: String(p.id),
+        payload: (p.payload as Record<string, any>) ?? {},
+      }));
+    } catch (err: any) {
+      this.logger.warn(`Qdrant scroll failed for item#${itemId}: ${err.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Reset knowledge collection (DESTRUCTIVE) — deletes + recreates the `knowledge` collection.
+   * Scoped filter is NOT possible here because the collection itself is dropped.
+   * Callers must reconcile DB state (reset chunkCount) after calling this.
+   */
+  async resetKnowledgeCollection(): Promise<void> {
+    if (!this.client) throw new Error('Qdrant client not initialized');
+    try {
+      await this.client.deleteCollection(COLLECTION_KNOWLEDGE);
+      this.logger.warn(`Dropped Qdrant collection: ${COLLECTION_KNOWLEDGE}`);
+    } catch (err: any) {
+      this.logger.warn(`deleteCollection ${COLLECTION_KNOWLEDGE}: ${err.message}`);
+    }
+    await this.client.createCollection(COLLECTION_KNOWLEDGE, {
+      vectors: { size: this.embedding.dimension, distance: 'Cosine' },
+    });
+    this.logger.log(`Recreated Qdrant collection: ${COLLECTION_KNOWLEDGE}`);
+  }
+
+  /** Delete all points in knowledge collection belonging to an org (non-destructive — preserves collection) */
+  async deleteKnowledgeByOrg(orgId: number | bigint): Promise<void> {
+    if (!this.client) return;
+    await this.client.delete(COLLECTION_KNOWLEDGE, {
+      filter: { must: [{ key: 'organizationId', match: { value: String(orgId) } }] },
+    });
+  }
+
   async search(
     collection: string,
     queryVector: number[],

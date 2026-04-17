@@ -278,7 +278,81 @@ export class KnowledgeImportService implements OnModuleInit {
       embeddedAt: item.embeddedAt,
       errorMessage: item.errorMessage ?? null,
       createdAt: item.createdAt,
+      extractedText: item.extractedText ?? null,
       uploadedBy: { id: Number(item.uploadedBy.id), fullName: item.uploadedBy.fullName },
     };
+  }
+
+  /**
+   * Fetch Qdrant chunks for an item — used by the inspection modal so users can
+   * verify that OCR + chunking actually produced usable content.
+   */
+  async getChunks(id: number, userOrgId: number) {
+    const item = await this.prisma.userKnowledgeItem.findUnique({
+      where: { id: BigInt(id) },
+    });
+    if (!item) throw new NotFoundException(`Knowledge item #${id} not found`);
+    if (Number(item.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถเข้าถึงความรู้ขององค์กรอื่น');
+    }
+
+    const points = await this.vectorStore.listChunksByItemId(item.id, 500);
+    const chunks = points
+      .map((p) => ({
+        id: p.id,
+        chunkIndex: p.payload.chunkIndex ?? 0,
+        sectionTitle: p.payload.sectionTitle ?? null,
+        semanticLabel: p.payload.semanticLabel ?? null,
+        breadcrumb: p.payload.breadcrumb ?? null,
+        text: p.payload.text ?? '',
+      }))
+      .sort((a, b) => a.chunkIndex - b.chunkIndex);
+
+    return {
+      itemId: Number(item.id),
+      storedChunkCount: item.chunkCount,
+      qdrantChunkCount: chunks.length,
+      extractedTextLength: item.extractedText?.length ?? 0,
+      chunks,
+    };
+  }
+
+  /**
+   * ADMIN ONLY — reset knowledge RAG data for caller's org:
+   * 1. Delete all Qdrant points belonging to this org's items
+   * 2. Reset every item row (chunkCount=0, status=PENDING, embeddedAt=null)
+   *
+   * Does NOT delete DB rows or MinIO files — users can retry items afterwards.
+   * For full-collection nuke use `adminResetQdrantCollection()` instead.
+   */
+  async adminResetOrgKnowledge(userOrgId: number) {
+    // 1. Clear vectors in Qdrant (scoped by organizationId payload filter)
+    await this.vectorStore.deleteKnowledgeByOrg(userOrgId).catch((e) =>
+      this.logger.warn(`Qdrant org-scoped delete failed: ${e.message}`),
+    );
+
+    // 2. Reset DB rows so items can be re-embedded
+    const result = await this.prisma.userKnowledgeItem.updateMany({
+      where: { organizationId: BigInt(userOrgId) },
+      data: { chunkCount: 0, embeddedAt: null, status: 'PENDING', errorMessage: null },
+    });
+
+    this.logger.warn(`[ADMIN] Reset org ${userOrgId} knowledge — ${result.count} items reset to PENDING`);
+    return { itemsReset: result.count };
+  }
+
+  /**
+   * ADMIN ONLY — drop & recreate the entire Qdrant `knowledge` collection (ALL orgs).
+   * Use only for schema/embedding-model migrations. Resets every org's chunkCount to 0.
+   */
+  async adminResetQdrantCollection() {
+    await this.vectorStore.resetKnowledgeCollection();
+
+    const result = await this.prisma.userKnowledgeItem.updateMany({
+      data: { chunkCount: 0, embeddedAt: null, status: 'PENDING', errorMessage: null },
+    });
+
+    this.logger.warn(`[ADMIN] Dropped & recreated knowledge collection — ${result.count} items reset`);
+    return { itemsReset: result.count };
   }
 }

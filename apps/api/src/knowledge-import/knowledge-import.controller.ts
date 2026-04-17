@@ -15,6 +15,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { KnowledgeImportService } from './knowledge-import.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('knowledge-import')
@@ -84,13 +86,38 @@ export class KnowledgeImportController {
     return this.svc.resetStuckItems(Number(user.organizationId));
   }
 
+  @Post('admin/reset-org')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: '[ADMIN] ลบ vectors ใน Qdrant ของทั้งองค์กร + reset items เป็น PENDING' })
+  adminResetOrg(@CurrentUser() user: any) {
+    return this.svc.adminResetOrgKnowledge(Number(user.organizationId));
+  }
+
+  @Post('admin/reset-qdrant')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: '[ADMIN] Drop & recreate Qdrant knowledge collection (ALL orgs) — DESTRUCTIVE' })
+  adminResetQdrant() {
+    return this.svc.adminResetQdrantCollection();
+  }
+
   @Get(':id')
-  @ApiOperation({ summary: 'รายละเอียดความรู้' })
+  @ApiOperation({ summary: 'รายละเอียดความรู้ (รวม extractedText)' })
   findOne(
     @CurrentUser() user: any,
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.svc.findOne(id, Number(user.organizationId));
+  }
+
+  @Get(':id/chunks')
+  @ApiOperation({ summary: 'ดู chunks ที่เก็บใน Qdrant สำหรับตรวจสอบว่า RAG ใช้ได้หรือไม่' })
+  getChunks(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.getChunks(id, Number(user.organizationId));
   }
 
   @Delete(':id')
