@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThaiTokenizerService } from './services/thai-tokenizer.service';
 import { ThaiStructureParserService } from './services/thai-structure-parser.service';
 import { QueryRewriterService } from './services/query-rewriter.service';
@@ -13,10 +14,11 @@ import { VectorStoreService } from './services/vector-store.service';
 import { ChunkingService } from './services/chunking.service';
 import { HybridSearchService } from './services/hybrid-search.service';
 import { PolicyAlignmentService } from './services/policy-alignment.service';
+import { QueryCacheScheduler } from './schedulers/query-cache.scheduler';
 import { GeminiModule } from '../gemini/gemini.module';
 
 @Module({
-  imports: [GeminiModule],
+  imports: [GeminiModule, ScheduleModule.forRoot()],
   providers: [
     ThaiTokenizerService,
     ThaiStructureParserService,
@@ -32,6 +34,7 @@ import { GeminiModule } from '../gemini/gemini.module';
     QueryRewriterService,
     RerankerService,
     QueryCacheService,
+    QueryCacheScheduler,
   ],
   exports: [
     ThaiTokenizerService,
