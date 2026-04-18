@@ -622,6 +622,8 @@ export class LineMessagingService {
 
   buildCaseDetailFlex(c: any): any[] {
     const caseId = Number(c.id);
+    const liffId = this.config.get<string>('LIFF_ID') ?? '';
+    const liffCaseUrl = liffId ? `https://liff.line.me/${liffId}/cases/${caseId}` : '';
     const urgencyLabel = c.urgencyLevel === 'most_urgent' ? 'ด่วนที่สุด'
       : c.urgencyLevel === 'very_urgent' ? 'ด่วนที่สุด'
       : c.urgencyLevel === 'urgent' ? 'ด่วน'
@@ -757,6 +759,13 @@ export class LineMessagingService {
                   },
                 ],
               },
+              ...(liffCaseUrl ? [{
+                type: 'button',
+                style: 'primary',
+                height: 'sm',
+                color: '#6A1B9A',
+                action: { type: 'uri', label: 'ดูไฟล์เอกสาร PDF', uri: liffCaseUrl },
+              }] : []),
             ],
           },
         },
