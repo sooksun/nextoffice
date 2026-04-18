@@ -68,16 +68,23 @@ export default function LiffLeavePage() {
 
     Promise.all([
       apiFetch<LeaveRequest[]>("/attendance/leave/my-requests").catch(() => []),
-      apiFetch<LeaveBalance>("/attendance/leave/balance").catch(() => null),
+      apiFetch<any>("/attendance/leave/balance").catch(() => null),
       canApprove
         ? apiFetch<LeaveRequest[]>("/attendance/leave/pending").catch(() => [])
         : Promise.resolve([]),
     ]).then(([mine, bal, pend]) => {
       setMy(Array.isArray(mine) ? mine : []);
-      setBalance(bal);
+      // API returns array [{leaveType, remaining}] — convert to {sick, personal, vacation}
+      if (Array.isArray(bal) && bal.length > 0) {
+        const obj: LeaveBalance = { sick: 0, personal: 0, vacation: 0 };
+        bal.forEach((b: any) => { if (b.leaveType) obj[b.leaveType] = b.remaining ?? 0; });
+        setBalance(obj);
+      } else {
+        setBalance(null);
+      }
       setPending(Array.isArray(pend) ? pend : []);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, [status]);
 
   const canApprove =

@@ -391,6 +391,14 @@ export default function LiffCheckinPage() {
           {submitError && (
             <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
               {submitError}
+              {submitError.includes("No face registered") && (
+                <Link
+                  href="/liff/face-register"
+                  className="mt-2 block w-full rounded-lg bg-emerald-600 py-2.5 text-center text-sm font-semibold text-white"
+                >
+                  ลงทะเบียนใบหน้าก่อนใช้งาน →
+                </Link>
+              )}
             </div>
           )}
 

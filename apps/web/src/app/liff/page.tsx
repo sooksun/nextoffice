@@ -139,6 +139,12 @@ export default function LiffDashboardPage() {
             >
               ✍ ลายเซ็น
             </Link>
+            <Link
+              href="/liff/face-register"
+              className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
+            >
+              ลงทะเบียนใบหน้า
+            </Link>
           </div>
 
           {isDirector && (
