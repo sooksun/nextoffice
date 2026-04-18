@@ -2,10 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import ThaiDateInput from "@/components/ui/ThaiDateInput";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LEAVE_TYPES = [
   { value: "sick", label: "ลาป่วย" },
@@ -34,7 +41,6 @@ export default function NewLeavePage() {
     const ed = (form.get("endDate") as string) || endDate;
     if (!sd || !ed) { setError("กรุณาระบุวันที่ให้ครบถ้วน"); setLoading(false); return; }
 
-    // Calculate total days
     const start = new Date(sd);
     const end = new Date(ed);
     const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
@@ -52,7 +58,6 @@ export default function NewLeavePage() {
         }),
       });
 
-      // Auto-submit for approval
       await apiFetch(`/attendance/leave/${leave.id}/submit`, { method: "PATCH" });
 
       router.push("/leave");
@@ -71,44 +76,58 @@ export default function NewLeavePage() {
 
       <h1 className="text-xl font-black text-primary mb-6">ส่งใบลา</h1>
 
-      <form onSubmit={handleSubmit} className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm p-6 space-y-4">
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-1">ประเภทการลา</label>
-          <select name="leaveType" required className="input-select w-full">
-            {LEAVE_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-        </div>
+      <Card>
+        <CardContent className="p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Field>
+              <FieldLabel htmlFor="leaveType" required>
+                ประเภทการลา
+              </FieldLabel>
+              <NativeSelect name="leaveType" id="leaveType" required>
+                {LEAVE_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </NativeSelect>
+            </Field>
 
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่เริ่ม (พ.ศ.)</label>
-          <ThaiDateInput name="startDate" required onChange={setStartDate} />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-1">วันที่สิ้นสุด (พ.ศ.)</label>
-          <ThaiDateInput name="endDate" required onChange={setEndDate} />
-        </div>
+            <Field>
+              <FieldLabel htmlFor="startDate" required>
+                วันที่เริ่ม (พ.ศ.)
+              </FieldLabel>
+              <ThaiDateInput name="startDate" required onChange={setStartDate} />
+            </Field>
 
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-1">เหตุผล</label>
-          <textarea name="reason" rows={3} className="input-text w-full" placeholder="ระบุเหตุผลการลา..." />
-        </div>
+            <Field>
+              <FieldLabel htmlFor="endDate" required>
+                วันที่สิ้นสุด (พ.ศ.)
+              </FieldLabel>
+              <ThaiDateInput name="endDate" required onChange={setEndDate} />
+            </Field>
 
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant mb-1">เบอร์โทรติดต่อ</label>
-          <input type="tel" name="contactPhone" className="input-text w-full" placeholder="08x-xxx-xxxx" />
-        </div>
+            <Field>
+              <FieldLabel htmlFor="reason">เหตุผล</FieldLabel>
+              <Textarea name="reason" id="reason" rows={3} placeholder="ระบุเหตุผลการลา..." />
+            </Field>
 
-        {error && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800">{error}</div>
-        )}
+            <Field>
+              <FieldLabel htmlFor="contactPhone">เบอร์โทรติดต่อ</FieldLabel>
+              <Input type="tel" name="contactPhone" id="contactPhone" placeholder="08x-xxx-xxxx" />
+            </Field>
 
-        <button type="submit" disabled={loading} className="w-full btn-primary flex items-center justify-center gap-2 py-3">
-          <Send size={16} />
-          {loading ? "กำลังส่ง..." : "ส่งใบลา"}
-        </button>
-      </form>
+            {error && (
+              <Alert variant="error">
+                <AlertCircle size={16} />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button type="submit" size="lg" disabled={loading} className="w-full">
+              <Send size={16} />
+              {loading ? "กำลังส่ง..." : "ส่งใบลา"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

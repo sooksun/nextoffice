@@ -8,12 +8,19 @@ import Link from "next/link";
 import {
   ArrowLeft, FilePlus, FileText, CheckCircle, Loader2, Upload, X,
 } from "lucide-react";
+import clsx from "clsx";
 import ThaiDatePicker from "@/components/ui/ThaiDatePicker";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const URGENCY_OPTIONS = [
   { value: "normal",      label: "ทั่วไป" },
   { value: "urgent",      label: "ด่วน" },
-  { value: "very_urgent", label: "ด่วนที่สุด" },
+  { value: "very_urgent", label: "ด่วนมาก" },
   { value: "most_urgent", label: "ด่วนที่สุด" },
 ];
 
@@ -26,9 +33,9 @@ interface AttachedFile {
 function NewInboxForm() {
   const router = useRouter();
 
-  const [loading, setLoading]         = useState(false);
-  const [uploading, setUploading]     = useState(false);
-  const [attached, setAttached]       = useState<AttachedFile | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [attached, setAttached]   = useState<AttachedFile | null>(null);
 
   const [form, setForm] = useState({
     title:         "",
@@ -46,7 +53,6 @@ function NewInboxForm() {
   const update = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
-  /* ── อัปโหลดไฟล์แนบ (ไม่เติมฟอร์ม) ── */
   const handleFileUpload = async (file: File) => {
     setUploading(true);
     try {
@@ -69,7 +75,6 @@ function NewInboxForm() {
     }
   };
 
-  /* ── บันทึก ── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) { toastWarning("กรุณากรอกชื่อเรื่อง"); return; }
@@ -114,13 +119,14 @@ function NewInboxForm() {
         </div>
       </div>
 
-      {/* ── File attachment area ── */}
+      {/* File attachment */}
       {!attached ? (
-        <label className={`flex flex-col items-center gap-2 p-6 rounded-2xl border-2 border-dashed cursor-pointer mb-5 transition-colors ${
+        <label className={clsx(
+          "flex flex-col items-center gap-2 p-6 rounded-2xl border-2 border-dashed cursor-pointer mb-5 transition-colors",
           uploading
             ? "border-primary/50 bg-primary/5 pointer-events-none"
-            : "border-outline-variant/40 hover:border-primary/40 hover:bg-primary/5"
-        }`}>
+            : "border-outline-variant/50 hover:border-primary/50 hover:bg-primary/5",
+        )}>
           <input
             type="file"
             accept=".pdf,.jpg,.jpeg,.png,.docx"
@@ -135,16 +141,15 @@ function NewInboxForm() {
             </>
           ) : (
             <>
-              <Upload size={28} className="text-outline/60" />
+              <Upload size={28} className="text-on-surface-variant" />
               <span className="text-sm text-on-surface-variant font-semibold">แนบสำเนาหนังสือ (ไม่บังคับ)</span>
-              <span className="text-xs text-outline/60">PDF, รูปภาพ หรือ Word — เพื่อแนบต้นฉบับไว้ในระบบ</span>
+              <span className="text-xs text-on-surface-variant/70">PDF, รูปภาพ หรือ Word — เพื่อแนบต้นฉบับไว้ในระบบ</span>
             </>
           )}
         </label>
       ) : (
-        /* ── แสดงไฟล์ที่แนบแล้ว ── */
-        <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/20 bg-primary/5 mb-5">
-          <div className="w-9 h-9 rounded-xl bg-white border border-outline-variant/20 flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-3 p-4 rounded-2xl border border-primary/30 bg-primary/5 mb-5">
+          <div className="w-9 h-9 rounded-xl bg-surface-bright border border-outline-variant/40 flex items-center justify-center shrink-0">
             <FileText size={18} className="text-primary" />
           </div>
           <div className="flex-1 min-w-0">
@@ -154,7 +159,7 @@ function NewInboxForm() {
           <button
             type="button"
             onClick={() => setAttached(null)}
-            className="p-1.5 rounded-lg text-outline hover:text-error hover:bg-error-container/40 transition-colors"
+            className="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
             title="ยกเลิกไฟล์แนบ"
           >
             <X size={15} />
@@ -162,110 +167,101 @@ function NewInboxForm() {
         </div>
       )}
 
-      {/* ── Form ── */}
-      <form onSubmit={handleSubmit} className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm p-6 space-y-5">
+      {/* Form */}
+      <Card>
+        <CardContent className="p-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* ชั้นความเร็ว + เลขที่หนังสือ + วันที่หนังสือ */}
+            <div className="grid grid-cols-3 gap-4">
+              <Field>
+                <FieldLabel required>ชั้นความเร็ว</FieldLabel>
+                <NativeSelect
+                  value={form.urgencyLevel}
+                  onChange={(e) => update("urgencyLevel", e.target.value)}
+                >
+                  {URGENCY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field>
+                <FieldLabel>เลขที่หนังสือ</FieldLabel>
+                <Input
+                  type="text"
+                  value={form.documentNo}
+                  onChange={(e) => update("documentNo", e.target.value)}
+                  placeholder="เช่น ที่ ศธ 04045/ว11081"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>หนังสือลงวันที่</FieldLabel>
+                <ThaiDatePicker value={form.documentDate} onChange={(v) => update("documentDate", v)} />
+              </Field>
+            </div>
 
-        {/* ชั้นความเร็ว + เลขที่หนังสือ + วันที่หนังสือ */}
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="label-sm">ชั้นความเร็ว <span className="text-red-500">*</span></label>
-            <select
-              value={form.urgencyLevel}
-              onChange={(e) => update("urgencyLevel", e.target.value)}
-              className="input-select w-full"
+            {/* จาก / ถึง */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel>จาก (หน่วยงานที่ส่ง)</FieldLabel>
+                <Input
+                  type="text"
+                  value={form.senderOrg}
+                  onChange={(e) => update("senderOrg", e.target.value)}
+                  placeholder="ชื่อหน่วยงานผู้ส่ง"
+                />
+              </Field>
+              <Field>
+                <FieldLabel>ถึง (ผู้รับ)</FieldLabel>
+                <Input
+                  type="text"
+                  value={form.recipientNote}
+                  onChange={(e) => update("recipientNote", e.target.value)}
+                  placeholder="เช่น ผู้อำนวยการโรงเรียน"
+                />
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel required>เรื่อง (ชื่อเรื่อง)</FieldLabel>
+              <Input
+                type="text"
+                value={form.title}
+                onChange={(e) => update("title", e.target.value)}
+                placeholder="ระบุชื่อเรื่องของหนังสือ"
+                required
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel>กำหนดเสร็จ / วันครบกำหนด</FieldLabel>
+              <ThaiDatePicker value={form.dueDate} onChange={(v) => update("dueDate", v)} />
+            </Field>
+
+            <Field>
+              <FieldLabel>หมายเหตุ / สรุปเนื้อหา</FieldLabel>
+              <Textarea
+                value={form.description}
+                onChange={(e) => update("description", e.target.value)}
+                placeholder="หมายเหตุหรือสรุปเนื้อหาโดยย่อ"
+                rows={4}
+              />
+            </Field>
+
+            <Button
+              type="submit"
+              size="lg"
+              disabled={loading}
+              className="w-full h-12 bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-lg shadow-violet-500/30 hover:brightness-110 hover:shadow-violet-500/50"
             >
-              {URGENCY_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label-sm">เลขที่หนังสือ</label>
-            <input
-              type="text"
-              value={form.documentNo}
-              onChange={(e) => update("documentNo", e.target.value)}
-              placeholder="เช่น ที่ ศธ 04045/ว11081"
-              className="input-text w-full"
-            />
-          </div>
-          <div>
-            <label className="label-sm">หนังสือลงวันที่</label>
-            <ThaiDatePicker value={form.documentDate} onChange={(v) => update("documentDate", v)} />
-          </div>
-        </div>
-
-        {/* จาก / ถึง */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label-sm">จาก (หน่วยงานที่ส่ง)</label>
-            <input
-              type="text"
-              value={form.senderOrg}
-              onChange={(e) => update("senderOrg", e.target.value)}
-              placeholder="ชื่อหน่วยงานผู้ส่ง"
-              className="input-text w-full"
-            />
-          </div>
-          <div>
-            <label className="label-sm">ถึง (ผู้รับ)</label>
-            <input
-              type="text"
-              value={form.recipientNote}
-              onChange={(e) => update("recipientNote", e.target.value)}
-              placeholder="เช่น ผู้อำนวยการโรงเรียน"
-              className="input-text w-full"
-            />
-          </div>
-        </div>
-
-        {/* เรื่อง */}
-        <div>
-          <label className="label-sm">เรื่อง (ชื่อเรื่อง) <span className="text-red-500">*</span></label>
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => update("title", e.target.value)}
-            placeholder="ระบุชื่อเรื่องของหนังสือ"
-            className="input-text w-full"
-            required
-          />
-        </div>
-
-        {/* กำหนดเสร็จ */}
-        <div>
-          <label className="label-sm">กำหนดเสร็จ / วันครบกำหนด</label>
-          <ThaiDatePicker value={form.dueDate} onChange={(v) => update("dueDate", v)} />
-        </div>
-
-        {/* หมายเหตุ */}
-        <div>
-          <label className="label-sm">หมายเหตุ / สรุปเนื้อหา</label>
-          <textarea
-            value={form.description}
-            onChange={(e) => update("description", e.target.value)}
-            placeholder="หมายเหตุหรือสรุปเนื้อหาโดยย่อ"
-            className="w-full p-3 rounded-xl border border-outline-variant/20 bg-surface-bright text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
-            rows={4}
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-3 px-4 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold transition-all active:scale-95 disabled:opacity-50 text-white"
-          style={{
-            background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
-            boxShadow: "0 4px 16px rgba(124,58,237,0.35)",
-          }}
-        >
-          {loading ? (
-            <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</>
-          ) : (
-            <><CheckCircle size={16} /> ลงทะเบียนรับเอกสาร</>
-          )}
-        </button>
-      </form>
+              {loading ? (
+                <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</>
+              ) : (
+                <><CheckCircle size={16} /> ลงทะเบียนรับเอกสาร</>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
