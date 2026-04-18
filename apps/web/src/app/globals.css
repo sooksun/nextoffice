@@ -1,66 +1,63 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: add `.dark` to <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
-  /* ─── Primary — Indigo ─── */
-  --color-primary: #4f46e5;
-  --color-primary-container: #3730a3;
-  --color-primary-fixed: #e0e7ff;
-  --color-primary-fixed-dim: #c7d2fe;
-  --color-on-primary: #ffffff;
-  --color-on-primary-container: #c7d2fe;
-  --color-on-primary-fixed: #1e1b4b;
-  --color-on-primary-fixed-variant: #3730a3;
+  /* All tokens reference CSS variables so they can switch per-mode */
+  --color-primary: var(--c-primary);
+  --color-primary-container: var(--c-primary-container);
+  --color-primary-fixed: var(--c-primary-fixed);
+  --color-primary-fixed-dim: var(--c-primary-fixed-dim);
+  --color-on-primary: var(--c-on-primary);
+  --color-on-primary-container: var(--c-on-primary-container);
+  --color-on-primary-fixed: var(--c-on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--c-on-primary-fixed-variant);
 
-  /* ─── Secondary — Violet ─── */
-  --color-secondary: #7c3aed;
-  --color-secondary-container: #6d28d9;
-  --color-secondary-fixed: #ede9fe;
-  --color-secondary-fixed-dim: #ddd6fe;
-  --color-on-secondary: #ffffff;
-  --color-on-secondary-container: #ede9fe;
+  --color-secondary: var(--c-secondary);
+  --color-secondary-container: var(--c-secondary-container);
+  --color-secondary-fixed: var(--c-secondary-fixed);
+  --color-secondary-fixed-dim: var(--c-secondary-fixed-dim);
+  --color-on-secondary: var(--c-on-secondary);
+  --color-on-secondary-container: var(--c-on-secondary-container);
 
-  /* ─── Tertiary — Purple ─── */
-  --color-tertiary: #9333ea;
-  --color-tertiary-container: #7e22ce;
-  --color-tertiary-fixed: #f3e8ff;
-  --color-tertiary-fixed-dim: #e9d5ff;
-  --color-on-tertiary: #ffffff;
-  --color-on-tertiary-container: #e9d5ff;
+  --color-tertiary: var(--c-tertiary);
+  --color-tertiary-container: var(--c-tertiary-container);
+  --color-tertiary-fixed: var(--c-tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--c-tertiary-fixed-dim);
+  --color-on-tertiary: var(--c-on-tertiary);
+  --color-on-tertiary-container: var(--c-on-tertiary-container);
 
-  /* ─── Error ─── */
-  --color-error: #dc2626;
-  --color-error-container: #fee2e2;
-  --color-on-error: #ffffff;
-  --color-on-error-container: #7f1d1d;
+  --color-error: var(--c-error);
+  --color-error-container: var(--c-error-container);
+  --color-on-error: var(--c-on-error);
+  --color-on-error-container: var(--c-on-error-container);
 
-  /* ─── Surface — Light lavender tinted ─── */
-  --color-surface: #f5f3ff;
-  --color-surface-dim: #ddd6fe;
-  --color-surface-bright: #faf9ff;
-  --color-surface-lowest: #ffffff;
-  --color-surface-low: #f0eeff;
-  --color-surface-mid: #e8e5ff;
-  --color-surface-high: #ddd6fe;
-  --color-surface-highest: #d1c4fe;
-  --color-surface-variant: #ede9fe;
-  --color-on-surface: #1e1b2e;
-  --color-on-surface-variant: #4c4675;
+  --color-surface: var(--c-surface);
+  --color-surface-dim: var(--c-surface-dim);
+  --color-surface-bright: var(--c-surface-bright);
+  --color-surface-lowest: var(--c-surface-lowest);
+  --color-surface-low: var(--c-surface-low);
+  --color-surface-mid: var(--c-surface-mid);
+  --color-surface-high: var(--c-surface-high);
+  --color-surface-highest: var(--c-surface-highest);
+  --color-surface-variant: var(--c-surface-variant);
+  --color-on-surface: var(--c-on-surface);
+  --color-on-surface-variant: var(--c-on-surface-variant);
 
-  /* ─── Outline ─── */
-  --color-outline: #6b63a8;
-  --color-outline-variant: #c4beed;
+  --color-outline: var(--c-outline);
+  --color-outline-variant: var(--c-outline-variant);
 
-  /* ─── Inverse ─── */
-  --color-inverse-surface: #1e1b4b;
-  --color-inverse-on-surface: #f0eeff;
-  --color-inverse-primary: #a5b4fc;
+  --color-inverse-surface: var(--c-inverse-surface);
+  --color-inverse-on-surface: var(--c-inverse-on-surface);
+  --color-inverse-primary: var(--c-inverse-primary);
 
-  /* ─── Fonts ─── */
+  /* Fonts */
   --font-headline: var(--font-sarabun);
   --font-body: var(--font-sarabun);
   --font-sans: var(--font-sarabun);
 
-  /* ─── shadcn/big-calendar semantic colors (Tailwind v4 bridge) ─── */
+  /* shadcn/big-calendar semantic colors (Tailwind v4 bridge) */
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -77,14 +74,62 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
 
-  /* ─── Extra sizes for big-calendar ─── */
   --font-size-xxs: 0.625rem;
   --font-size-xxs--line-height: 1rem;
   --radius: 0.75rem;
 }
 
-/* ─── shadcn HSL CSS variables ─── */
+/* ─── LIGHT MODE TOKENS ───────────────────────────────────────────── */
 :root {
+  /* Material You — Primary (Indigo) */
+  --c-primary: #4f46e5;
+  --c-primary-container: #3730a3;
+  --c-primary-fixed: #e0e7ff;
+  --c-primary-fixed-dim: #c7d2fe;
+  --c-on-primary: #ffffff;
+  --c-on-primary-container: #c7d2fe;
+  --c-on-primary-fixed: #1e1b4b;
+  --c-on-primary-fixed-variant: #3730a3;
+
+  --c-secondary: #7c3aed;
+  --c-secondary-container: #6d28d9;
+  --c-secondary-fixed: #ede9fe;
+  --c-secondary-fixed-dim: #ddd6fe;
+  --c-on-secondary: #ffffff;
+  --c-on-secondary-container: #ede9fe;
+
+  --c-tertiary: #9333ea;
+  --c-tertiary-container: #7e22ce;
+  --c-tertiary-fixed: #f3e8ff;
+  --c-tertiary-fixed-dim: #e9d5ff;
+  --c-on-tertiary: #ffffff;
+  --c-on-tertiary-container: #e9d5ff;
+
+  --c-error: #dc2626;
+  --c-error-container: #fee2e2;
+  --c-on-error: #ffffff;
+  --c-on-error-container: #7f1d1d;
+
+  --c-surface: #f5f3ff;
+  --c-surface-dim: #ddd6fe;
+  --c-surface-bright: #faf9ff;
+  --c-surface-lowest: #ffffff;
+  --c-surface-low: #f0eeff;
+  --c-surface-mid: #e8e5ff;
+  --c-surface-high: #ddd6fe;
+  --c-surface-highest: #d1c4fe;
+  --c-surface-variant: #ede9fe;
+  --c-on-surface: #1e1b2e;
+  --c-on-surface-variant: #4c4675;
+
+  --c-outline: #6b63a8;
+  --c-outline-variant: #c4beed;
+
+  --c-inverse-surface: #1e1b4b;
+  --c-inverse-on-surface: #f0eeff;
+  --c-inverse-primary: #a5b4fc;
+
+  /* shadcn HSL — light */
   --background: 248 100% 99%;
   --foreground: 245 40% 12%;
   --card: 0 0% 100%;
@@ -104,6 +149,87 @@
   --border: 248 40% 88%;
   --input: 248 40% 88%;
   --ring: 245 72% 58%;
+
+  /* Side-menu tokens (Rubick port) — dark navigation in both modes */
+  --sm-bg: 30 27 75;            /* rgb of #1e1b4b */
+  --sm-fg: 224 231 255;         /* rgb of #e0e7ff */
+  --sm-accent: 165 180 252;     /* rgb of #a5b4fc */
+  --sm-gradient: linear-gradient(160deg, #0f172a 0%, #1e1b4b 45%, #2d1b69 100%);
+}
+
+/* ─── DARK MODE TOKENS ────────────────────────────────────────────── */
+.dark {
+  --c-primary: #a5b4fc;
+  --c-primary-container: #4338ca;
+  --c-primary-fixed: #e0e7ff;
+  --c-primary-fixed-dim: #c7d2fe;
+  --c-on-primary: #1e1b4b;
+  --c-on-primary-container: #e0e7ff;
+  --c-on-primary-fixed: #1e1b4b;
+  --c-on-primary-fixed-variant: #4338ca;
+
+  --c-secondary: #c4b5fd;
+  --c-secondary-container: #5b21b6;
+  --c-secondary-fixed: #ede9fe;
+  --c-secondary-fixed-dim: #ddd6fe;
+  --c-on-secondary: #1e1b4b;
+  --c-on-secondary-container: #ede9fe;
+
+  --c-tertiary: #d8b4fe;
+  --c-tertiary-container: #6b21a8;
+  --c-tertiary-fixed: #f3e8ff;
+  --c-tertiary-fixed-dim: #e9d5ff;
+  --c-on-tertiary: #3b0764;
+  --c-on-tertiary-container: #f3e8ff;
+
+  --c-error: #f87171;
+  --c-error-container: #7f1d1d;
+  --c-on-error: #450a0a;
+  --c-on-error-container: #fecaca;
+
+  --c-surface: #0f0c1f;
+  --c-surface-dim: #08061a;
+  --c-surface-bright: #1a1633;
+  --c-surface-lowest: #080517;
+  --c-surface-low: #131027;
+  --c-surface-mid: #1a1633;
+  --c-surface-high: #25204a;
+  --c-surface-highest: #2e2758;
+  --c-surface-variant: #1e1a3e;
+  --c-on-surface: #e8e5ff;
+  --c-on-surface-variant: #b3aee0;
+
+  --c-outline: #736ca7;
+  --c-outline-variant: #3d365b;
+
+  --c-inverse-surface: #e8e5ff;
+  --c-inverse-on-surface: #1e1b2e;
+  --c-inverse-primary: #4f46e5;
+
+  /* shadcn HSL — dark */
+  --background: 250 40% 8%;
+  --foreground: 248 40% 94%;
+  --card: 250 35% 12%;
+  --card-foreground: 248 40% 94%;
+  --popover: 250 35% 12%;
+  --popover-foreground: 248 40% 94%;
+  --primary-foreground: 250 40% 8%;
+  --secondary-foreground: 248 40% 94%;
+  --muted: 250 30% 18%;
+  --muted-foreground: 248 20% 65%;
+  --accent: 250 30% 18%;
+  --accent-foreground: 248 40% 94%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 250 25% 22%;
+  --input: 250 25% 22%;
+  --ring: 245 72% 68%;
+
+  /* Side-menu tokens — dark mode */
+  --sm-bg: 8 5 23;
+  --sm-fg: 224 231 255;
+  --sm-accent: 165 180 252;
+  --sm-gradient: linear-gradient(160deg, #05030e 0%, #0f0a2e 45%, #1e1040 100%);
 }
 
 /* ─── big-calendar custom utilities ─── */
@@ -397,3 +523,166 @@ h1, h2, h3, h4, .font-headline {
     margin: 10mm;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   RUBICK SIDE-MENU SHELL (ported from midone-vue-v1.0.0)
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Smooth token transitions when toggling dark mode */
+html, body { transition: background-color 180ms ease, color 180ms ease; }
+
+/* ─── Sidebar container ─── */
+.rubick-sidebar {
+  background: var(--sm-gradient);
+  color: rgb(var(--sm-fg));
+}
+.rubick-sidebar::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(1000px circle at -10% 0%, rgba(139, 92, 246, 0.35), transparent 55%),
+    radial-gradient(600px circle at 100% 110%, rgba(59, 130, 246, 0.22), transparent 55%);
+  pointer-events: none;
+}
+.dark .rubick-sidebar::before {
+  background-image:
+    radial-gradient(1000px circle at -10% 0%, rgba(139, 92, 246, 0.18), transparent 55%),
+    radial-gradient(600px circle at 100% 110%, rgba(59, 130, 246, 0.12), transparent 55%);
+}
+
+/* ─── Sidebar link base ─── */
+.side-menu__link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.875rem;
+  color: rgb(var(--sm-fg) / 0.78);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+  position: relative;
+}
+.side-menu__link:hover {
+  color: rgb(var(--sm-fg));
+  background: rgb(var(--sm-fg) / 0.08);
+}
+.side-menu__link--active {
+  color: rgb(var(--sm-fg));
+  background: rgb(var(--sm-fg) / 0.14);
+  box-shadow: inset 2px 0 0 rgb(var(--sm-accent));
+}
+.side-menu__link--active::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem; top: 50%;
+  width: 0.375rem; height: 0.375rem;
+  transform: translateY(-50%);
+  background: rgb(var(--sm-accent));
+  border-radius: 9999px;
+  box-shadow: 0 0 10px 1px rgb(var(--sm-accent) / 0.6);
+}
+
+/* ─── Sidebar icon / title / badge / chevron ─── */
+.side-menu__link__icon {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: rgb(var(--sm-fg) / 0.7);
+}
+.side-menu__link--active .side-menu__link__icon { color: rgb(var(--sm-accent)); }
+
+.side-menu__link__title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: opacity 150ms ease;
+}
+
+.side-menu__link__badge {
+  flex: none;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--sm-accent) / 0.25);
+  color: rgb(var(--sm-fg));
+}
+
+.side-menu__link__chevron {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.6;
+  transition: transform 200ms ease;
+}
+
+/* ─── Group/section label ─── */
+.side-menu__group-label {
+  margin: 1.25rem 0.875rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--sm-fg) / 0.45);
+  transition: opacity 150ms ease;
+}
+
+/* ─── Nested sub-menu (level 2, 3) ─── */
+.side-menu__sub {
+  padding: 0.25rem 0;
+  margin: 0.375rem 0.375rem 0.25rem 1.625rem;
+  border-left: 1px solid rgb(var(--sm-fg) / 0.1);
+  padding-left: 0.625rem;
+}
+.side-menu__sub .side-menu__link { padding: 0.5rem 0.75rem; font-size: 0.8125rem; }
+.side-menu__sub .side-menu__link__icon { width: 0.9375rem; height: 0.9375rem; }
+
+/* ─── Compact / collapse behaviour ─── */
+.side-menu--collapsed .side-menu__link__title,
+.side-menu--collapsed .side-menu__link__badge,
+.side-menu--collapsed .side-menu__link__chevron,
+.side-menu--collapsed .side-menu__group-label,
+.side-menu--collapsed .side-menu__sub { opacity: 0; pointer-events: none; }
+.side-menu--collapsed .side-menu__sub { max-height: 0; overflow: hidden; }
+
+/* Expand on hover */
+.side-menu--collapsed.side-menu--on-hover .side-menu__link__title,
+.side-menu--collapsed.side-menu--on-hover .side-menu__link__badge,
+.side-menu--collapsed.side-menu--on-hover .side-menu__link__chevron,
+.side-menu--collapsed.side-menu--on-hover .side-menu__group-label,
+.side-menu--collapsed.side-menu--on-hover .side-menu__sub {
+  opacity: 1;
+  pointer-events: auto;
+}
+.side-menu--collapsed.side-menu--on-hover .side-menu__sub { max-height: none; overflow: visible; }
+
+/* ─── Top-bar scrolled state ─── */
+.top-bar { transition: all 180ms ease; }
+.top-bar.scrolled {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in oklab, var(--c-surface-bright), transparent 25%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 1rem;
+  border: 1px solid var(--c-outline-variant);
+  box-shadow: 0 8px 24px -8px rgba(15, 12, 31, 0.12);
+  padding-left: 1.25rem; padding-right: 1.25rem;
+}
+
+/* ─── Content frame (rounded panel) ─── */
+.rubick-content {
+  background: var(--c-surface-bright);
+  border: 1px solid var(--c-outline-variant);
+  border-radius: 1.75rem;
+}
+.dark .rubick-content { background: var(--c-surface-lowest); }

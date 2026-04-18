@@ -1,31 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Search, Bell, Grid3x3, LogOut, Sparkles } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { Bell, LogOut, Search, Menu as MenuIcon, Grid3x3 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getUser, getToken, logout, isImpersonating } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import clsx from "clsx";
 import ImpersonateMenu from "./ImpersonateMenu";
 import AdminSwitchPanel from "./AdminSwitchPanel";
+import Breadcrumb from "./Breadcrumb";
+import ThemeToggle from "./ThemeToggle";
+import QuickSearchDialog from "./QuickSearchDialog";
 
-const NAV_TABS = [
-  { label: "ภาพรวม", href: "/" },
-  { label: "เอกสารขาเข้า", href: "/intakes" },
-  { label: "คลังเอกสาร", href: "/documents" },
-];
+export interface HeaderProps {
+  scrolled: boolean;
+  onOpenMobileMenu: () => void;
+}
 
-export default function Header() {
-  const pathname = usePathname();
+function subscribeStorage(cb: () => void): () => void {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+
+export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
   const router = useRouter();
   const user = getUser();
   const [pendingCount, setPendingCount] = useState(0);
-  const [impersonating, setImpersonating] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
-  useEffect(() => {
-    setImpersonating(isImpersonating());
-  }, []);
+  // Reactive reads from localStorage — no setState-in-effect.
+  const impersonating = useSyncExternalStore(
+    subscribeStorage,
+    () => isImpersonating(),
+    () => false,
+  );
 
   useEffect(() => {
     if (!getToken()) return;
@@ -35,112 +44,70 @@ export default function Header() {
       .catch(() => {});
   }, []);
 
+  // Cmd/Ctrl+K opens QuickSearch
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function handleLogout() {
     logout();
     router.replace("/login");
   }
 
   const initials = user?.fullName
-    ? user.fullName
-        .split(" ")
-        .slice(0, 2)
-        .map((w: string) => w.charAt(0))
-        .join("")
+    ? user.fullName.split(" ").slice(0, 2).map((w) => w.charAt(0)).join("")
     : "?";
 
   return (
-    <header className="shrink-0 h-14 px-4 lg:px-6 flex items-center justify-between z-40 relative"
-      style={{
-        background: "rgba(255,255,255,0.82)",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
-        borderBottom: "1px solid rgba(196,190,237,0.25)",
-      }}
-    >
-      {/* Gradient accent line at bottom */}
-      <div
-        className="absolute bottom-0 left-0 right-0 h-[1.5px] pointer-events-none"
-        style={{
-          background: "linear-gradient(90deg, transparent 0%, #6366f1 20%, #8b5cf6 50%, #a855f7 80%, transparent 100%)",
-          opacity: 0.45,
-        }}
-      />
+    <div className={clsx("top-bar group relative", scrolled && "scrolled")}>
+      <div className="flex h-16 items-center gap-3 border-b border-outline-variant/40 transition-all">
+        {/* Mobile menu toggle */}
+        <button
+          onClick={onOpenMobileMenu}
+          className="xl:hidden flex items-center justify-center w-9 h-9 rounded-xl border border-outline-variant/60 bg-surface-bright text-on-surface-variant hover:text-primary transition-colors"
+          aria-label="เปิดเมนู"
+        >
+          <MenuIcon size={18} />
+        </button>
 
-      {/* Left: Search + Nav */}
-      <div className="flex items-center gap-6">
-        {/* Search */}
-        <div className="relative hidden md:block">
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors duration-200"
-            style={{ color: searchFocused ? "#7c3aed" : "#6b63a8" }}
-          />
-          <input
-            type="text"
-            placeholder="ค้นหาเอกสาร..."
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            className="w-60 pl-9 pr-4 py-1.5 rounded-full text-sm text-on-surface placeholder:text-outline/50 outline-none transition-all duration-200"
-            style={{
-              background: searchFocused
-                ? "rgba(99,102,241,0.06)"
-                : "rgba(237,233,254,0.55)",
-              border: searchFocused
-                ? "1.5px solid rgba(124,58,237,0.45)"
-                : "1.5px solid rgba(196,190,237,0.35)",
-              boxShadow: searchFocused
-                ? "0 0 0 3px rgba(124,58,237,0.10)"
-                : "none",
-            }}
-          />
-        </div>
+        {/* Breadcrumb — grows */}
+        <Breadcrumb className="hidden xl:flex flex-1 min-w-0" />
+        <div className="xl:hidden flex-1" />
 
-        {/* Nav tabs */}
-        <nav className="hidden lg:flex items-center gap-1 text-sm">
-          {NAV_TABS.map((tab) => {
-            const isActive =
-              pathname === tab.href ||
-              (tab.href !== "/" && pathname.startsWith(tab.href));
-            return (
-              <a
-                key={tab.href}
-                href={tab.href}
-                className="relative px-3 py-1.5 rounded-lg font-medium transition-all duration-200"
-                style={{
-                  color: isActive ? "#4f46e5" : "#4c4675",
-                  background: isActive ? "rgba(99,102,241,0.08)" : "transparent",
-                }}
-              >
-                {tab.label}
-                {isActive && (
-                  <span
-                    className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full"
-                    style={{
-                      background: "linear-gradient(90deg, #4f46e5, #7c3aed)",
-                    }}
-                  />
-                )}
-              </a>
-            );
-          })}
-        </nav>
-      </div>
+        {/* Quick search trigger */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="flex h-9 items-center gap-3 rounded-full border border-outline-variant/60 bg-surface-bright px-4 text-sm text-on-surface-variant hover:text-primary transition-colors"
+          title="ค้นหาอย่างรวดเร็ว (Ctrl+K)"
+        >
+          <Search size={15} />
+          <span className="hidden sm:inline opacity-75">ค้นหา…</span>
+          <kbd className="hidden sm:inline-flex h-5 items-center rounded-md border border-outline-variant/60 bg-surface-low px-1.5 text-[10px] font-semibold text-outline">
+            ⌘K
+          </kbd>
+        </button>
 
-      {/* Right: Actions + User */}
-      <div className="flex items-center gap-1.5">
+        {/* Theme toggle */}
+        <ThemeToggle />
+
+        {/* Admin tools */}
         <AdminSwitchPanel />
         {user?.roleCode === "ADMIN" && !impersonating && <ImpersonateMenu />}
 
         {/* Notifications */}
         <Link
           href="/notifications"
-          className="relative p-2 rounded-xl transition-all duration-200 hover:bg-primary/8 group"
-          title="การแจ้งเตือนงาน"
+          className="relative flex h-9 w-9 items-center justify-center rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
+          title="การแจ้งเตือน"
         >
-          <Bell
-            size={18}
-            className="text-on-surface-variant group-hover:text-primary transition-colors"
-          />
+          <Bell size={18} />
           {pendingCount > 0 && (
             <span
               className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5"
@@ -154,24 +121,20 @@ export default function Header() {
           )}
         </Link>
 
-        {/* Apps grid */}
+        {/* Apps grid (placeholder) */}
         <button
-          className="p-2 rounded-xl transition-all duration-200 hover:bg-primary/8 group"
+          className="hidden md:flex h-9 w-9 items-center justify-center rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
           title="แอปพลิเคชัน"
         >
-          <Grid3x3
-            size={18}
-            className="text-on-surface-variant group-hover:text-primary transition-colors"
-          />
+          <Grid3x3 size={18} />
         </button>
 
         {/* Divider */}
-        <div className="w-px h-5 bg-outline-variant/30 mx-1" />
+        <div className="w-px h-5 bg-outline-variant/40 mx-1" />
 
         {/* User area */}
         {user && (
           <div className="flex items-center gap-2">
-            {/* Avatar */}
             <div
               className="relative w-8 h-8 rounded-full flex items-center justify-center cursor-pointer select-none"
               style={{
@@ -180,27 +143,21 @@ export default function Header() {
               }}
               title={user.fullName}
             >
-              <span className="text-xs font-bold text-white leading-none">
-                {initials}
-              </span>
+              <span className="text-xs font-bold text-white leading-none">{initials}</span>
             </div>
-
-            {/* Name */}
-            <div className="hidden lg:flex flex-col max-w-[110px]">
+            <div className="hidden lg:flex flex-col max-w-[120px]">
               <span className="text-xs font-semibold text-on-surface truncate leading-tight">
                 {user.fullName}
               </span>
               {user.roleCode && (
-                <span className="text-[10px] text-on-surface-variant/70 truncate leading-tight">
+                <span className="text-[10px] text-on-surface-variant/80 truncate leading-tight">
                   {roleLabelTH(user.roleCode)}
                 </span>
               )}
             </div>
-
-            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="p-1.5 rounded-lg text-outline hover:text-error hover:bg-error-container/60 transition-all duration-200"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-outline hover:text-error hover:bg-error-container/40 transition-colors"
               title="ออกจากระบบ"
             >
               <LogOut size={14} />
@@ -208,7 +165,9 @@ export default function Header() {
           </div>
         )}
       </div>
-    </header>
+
+      <QuickSearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+    </div>
   );
 }
 

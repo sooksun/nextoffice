@@ -25,5 +25,6 @@ apps/api/generated/prisma
 # Docs — binary files and generated analysis
 docs/*.pdf
 docs/*.docx
+docs/midone-vue-v1.0.0/
 NEXTOFFICE_AI_RAG_ANALYSIS.md
 QUICK_REFERENCE.md

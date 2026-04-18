@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -32,16 +32,15 @@ import {
   MapPin,
   CheckSquare,
   ChevronDown,
-  Archive,
   QrCode,
   PenLine,
   MessageCircle,
   Sparkles,
   FileText,
-  Mail,
   BarChart3,
   Download,
-  Send,
+  ChevronLeft,
+  X,
 } from "lucide-react";
 
 type NavItem = {
@@ -50,6 +49,7 @@ type NavItem = {
   icon: React.ElementType;
   roles?: string[];
   disabled?: boolean;
+  badge?: number;
   children?: Omit<NavItem, "icon" | "children">[];
 };
 
@@ -64,7 +64,6 @@ const SARABAN = ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "ADMIN"];
 const APPROVER = ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"];
 
 const NAV_GROUPS: NavGroup[] = [
-  // ─── ภาพรวม ─────────────────────────────────────────────────────────
   {
     id: "overview",
     label: "ภาพรวม",
@@ -75,8 +74,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/director/signing", label: "รอลงนาม ผอ.", icon: PenLine, roles: ["DIRECTOR", "VICE_DIRECTOR"] },
     ],
   },
-
-  // ─── Documents ──────────────────────────────────────────────────────
   {
     id: "documents",
     label: "Documents",
@@ -122,8 +119,6 @@ const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
-
-  // ─── E-Service ──────────────────────────────────────────────────────
   {
     id: "eservice-main",
     label: "E-Service",
@@ -135,8 +130,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/calendar", label: "ปฏิทินภารกิจ", icon: CalendarDays },
     ],
   },
-
-  // ─── Back Office ────────────────────────────────────────────────────
   {
     id: "backoffice",
     label: "Back Office",
@@ -159,8 +152,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/reports/district", label: "รายงานระดับเขต", icon: Network, roles: MANAGER },
     ],
   },
-
-  // ─── ลงเวลาปฏิบัติงาน ───────────────────────────────────────────────
   {
     id: "attendance",
     label: "ลงเวลาปฏิบัติงาน",
@@ -171,8 +162,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/leave/approvals", label: "รออนุมัติ", icon: CheckSquare, roles: APPROVER },
     ],
   },
-
-  // ─── จัดการงานอัจฉริยะ ──────────────────────────────────────────────
   {
     id: "intelligence",
     label: "จัดการงานอัจฉริยะ",
@@ -188,8 +177,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/projects", label: "โครงการ", icon: FolderKanban, roles: ["DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER", "ADMIN"] },
     ],
   },
-
-  // ─── จัดการ ─────────────────────────────────────────────────────────
   {
     id: "admin",
     label: "จัดการ",
@@ -203,8 +190,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/settings/line-accounts", label: "เชื่อมต่อ LINE", icon: MessageCircle, roles: ["ADMIN", "DIRECTOR"] },
     ],
   },
-
-  // ─── ช่วยเหลือ ──────────────────────────────────────────────────────
   {
     id: "help",
     label: "ช่วยเหลือ & ข้อมูล",
@@ -231,299 +216,265 @@ function filterItems(items: NavItem[], roleCode: string): NavItem[] {
     );
 }
 
-function isGroupActive(items: NavItem[], pathname: string): boolean {
-  return items.some(
-    ({ href, children }) =>
-      pathname === href ||
-      (href !== "/" && pathname.startsWith(href.split("?")[0])) ||
-      (children ?? []).some(
-        (c) =>
-          pathname === c.href ||
-          (c.href !== "/" && pathname.startsWith(c.href.split("?")[0])),
-      ),
-  );
+function matches(pathname: string, href: string): boolean {
+  const base = href.split("?")[0];
+  if (base === "/") return pathname === "/";
+  return pathname === base || pathname.startsWith(`${base}/`);
 }
 
-function NavGroupSection({
-  group,
-  pathname,
-  roleCode,
-  defaultOpen,
-}: {
-  group: NavGroup;
-  pathname: string;
-  roleCode: string;
-  defaultOpen: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const visibleItems = filterItems(group.items, roleCode);
+function itemIsActive(item: NavItem, pathname: string): boolean {
+  if (matches(pathname, item.href)) return true;
+  return (item.children ?? []).some((c) => matches(pathname, c.href));
+}
 
-  if (visibleItems.length === 0) return null;
+/** Renders a single top-level nav item (optionally with collapsible children). */
+function SideMenuItem({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const Icon = item.icon;
+  const hasChildren = !!item.children && item.children.length > 0;
+  const active = itemIsActive(item, pathname);
+  // Tri-state: null = follow "active" prop; true/false = user override.
+  // This keeps the accordion open on navigation without needing a setState-in-effect.
+  const [manual, setManual] = useState<boolean | null>(null);
+  const expanded = manual === null ? active : manual;
+  const toggle = () => setManual(!expanded);
+
+  if (item.disabled) {
+    return (
+      <div className="side-menu__link opacity-50 cursor-not-allowed">
+        <Icon className="side-menu__link__icon" />
+        <span className="side-menu__link__title">{item.label}</span>
+        <span className="side-menu__link__badge">เร็วๆ นี้</span>
+      </div>
+    );
+  }
+
+  if (!hasChildren) {
+    return (
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        className={clsx("side-menu__link", active && "side-menu__link--active")}
+      >
+        <Icon className="side-menu__link__icon" />
+        <span className="side-menu__link__title">{item.label}</span>
+        {item.badge != null && <span className="side-menu__link__badge">{item.badge}</span>}
+      </Link>
+    );
+  }
 
   return (
-    <div className="mb-1">
-      {/* Group header */}
+    <div>
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-1.5 text-[13px] uppercase tracking-widest text-white/35 font-bold hover:text-white/60 transition-colors group"
+        type="button"
+        onClick={toggle}
+        className={clsx("side-menu__link w-full", active && "side-menu__link--active")}
       >
-        <span>{group.label}</span>
+        <Icon className="side-menu__link__icon" />
+        <span className="side-menu__link__title">{item.label}</span>
         <ChevronDown
-          size={11}
           className={clsx(
-            "transition-transform duration-200 opacity-60",
-            open ? "rotate-0" : "-rotate-90",
+            "side-menu__link__chevron",
+            expanded ? "rotate-180" : "",
           )}
         />
       </button>
-
-      {/* Items */}
-      <div
-        className={clsx(
-          "overflow-hidden transition-all duration-200",
-          open ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0",
-        )}
-      >
-        <div className="space-y-0.5 pb-1">
-          {visibleItems.map(({ href, label, icon: Icon, children, disabled }) => {
-            const isActive =
-              !disabled &&
-              (pathname === href ||
-                (href !== "/" && pathname.startsWith(href.split("?")[0])));
-            const hasChildren = children && children.length > 0;
+      {expanded && (
+        <div className="side-menu__sub">
+          {item.children!.map((c) => {
+            const childActive = matches(pathname, c.href);
             return (
-              <div key={href}>
-                {disabled ? (
-                  <span className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium cursor-not-allowed select-none">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-lg shrink-0 text-white/20">
-                      <Icon size={14} />
-                    </span>
-                    <span className="truncate text-[13px] text-white/25">{label}</span>
-                    <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300/50 font-bold uppercase tracking-wider shrink-0 whitespace-nowrap">
-                      เร็วๆ นี้
-                    </span>
-                  </span>
-                ) : (
-                  <Link
-                    href={href}
+              <Link
+                key={`${item.href}::${c.href}::${c.label}`}
+                href={c.href}
+                onClick={onNavigate}
+                className={clsx(
+                  "side-menu__link",
+                  childActive && "side-menu__link--active",
+                )}
+              >
+                <span className="side-menu__link__icon inline-flex items-center justify-center">
+                  <span
                     className={clsx(
-                      "relative group/item flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                      isActive
-                        ? "bg-white/15 text-white shadow-sm border border-white/10"
-                        : "text-white/60 hover:text-white/90 hover:bg-white/8",
+                      "w-1.5 h-1.5 rounded-full",
+                      childActive ? "bg-current" : "bg-current opacity-50",
                     )}
-                  >
-                    {isActive && (
-                      <span className="absolute left-0 w-0.5 h-5 rounded-r-full bg-gradient-to-b from-indigo-300 to-violet-400" />
-                    )}
-                    <span
-                      className={clsx(
-                        "flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 shrink-0",
-                        isActive
-                          ? "bg-gradient-to-br from-indigo-400/30 to-violet-400/30 text-indigo-200"
-                          : "text-white/50 group-hover/item:text-white/80",
-                      )}
-                    >
-                      <Icon size={14} />
-                    </span>
-                    <span className="truncate text-[13px]">{label}</span>
-                    {isActive && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300 shrink-0" />
-                    )}
-                  </Link>
-                )}
-
-                {/* Children sub-menu — only shown when parent is not disabled */}
-                {hasChildren && !disabled && (
-                  <div className="ml-9 mt-0.5 space-y-0.5">
-                    {children.map((child) => {
-                      if (child.disabled) {
-                        return (
-                          <span
-                            key={child.label}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] cursor-not-allowed select-none"
-                          >
-                            <span className="w-1 h-1 rounded-full bg-white/10 shrink-0" />
-                            <span className="text-white/20">{child.label}</span>
-                            <span className="ml-auto text-[7px] px-1 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300/30 font-bold tracking-wide whitespace-nowrap">
-                              เร็วๆ นี้
-                            </span>
-                          </span>
-                        );
-                      }
-                      const childBase = child.href.split("?")[0];
-                      const childActive =
-                        pathname === childBase ||
-                        (childBase !== "/" && pathname.startsWith(childBase));
-                      return (
-                        <Link
-                          key={child.label}
-                          href={child.href}
-                          className={clsx(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200",
-                            childActive
-                              ? "bg-white/12 text-white"
-                              : "text-white/45 hover:text-white/75 hover:bg-white/6",
-                          )}
-                        >
-                          <span
-                            className={clsx(
-                              "w-1 h-1 rounded-full shrink-0",
-                              childActive ? "bg-indigo-300" : "bg-white/30",
-                            )}
-                          />
-                          {child.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                  />
+                </span>
+                <span className="side-menu__link__title">{c.label}</span>
+              </Link>
             );
           })}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-export default function Sidebar() {
-  const pathname = usePathname();
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [roleCode, setRoleCode] = useState<string>("TEACHER");
+export interface SidebarProps {
+  compactMenu: boolean;
+  compactMenuOnHover: boolean;
+  mobileMenuOpen: boolean;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onToggleCompact: () => void;
+  onCloseMobile: () => void;
+}
 
-  useEffect(() => {
-    const user = getUser();
-    if (user?.roleCode) setRoleCode(user.roleCode);
-  }, []);
+function subscribeUser(cb: () => void): () => void {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+
+function getRoleCode(): string {
+  return getUser()?.roleCode ?? "TEACHER";
+}
+
+export default function Sidebar({
+  compactMenu,
+  compactMenuOnHover,
+  mobileMenuOpen,
+  onMouseEnter,
+  onMouseLeave,
+  onToggleCompact,
+  onCloseMobile,
+}: SidebarProps) {
+  const pathname = usePathname() ?? "/";
+  const [uploadOpen, setUploadOpen] = useState(false);
+  // Read role reactively from localStorage via useSyncExternalStore — updates
+  // if the impersonation flow swaps the stored user.
+  const roleCode = useSyncExternalStore(subscribeUser, getRoleCode, () => "TEACHER");
+
+  const groups = useMemo(
+    () =>
+      NAV_GROUPS.map((g) => ({ ...g, items: filterItems(g.items, roleCode) }))
+        .filter((g) => g.items.length > 0),
+    [roleCode],
+  );
+
+  // Collapse state — hide text when compact & not hovered
+  const showText = !compactMenu || compactMenuOnHover;
 
   return (
     <aside
-      className="relative w-64 shrink-0 flex flex-col font-[family-name:var(--font-be-vietnam-pro)] text-sm font-medium overflow-hidden"
-      style={{
-        background: "linear-gradient(160deg, #0f172a 0%, #1e1b4b 45%, #2d1b69 100%)",
-      }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={clsx(
+        "rubick-sidebar side-menu fixed top-0 left-0 z-50 h-screen flex flex-col overflow-hidden transition-[width,transform] duration-200",
+        "w-[275px] xl:translate-x-0",
+        compactMenu && !compactMenuOnHover && "xl:w-[80px] side-menu--collapsed",
+        compactMenu && compactMenuOnHover && "xl:w-[275px] side-menu--collapsed side-menu--on-hover",
+        // Mobile drawer
+        mobileMenuOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
+      )}
     >
-      {/* Decorative background orbs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute -top-16 -left-16 w-48 h-48 rounded-full opacity-20"
-          style={{ background: "radial-gradient(circle, #7c3aed, transparent 70%)" }}
-        />
-        <div
-          className="absolute top-1/2 -right-20 w-56 h-56 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #6366f1, transparent 70%)" }}
-        />
-        <div
-          className="absolute -bottom-20 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full opacity-15"
-          style={{ background: "radial-gradient(circle, #9333ea, transparent 70%)" }}
-        />
-      </div>
+      {/* Mobile close button */}
+      {mobileMenuOpen && (
+        <button
+          onClick={onCloseMobile}
+          className="xl:hidden absolute top-4 right-4 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/80 hover:bg-white/20"
+          aria-label="ปิดเมนู"
+        >
+          <X size={16} />
+        </button>
+      )}
 
       {/* Brand */}
-      <div className="relative px-4 py-5 flex items-center gap-3">
-        <div className="relative shrink-0">
-          <div
-            className="absolute inset-0 rounded-xl blur-md opacity-40"
-            style={{ background: "linear-gradient(135deg, #6366f1, #9333ea)" }}
-          />
-          <Image
-            src="/Favicon.png"
-            alt="NextOffice"
-            width={38}
-            height={38}
-            className="relative rounded-xl shadow-lg"
-          />
-        </div>
-        <div>
-          <span
-            className="text-lg font-bold leading-tight block"
-            style={{
-              background: "linear-gradient(135deg, #e0e7ff, #ddd6fe, #f3e8ff)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            Next Office
-          </span>
-          <div className="flex items-center gap-1 mt-0.5">
-            <Sparkles size={8} className="text-violet-300 opacity-80" />
-            <p className="text-[9px] uppercase tracking-widest text-white/40 font-bold">
-              Education AI
-            </p>
+      <div className="relative flex items-center gap-3 px-5 h-[65px] flex-none">
+        <Image
+          src="/Favicon.png"
+          alt="NextOffice"
+          width={34}
+          height={34}
+          className="relative rounded-xl shadow-lg flex-none"
+        />
+        {showText && (
+          <div className="min-w-0">
+            <span
+              className="text-base font-bold leading-tight block truncate"
+              style={{
+                background: "linear-gradient(135deg, #e0e7ff, #ddd6fe, #f3e8ff)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              Next Office
+            </span>
+            <div className="flex items-center gap-1 mt-0.5">
+              <Sparkles size={8} className="text-violet-300 opacity-80" />
+              <p className="text-[9px] uppercase tracking-widest text-white/45 font-bold">
+                Education AI
+              </p>
+            </div>
           </div>
-        </div>
+        )}
+        {/* Compact toggle — xl+ only */}
+        <button
+          onClick={onToggleCompact}
+          title={compactMenu ? "ขยายเมนู" : "ย่อเมนู"}
+          className="ml-auto hidden 2xl:flex items-center justify-center w-7 h-7 rounded-md border border-white/15 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+        >
+          <ChevronLeft
+            size={14}
+            className={clsx("transition-transform duration-200", compactMenu && "rotate-180")}
+          />
+        </button>
       </div>
 
-      {/* Divider */}
-      <div
-        className="mx-4 mb-3 h-px"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)",
-        }}
-      />
-
-      {/* New Document Upload */}
-      <div className="relative px-4 mb-4">
+      {/* New Document Upload CTA */}
+      <div className="relative px-4 mb-3 flex-none">
         <button
           onClick={() => setUploadOpen(true)}
-          className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-sm font-bold text-white rounded-xl transition-all duration-200 active:scale-95"
+          title="เอกสารใหม่ด้วย AI"
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-bold text-white rounded-xl transition-transform active:scale-95"
           style={{
             background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
             boxShadow:
               "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.boxShadow =
-              "0 6px 28px rgba(124, 58, 237, 0.55), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow =
-              "0 4px 20px rgba(124, 58, 237, 0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)";
-          }}
         >
-          <FilePlus size={14} />
-          <span>+ เอกสารใหม่ด้วย AI</span>
+          <FilePlus size={14} className="flex-none" />
+          {showText && <span className="truncate">+ เอกสารใหม่ด้วย AI</span>}
         </button>
       </div>
       <DocumentUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
 
-      {/* Nav — foldable groups */}
-      <nav className="relative flex-1 px-2 overflow-y-auto sidebar-scrollbar">
-        {NAV_GROUPS.map((group) => {
-          const visibleItems = filterItems(group.items, roleCode);
-          return (
-            <NavGroupSection
-              key={group.id}
-              group={group}
-              pathname={pathname}
-              roleCode={roleCode}
-              defaultOpen={isGroupActive(visibleItems, pathname) || group.id === "overview"}
-            />
-          );
-        })}
-        <div className="h-4" />
+      {/* Nav */}
+      <nav className="relative flex-1 px-3 pb-4 overflow-y-auto sidebar-scrollbar">
+        {groups.map((group) => (
+          <div key={group.id} className="mb-2">
+            <div className="side-menu__group-label">{group.label}</div>
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <SideMenuItem
+                  key={`${group.id}::${item.href}::${item.label}`}
+                  item={item}
+                  pathname={pathname}
+                  onNavigate={mobileMenuOpen ? onCloseMobile : undefined}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
       </nav>
 
-      {/* Divider */}
-      <div
-        className="mx-4 h-px"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent)",
-        }}
-      />
-
       {/* Bottom help link */}
-      <div className="relative px-2 pb-4 pt-2">
+      <div className="relative px-3 pb-4 pt-2 flex-none border-t border-white/5">
         <Link
           href="/help"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-white/40 hover:text-white/70 hover:bg-white/8 transition-all duration-200"
+          onClick={mobileMenuOpen ? onCloseMobile : undefined}
+          className="side-menu__link"
         >
-          <HelpCircle size={14} />
-          ศูนย์ช่วยเหลือ
+          <HelpCircle className="side-menu__link__icon" />
+          <span className="side-menu__link__title">ศูนย์ช่วยเหลือ</span>
         </Link>
       </div>
     </aside>
