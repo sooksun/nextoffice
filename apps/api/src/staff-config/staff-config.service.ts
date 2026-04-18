@@ -155,7 +155,6 @@ export class StaffConfigService {
       where: {
         id: BigInt(userId),
         organizationId: BigInt(orgId),
-        roleCode: { in: STAFF_ROLES as unknown as string[] },
       },
     });
     if (!user) throw new NotFoundException('ไม่พบผู้ใช้');
@@ -177,10 +176,7 @@ export class StaffConfigService {
   /** ลบลายเซ็น */
   async deleteSignature(userId: number, orgId: number) {
     const user = await this.prisma.user.findFirst({
-      where: {
-        id: BigInt(userId),
-        organizationId: BigInt(orgId),
-      },
+      where: { id: BigInt(userId), organizationId: BigInt(orgId) },
       select: { signaturePath: true },
     });
     if (!user) throw new NotFoundException('ไม่พบผู้ใช้');
@@ -196,10 +192,7 @@ export class StaffConfigService {
   /** ดึงรูปลายเซ็นเป็น Buffer */
   async getSignatureBuffer(userId: number, orgId: number): Promise<{ buffer: Buffer; mimeType: string }> {
     const user = await this.prisma.user.findFirst({
-      where: {
-        id: BigInt(userId),
-        organizationId: BigInt(orgId),
-      },
+      where: { id: BigInt(userId), organizationId: BigInt(orgId) },
       select: { signaturePath: true },
     });
     if (!user?.signaturePath) throw new NotFoundException('ไม่พบรูปลายเซ็น');
