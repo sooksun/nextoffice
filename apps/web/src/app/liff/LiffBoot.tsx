@@ -146,7 +146,19 @@ function LiffStatusScreen({ status, error }: { status: LiffStatus; error: string
         <>
           <div className="mb-3 text-3xl">❌</div>
           <h2 className="mb-2 text-lg font-semibold">เกิดข้อผิดพลาด</h2>
-          <p className="max-w-sm text-sm text-rose-600">{error}</p>
+          <p className="mb-4 max-w-sm text-sm text-rose-600">{error}</p>
+          {error?.toLowerCase().includes("client features") && (
+            <div className="max-w-sm rounded-lg border border-amber-200 bg-amber-50 p-4 text-left text-xs text-amber-800">
+              <p className="mb-2 font-semibold">⚠ หน้านี้ต้องเปิดผ่าน LINE เท่านั้น</p>
+              <p className="mb-2">ไม่สามารถเปิดใน browser ปกติได้ เพราะ LIFF SDK ต้องการ context จาก LINE client</p>
+              <p className="mb-2 font-semibold">วิธีเปิด:</p>
+              <ol className="mb-2 list-inside list-decimal space-y-0.5">
+                <li>เปิดแอป LINE บนมือถือ</li>
+                <li>กดเมนูที่ด้านล่างแชท Next Office AI (rich menu)</li>
+                <li>หรือเปิด URL เริ่มต้นด้วย <code className="rounded bg-white px-1">https://liff.line.me/...</code></li>
+              </ol>
+            </div>
+          )}
         </>
       )}
     </div>
