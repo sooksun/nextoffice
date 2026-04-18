@@ -24,11 +24,22 @@ interface PendingSign {
   urgencyLevel: string | null;
 }
 
+interface PendingOutbound {
+  id: number;
+  subject: string;
+  urgencyLevel: string;
+  letterType: string;
+  createdAt: string;
+  recipientOrg: string | null;
+  recipientName: string | null;
+}
+
 export default function LiffDashboardPage() {
   const { displayName, pictureUrl, status } = useLiff();
   const [user, setUser] = useState<any>(null);
   const [myTasks, setMyTasks] = useState<MyTask[]>([]);
   const [pendingSign, setPendingSign] = useState<PendingSign[]>([]);
+  const [pendingOutbound, setPendingOutbound] = useState<PendingOutbound[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,8 +53,15 @@ export default function LiffDashboardPage() {
         setMyTasks(Array.isArray(tasks) ? tasks : []);
 
         if (["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(u?.roleCode)) {
-          const pending = await apiFetch<PendingSign[]>("/cases/pending-director-signing");
+          const [pending, outbound] = await Promise.all([
+            apiFetch<PendingSign[]>("/cases/pending-director-signing").catch(() => []),
+            apiFetch<PendingOutbound[] | { data: PendingOutbound[] }>(
+              "/outbound/my/documents?status=pending_approval",
+            ).catch(() => []),
+          ]);
           setPendingSign(Array.isArray(pending) ? pending : []);
+          const outArr = Array.isArray(outbound) ? outbound : (outbound as any).data ?? [];
+          setPendingOutbound(outArr);
         }
       } finally {
         setLoading(false);
@@ -71,23 +89,43 @@ export default function LiffDashboardPage() {
       ) : (
         <>
           {isDirector && (
-            <Section title="รอลงนาม" count={pendingSign.length}>
-              {pendingSign.length === 0 ? (
-                <Empty>ไม่มีหนังสือรอลงนาม</Empty>
-              ) : (
-                pendingSign.map((c) => (
-                  <CaseCard
-                    key={c.id}
-                    href={`/liff/sign/${c.id}`}
-                    title={c.title}
-                    subtitle={c.registrationNo ?? c.documentNo ?? ""}
-                    urgency={c.urgencyLevel}
-                    date={c.createdAt}
-                    action="ลงนาม"
-                  />
-                ))
-              )}
-            </Section>
+            <>
+              <Section title="รออนุมัติส่ง" count={pendingOutbound.length}>
+                {pendingOutbound.length === 0 ? (
+                  <Empty>ไม่มีหนังสือรออนุมัติส่ง</Empty>
+                ) : (
+                  pendingOutbound.map((o) => (
+                    <CaseCard
+                      key={o.id}
+                      href={`/liff/outbound/${o.id}`}
+                      title={o.subject}
+                      subtitle={o.recipientName ?? o.recipientOrg ?? ""}
+                      urgency={o.urgencyLevel}
+                      date={o.createdAt}
+                      action="อนุมัติ"
+                    />
+                  ))
+                )}
+              </Section>
+
+              <Section title="รอลงนาม" count={pendingSign.length}>
+                {pendingSign.length === 0 ? (
+                  <Empty>ไม่มีหนังสือรอลงนาม</Empty>
+                ) : (
+                  pendingSign.map((c) => (
+                    <CaseCard
+                      key={c.id}
+                      href={`/liff/sign/${c.id}`}
+                      title={c.title}
+                      subtitle={c.registrationNo ?? c.documentNo ?? ""}
+                      urgency={c.urgencyLevel}
+                      date={c.createdAt}
+                      action="ลงนาม"
+                    />
+                  ))
+                )}
+              </Section>
+            </>
           )}
 
           <Section title="งานของฉัน" count={myTasks.length}>
