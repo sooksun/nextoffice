@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, FileText, Clock, User } from "lucide-react";
+import clsx from "clsx";
 import PdfPreview from "@/components/PdfPreview";
 import SignatureVerification from "@/components/SignatureVerification";
 import { formatThaiDate, formatThaiDateShort, formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
@@ -9,6 +10,8 @@ import AssignButton from "@/components/actions/AssignButton";
 import AcknowledgeButton from "@/components/actions/AcknowledgeButton";
 import CompleteButton from "@/components/actions/CompleteButton";
 import EndorsementPanel from "@/components/actions/EndorsementPanel";
+import { Card, CardContent } from "@/components/ui/card";
+import { UrgencyBadge, CaseStatusBadge } from "@/components/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -24,17 +27,6 @@ const URGENCY_LABEL: Record<string, string> = {
 
 const SECURITY_LABEL: Record<string, string> = {
   normal: "ปกติ", confidential: "ปกปิด", secret: "ลับ", top_secret: "ลับมาก", most_secret: "ลับที่สุด",
-};
-const URGENCY_COLOR: Record<string, string> = {
-  normal: "bg-blue-100 text-blue-800", urgent: "bg-yellow-100 text-yellow-800",
-  very_urgent: "bg-orange-100 text-orange-800", most_urgent: "bg-red-100 text-red-800",
-};
-const STATUS_LABEL: Record<string, string> = {
-  new: "ใหม่", analyzing: "วิเคราะห์", proposed: "เสนอ AI", registered: "ลงรับแล้ว",
-  assigned: "มอบหมายแล้ว", in_progress: "กำลังดำเนินการ", completed: "เสร็จสิ้น", archived: "เก็บถาวร",
-};
-const ASSIGNMENT_STATUS: Record<string, string> = {
-  pending: "รอรับทราบ", accepted: "รับทราบแล้ว", in_progress: "กำลังดำเนินการ", completed: "เสร็จสิ้น",
 };
 
 interface IntakeFile {
@@ -94,6 +86,17 @@ const ACTION_LABEL: Record<string, string> = {
   close: "ปิดเรื่อง", auto_complete: "เสร็จอัตโนมัติ",
 };
 
+const ASSIGNMENT_STATUS: Record<string, string> = {
+  pending: "รอรับทราบ", accepted: "รับทราบแล้ว", in_progress: "กำลังดำเนินการ", completed: "เสร็จสิ้น",
+};
+
+const ASSIGNMENT_STATUS_CLS: Record<string, string> = {
+  completed: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
+  accepted: "bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  in_progress: "bg-orange-500/20 text-orange-800 dark:text-orange-300",
+  pending: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+};
+
 /** For manually-created cases (no sourceDocument), parse senderOrg/docNo from description text */
 function parseSenderFromDescription(desc: string | null) {
   if (!desc) return { documentCode: null, issuingAuthority: null };
@@ -114,9 +117,11 @@ async function getActivities(id: string) {
 
 /** URL ไฟล์ — ถ้า status ผ่าน registered ขึ้นไป ให้ดึง stamped version */
 function buildFileUrl(intakeId: number, status: string): string {
-  const showStamped = !['new', 'analyzing', 'proposed'].includes(status);
-  return `/api/files/intake/${intakeId}${showStamped ? '?stamped=true' : ''}`;
+  const showStamped = !["new", "analyzing", "proposed"].includes(status);
+  return `/api/files/intake/${intakeId}${showStamped ? "?stamped=true" : ""}`;
 }
+
+const sectionHead = "text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-4";
 
 export default async function InboxDetailPage({
   params,
@@ -130,21 +135,20 @@ export default async function InboxDetailPage({
     getActivities(id),
   ]);
 
-  // แสดงไฟล์เฉพาะเมื่อมี storagePath (ไฟล์ถูก save ลง MinIO สำเร็จ)
   const hasFile = !!(caseData?.intake?.id && caseData?.intake?.storagePath);
   const intakeFileUrl = hasFile ? buildFileUrl(caseData!.intake!.id, caseData!.status) : null;
   const intakeMimeType = caseData?.intake?.mimeType ?? "";
   const intakeFileName = caseData?.intake?.originalFileName ?? null;
 
-  // Fallback: parse sender info from description for legacy manual cases (no sourceDocument)
   const senderFallback = parseSenderFromDescription(caseData?.description ?? null);
-  // Priority: sourceDocument → intake aiResult → description fallback
-  const issuingAuthority = caseData?.sourceDocument?.issuingAuthority
-    ?? caseData?.intake?.issuingAuthority
-    ?? senderFallback.issuingAuthority;
-  const documentCode = caseData?.sourceDocument?.documentCode
-    ?? caseData?.intake?.documentNo
-    ?? senderFallback.documentCode;
+  const issuingAuthority =
+    caseData?.sourceDocument?.issuingAuthority ??
+    caseData?.intake?.issuingAuthority ??
+    senderFallback.issuingAuthority;
+  const documentCode =
+    caseData?.sourceDocument?.documentCode ??
+    caseData?.intake?.documentNo ??
+    senderFallback.documentCode;
   const documentDate = caseData?.intake?.documentDate ?? null;
 
   if (!caseData) {
@@ -171,15 +175,11 @@ export default async function InboxDetailPage({
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-on-surface leading-tight mb-2">{caseData.title}</h1>
           <div className="flex flex-wrap gap-2">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold ${URGENCY_COLOR[caseData.urgencyLevel]}`}>
-              {URGENCY_LABEL[caseData.urgencyLevel]}
-            </span>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-surface-bright text-on-surface-variant">
-              {STATUS_LABEL[caseData.status]}
-            </span>
+            <UrgencyBadge level={caseData.urgencyLevel} />
+            <CaseStatusBadge status={caseData.status} />
             {caseData.registrationNo && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-mono font-bold text-primary bg-primary/5">
-                เลขรับ {toThaiNumerals(caseData.registrationNo!)}
+              <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-mono font-bold text-primary bg-primary/10">
+                เลขรับ {toThaiNumerals(caseData.registrationNo)}
               </span>
             )}
           </div>
@@ -187,7 +187,7 @@ export default async function InboxDetailPage({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-3 mb-6 p-4 bg-surface-bright rounded-2xl border border-outline-variant/20">
+      <div className="flex flex-wrap gap-3 mb-6 p-4 bg-surface-bright rounded-2xl border border-outline-variant/40">
         <RegisterButton caseId={caseData.id} status={caseData.status} />
         <AssignButton
           caseId={caseData.id}
@@ -199,28 +199,24 @@ export default async function InboxDetailPage({
         <CompleteButton caseId={caseData.id} assignments={assignments} />
       </div>
 
-      {/* Original File — streamed via API proxy (GET /intake/:id/file) */}
+      {/* Original file preview */}
       {intakeFileUrl && (
-        <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6 overflow-hidden">
-          <PdfPreview
-            src={intakeFileUrl}
-            mimeType={intakeMimeType}
-            fileName={intakeFileName}
-          />
-        </div>
+        <Card className="mb-6 overflow-hidden">
+          <PdfPreview src={intakeFileUrl} mimeType={intakeMimeType} fileName={intakeFileName} />
+        </Card>
       )}
 
       {/* Digital Signature Verification */}
-      {caseData?.intake?.id && !['new', 'analyzing', 'proposed'].includes(caseData.status) && (
+      {caseData?.intake?.id && !["new", "analyzing", "proposed"].includes(caseData.status) && (
         <div className="mb-4">
           <SignatureVerification type="intake" id={caseData.intake.id} />
         </div>
       )}
 
-      {/* Document Metadata */}
-      <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6">
-        <div className="p-5">
-          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-4">ข้อมูลหนังสือ</h2>
+      {/* Metadata */}
+      <Card className="mb-6">
+        <CardContent className="p-5">
+          <h2 className={sectionHead}>ข้อมูลหนังสือ</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="col-span-2">
               <span className="text-on-surface-variant text-xs">ชื่อเรื่อง:</span>
@@ -236,7 +232,9 @@ export default async function InboxDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">ที่หนังสือ:</span>
-              <p className="font-medium font-mono">{documentCode ? toThaiNumerals(thaiToArabic(documentCode)) : "—"}</p>
+              <p className="font-medium font-mono">
+                {documentCode ? toThaiNumerals(thaiToArabic(documentCode)) : "—"}
+              </p>
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">วันที่หนังสือ:</span>
@@ -244,10 +242,11 @@ export default async function InboxDetailPage({
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">เลขทะเบียนรับ:</span>
-              {caseData.registrationNo
-                ? <p className="font-bold font-mono text-primary text-base">{toThaiNumerals(caseData.registrationNo!)}</p>
-                : <p className="text-on-surface-variant italic text-xs">ยังไม่ได้ลงรับ</p>
-              }
+              {caseData.registrationNo ? (
+                <p className="font-bold font-mono text-primary text-base">{toThaiNumerals(caseData.registrationNo)}</p>
+              ) : (
+                <p className="text-on-surface-variant italic text-xs">ยังไม่ได้ลงรับ</p>
+              )}
             </div>
             <div>
               <span className="text-on-surface-variant text-xs">วันที่รับ:</span>
@@ -267,44 +266,49 @@ export default async function InboxDetailPage({
             </div>
           </div>
           {caseData.description && (
-            <div className="mt-4 pt-4 border-t border-outline-variant/10">
+            <div className="mt-4 pt-4 border-t border-outline-variant/30">
               <span className="text-on-surface-variant text-sm">หมายเหตุ:</span>
               <p className="text-sm mt-1 whitespace-pre-wrap">{caseData.description}</p>
             </div>
           )}
           {caseData.directorNote && (
-            <div className="mt-4 pt-4 border-t border-outline-variant/10">
+            <div className="mt-4 pt-4 border-t border-outline-variant/30">
               <span className="text-on-surface-variant text-sm">คำสั่งผู้บริหาร:</span>
               <p className="text-sm mt-1 whitespace-pre-wrap font-medium text-primary">{caseData.directorNote}</p>
             </div>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Assignments */}
       {assignments.length > 0 && (
-        <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm mb-6">
-          <div className="p-5">
-            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-4">
+        <Card className="mb-6">
+          <CardContent className="p-5">
+            <h2 className={sectionHead}>
               <User size={14} className="inline mr-1" />
               การมอบหมายงาน ({toThaiNumerals(assignments.length)})
             </h2>
             <div className="space-y-3">
               {assignments.map((a) => (
-                <div key={a.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-bright">
+                <div
+                  key={a.id}
+                  className="flex items-center justify-between p-3 rounded-xl bg-surface-low border border-outline-variant/30"
+                >
                   <div>
                     <p className="font-medium text-sm">{a.assignedTo.fullName}</p>
                     <p className="text-xs text-on-surface-variant">
-                      {a.assignedTo.department || a.assignedTo.roleCode} | {a.role === "responsible" ? "ผู้รับผิดชอบ" : a.role === "informed" ? "รับทราบ" : "สำเนา"}
+                      {a.assignedTo.department || a.assignedTo.roleCode} |{" "}
+                      {a.role === "responsible" ? "ผู้รับผิดชอบ" : a.role === "informed" ? "รับทราบ" : "สำเนา"}
                     </p>
                     {a.note && <p className="text-xs text-on-surface-variant mt-1">{a.note}</p>}
                   </div>
                   <div className="text-right">
-                    <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${
-                      a.status === "completed" ? "bg-green-100 text-green-800" :
-                      a.status === "accepted" ? "bg-blue-100 text-blue-800" :
-                      "bg-yellow-100 text-yellow-800"
-                    }`}>
+                    <span
+                      className={clsx(
+                        "inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold",
+                        ASSIGNMENT_STATUS_CLS[a.status] ?? ASSIGNMENT_STATUS_CLS.pending,
+                      )}
+                    >
                       {ASSIGNMENT_STATUS[a.status] ?? a.status}
                     </span>
                     {a.dueDate && (
@@ -316,8 +320,8 @@ export default async function InboxDetailPage({
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Endorsement Panel */}
@@ -325,9 +329,9 @@ export default async function InboxDetailPage({
 
       {/* Activity Timeline */}
       {activities.length > 0 && (
-        <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm">
-          <div className="p-5">
-            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wide mb-4">
+        <Card>
+          <CardContent className="p-5">
+            <h2 className={sectionHead}>
               <Clock size={14} className="inline mr-1" />
               ประวัติกิจกรรม
             </h2>
@@ -341,20 +345,22 @@ export default async function InboxDetailPage({
                       {a.user && <span className="text-on-surface-variant font-normal"> โดย {a.user.fullName}</span>}
                     </p>
                     {!!a.detail?.registrationNo && (
-                      <p className="text-xs text-on-surface-variant">เลขรับ: {toThaiNumerals(String(a.detail.registrationNo))}</p>
+                      <p className="text-xs text-on-surface-variant">
+                        เลขรับ: {toThaiNumerals(String(a.detail.registrationNo))}
+                      </p>
                     )}
                     {!!a.detail?.from && !!a.detail?.to && (
-                      <p className="text-xs text-on-surface-variant">{String(a.detail.from)} &rarr; {String(a.detail.to)}</p>
+                      <p className="text-xs text-on-surface-variant">
+                        {String(a.detail.from)} &rarr; {String(a.detail.to)}
+                      </p>
                     )}
-                    <p className="text-xs text-on-surface-variant">
-                      {formatThaiDateTime(a.createdAt)}
-                    </p>
+                    <p className="text-xs text-on-surface-variant">{formatThaiDateTime(a.createdAt)}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
