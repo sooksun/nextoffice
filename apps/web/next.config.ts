@@ -25,12 +25,14 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com",
+      // LINE LIFF SDK loads extension scripts from static.line-scdn.net
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com https://static.line-scdn.net https://*.line-scdn.net",
       "style-src 'self' 'unsafe-inline' https://accounts.google.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https:",
-      "frame-src 'self' https://accounts.google.com",
+      // LINE LIFF may embed pages from line.me domain
+      "frame-src 'self' https://accounts.google.com https://*.line.me https://*.line-scdn.net",
       "frame-ancestors 'self'",
     ].join("; "),
   },
