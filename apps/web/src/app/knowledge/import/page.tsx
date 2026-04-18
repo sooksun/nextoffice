@@ -52,10 +52,10 @@ const STATUS_LABEL: Record<Status, string> = {
 };
 
 const STATUS_COLOR: Record<Status, string> = {
-  PENDING: "bg-yellow-100 text-yellow-800",
-  PROCESSING: "bg-blue-100 text-blue-800",
-  DONE: "bg-green-100 text-green-800",
-  ERROR: "bg-red-100 text-red-800",
+  PENDING: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  PROCESSING: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  DONE: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  ERROR: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
 const CATEGORIES = [

@@ -54,7 +54,7 @@ function PriorityBadge({ score }: { score: number | null }) {
       ? "bg-error-container text-on-error-container"
       : score >= 50
         ? "bg-amber-100 text-amber-700"
-        : "bg-green-100 text-green-700";
+        : "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300";
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${color}`}
@@ -66,7 +66,7 @@ function PriorityBadge({ score }: { score: number | null }) {
 
 function StatusBadgeSimple({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
-    active: "bg-green-100 text-green-700",
+    active: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
     emerging: "bg-amber-100 text-amber-700",
     monitoring: "bg-secondary-fixed text-secondary",
     archived: "bg-surface-high text-on-surface-variant",

@@ -9,9 +9,9 @@ const STATUS_LABEL: Record<string, string> = {
   absent: "ขาด", leave: "ลา", travel: "ไปราชการ",
 };
 const STATUS_COLOR: Record<string, string> = {
-  checked_in: "bg-blue-100 text-blue-800", checked_out: "bg-green-100 text-green-800",
-  late: "bg-orange-100 text-orange-800", absent: "bg-red-100 text-red-800",
-  leave: "bg-purple-100 text-purple-800", travel: "bg-cyan-100 text-cyan-800",
+  checked_in: "bg-blue-500/20 text-blue-800 dark:text-blue-300", checked_out: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  late: "bg-orange-500/20 text-orange-800 dark:text-orange-300", absent: "bg-red-500/20 text-red-800 dark:text-red-300",
+  leave: "bg-purple-500/20 text-purple-800 dark:text-purple-300", travel: "bg-cyan-100 text-cyan-800",
 };
 
 interface AttendanceRecord {
@@ -88,7 +88,7 @@ export default async function AttendanceHistoryPage({
                   {new Date(r.date).toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[r.status] ?? "bg-gray-100"}`}>
+                  <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[r.status] ?? "bg-surface-mid"}`}>
                     {STATUS_LABEL[r.status] ?? r.status}
                   </span>
                 </td>

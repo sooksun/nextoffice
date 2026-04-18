@@ -26,7 +26,7 @@ function ActionabilityBadge({ level }: { level: string }) {
   const colorMap: Record<string, string> = {
     high: "bg-error-container text-on-error-container",
     medium: "bg-amber-100 text-amber-700",
-    low: "bg-green-100 text-green-700",
+    low: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
   };
   return (
     <span

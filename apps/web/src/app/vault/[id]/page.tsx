@@ -41,7 +41,7 @@ function NoteTypeBadge({ noteType }: { noteType: string }) {
     letter: "bg-secondary-fixed text-secondary",
     project: "bg-tertiary-fixed text-tertiary",
     report: "bg-amber-100 text-amber-700",
-    agenda: "bg-green-100 text-green-700",
+    agenda: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
   };
   return (
     <span
@@ -55,8 +55,8 @@ function NoteTypeBadge({ noteType }: { noteType: string }) {
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
     ai_draft: "bg-amber-100 text-amber-700",
-    reviewed: "bg-blue-100 text-blue-700",
-    published: "bg-green-100 text-green-700",
+    reviewed: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+    published: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
   };
   const labelMap: Record<string, string> = {
     ai_draft: "AI Draft",

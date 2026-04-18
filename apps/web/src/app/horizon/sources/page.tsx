@@ -57,7 +57,7 @@ export default function HorizonSourcesPage() {
     if (level == null) return <span className="text-outline text-xs">--</span>;
     const color =
       level >= 80
-        ? "bg-green-100 text-green-700"
+        ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300"
         : level >= 50
           ? "bg-amber-100 text-amber-700"
           : "bg-error-container text-on-error-container";

@@ -10,11 +10,11 @@ const MANDATORY_LABEL: Record<string, string> = {
   strategic: "ยุทธศาสตร์", entitlement: "สิทธิ์",
 };
 const MANDATORY_COLOR: Record<string, string> = {
-  mandatory: "bg-red-100 text-red-700",
-  recommended: "bg-yellow-100 text-yellow-700",
-  optional: "bg-green-100 text-green-700",
-  strategic: "bg-blue-100 text-blue-700",
-  entitlement: "bg-purple-100 text-purple-700",
+  mandatory: "bg-red-500/20 text-red-800 dark:text-red-300",
+  recommended: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  optional: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  strategic: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  entitlement: "bg-purple-500/20 text-purple-800 dark:text-purple-300",
 };
 
 interface PolicyItem {
