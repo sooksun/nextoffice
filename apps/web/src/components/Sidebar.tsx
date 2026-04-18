@@ -363,18 +363,19 @@ export default function Sidebar({
   const showText = !compactMenu || compactMenuOnHover;
 
   return (
-    <aside
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      className={clsx(
-        "rubick-sidebar side-menu fixed top-0 left-0 z-50 h-screen flex flex-col overflow-hidden transition-[width,transform] duration-200",
-        "w-[275px] xl:translate-x-0",
-        compactMenu && !compactMenuOnHover && "xl:w-[80px] side-menu--collapsed",
-        compactMenu && compactMenuOnHover && "xl:w-[275px] side-menu--collapsed side-menu--on-hover",
-        // Mobile drawer
-        mobileMenuOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
-      )}
-    >
+    <>
+      <aside
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        className={clsx(
+          "rubick-sidebar side-menu fixed top-0 left-0 z-50 h-screen flex flex-col overflow-hidden transition-[width,transform] duration-200",
+          "w-[275px] xl:translate-x-0",
+          compactMenu && !compactMenuOnHover && "xl:w-[80px] side-menu--collapsed",
+          compactMenu && compactMenuOnHover && "xl:w-[275px] side-menu--collapsed side-menu--on-hover",
+          // Mobile drawer
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
+        )}
+      >
       {/* Mobile close button */}
       {mobileMenuOpen && (
         <button
@@ -445,7 +446,6 @@ export default function Sidebar({
           {showText && <span className="truncate">+ เอกสารใหม่ด้วย AI</span>}
         </button>
       </div>
-      <DocumentUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
 
       {/* Nav */}
       <nav className="relative flex-1 px-3 pb-4 overflow-y-auto sidebar-scrollbar">
@@ -477,6 +477,11 @@ export default function Sidebar({
           <span className="side-menu__link__title">ศูนย์ช่วยเหลือ</span>
         </Link>
       </div>
-    </aside>
+      </aside>
+
+      {/* Rendered outside the aside so the fixed-overlay modal isn't
+          trapped by the sidebar's transform-induced containing block. */}
+      <DocumentUploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
+    </>
   );
 }
