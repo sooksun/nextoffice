@@ -26,7 +26,7 @@ export class ClassifierService {
     fileMeta: { mimeType: string; originalFileName?: string },
   ): Promise<ClassificationResult> {
     const heuristicScore = this.heuristicCheck(extractedText);
-    if (heuristicScore >= 0.9) {
+    if (heuristicScore >= 0.7) {
       return {
         isOfficialDocument: true,
         classificationLabel: 'official_letter',
@@ -76,9 +76,9 @@ export class ClassifierService {
       const confidence = parsed.confidence || 0;
       let label: ClassificationResult['classificationLabel'] = 'unknown';
       if (parsed.is_official_document === true) {
-        label = confidence >= 0.85 ? 'official_letter' : 'possibly_official';
+        label = confidence >= 0.75 ? 'official_letter' : 'possibly_official';
       } else if (parsed.is_official_document === false) {
-        label = 'non_official';
+        label = confidence >= 0.85 ? 'non_official' : 'possibly_official';
       }
 
       return {

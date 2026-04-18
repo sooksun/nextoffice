@@ -103,7 +103,10 @@ export class PdfStampService {
       { w: w3,  h: h3,  preference: 'lower-half-right' as const },
     ];
 
-    const zones = await this.emptySpace.findStampZones(pdfBuffer, specs);
+    const { zones, signaturePageIndex } = await this.emptySpace.findStampZones(pdfBuffer, specs);
+
+    // Stamp 1 always on page 1; stamps 2 & 3 on the signature page
+    const sigPage = pdfDoc.getPages()[signaturePageIndex] ?? page;
 
     // Stamp 1: y locked 8pt from top of page (scaled)
     if (zones[0]) zones[0] = { ...zones[0], y: pageH - s1H - Math.round(8 * ss) };
@@ -128,6 +131,7 @@ export class PdfStampService {
     ]);
     const img3 = png3 ? await pdfDoc.embedPng(png3) : null;
 
+    // Stamp 1 → page 1
     if (zones[0]) {
       page.drawImage(img1, {
         x: zones[0].x, y: zones[0].y,
@@ -135,8 +139,9 @@ export class PdfStampService {
       });
     }
 
+    // Stamps 2 & 3 → signature page (may differ from page 1)
     if (zones[1]) {
-      page.drawImage(img2, {
+      sigPage.drawImage(img2, {
         x:      zones[1].x,
         y:      zones[1].y - sigTotal2,
         width:  w2,
@@ -145,7 +150,7 @@ export class PdfStampService {
     }
 
     if (img3 && zones[2]) {
-      page.drawImage(img3, {
+      sigPage.drawImage(img3, {
         x:      zones[2].x,
         y:      zones[2].y - sigTotal3,
         width:  w3,

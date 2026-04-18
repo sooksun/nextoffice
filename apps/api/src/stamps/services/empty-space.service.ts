@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { GeminiApiService } from '../../gemini/gemini-api.service';
 
 export interface StampSpec {
   w: number;
@@ -13,6 +14,11 @@ export interface StampZone {
   h: number;
 }
 
+export interface StampZoneResult {
+  zones: StampZone[];
+  signaturePageIndex: number; // 0-based page index where signature was found
+}
+
 /** Bounding rect for an extracted text item (PDF points, y from bottom). */
 interface TextRect {
   x: number; y: number; w: number; h: number;
@@ -22,6 +28,8 @@ interface TextRect {
 export class EmptySpaceService {
   private readonly logger = new Logger(EmptySpaceService.name);
   private readonly CELL = 10;
+
+  constructor(private readonly gemini: GeminiApiService) {}
 
   /**
    * Find non-overlapping empty zones for each stamp spec.
@@ -33,7 +41,7 @@ export class EmptySpaceService {
    * After each stamp is placed, its zone is marked occupied so the next stamp
    * gets a non-overlapping position.
    */
-  async findStampZones(pdfBuffer: Buffer, specs: StampSpec[]): Promise<StampZone[]> {
+  async findStampZones(pdfBuffer: Buffer, specs: StampSpec[]): Promise<StampZoneResult> {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
@@ -45,7 +53,21 @@ export class EmptySpaceService {
         useSystemFonts: false,
       }).promise;
 
-      const page = await doc.getPage(1);
+      // Scan up to 4 pages — find the last page containing a complimentary close phrase
+      const numPages = Math.min(doc.numPages, 4);
+      let signaturePageIndex = 0; // default: page 1 (0-based)
+      for (let pi = 0; pi < numPages; pi++) {
+        const pg = await doc.getPage(pi + 1);
+        const tc = await pg.getTextContent();
+        const vp = pg.getViewport({ scale: 1.0 });
+        const closeY = this.detectComplimentaryCloseY(tc.items as any[], vp.height);
+        if (closeY !== null) {
+          signaturePageIndex = pi;
+          this.logger.debug(`Complimentary close found on page ${pi + 1} at Y=${closeY}`);
+        }
+      }
+
+      const page = await doc.getPage(signaturePageIndex + 1);
       const viewport = page.getViewport({ scale: 1.0 });
       const pageW = viewport.width;
       const pageH = viewport.height;
@@ -74,9 +96,17 @@ export class EmptySpaceService {
       }
 
       // Detect complimentary close Y level (คำลงท้าย)
-      const closeY = this.detectComplimentaryCloseY(textContent.items as any[], pageH);
+      let closeY = this.detectComplimentaryCloseY(textContent.items as any[], pageH);
       if (closeY !== null) {
-        this.logger.debug(`Complimentary close detected at Y=${closeY}`);
+        this.logger.debug(`Complimentary close at Y=${closeY} on page ${signaturePageIndex + 1}`);
+      }
+
+      // Image PDF (no extractable text) — ask Gemini Vision for signature position
+      if (closeY === null && textContent.items.length === 0) {
+        closeY = await this.detectCloseYFromVision(pdfBuffer, pageH);
+        if (closeY !== null) {
+          this.logger.debug(`Vision-detected closeY=${closeY} on page ${signaturePageIndex + 1}`);
+        }
       }
 
       // Find zones
@@ -92,10 +122,10 @@ export class EmptySpaceService {
         this.markArea(grid, cols, rows, zone.x - 4, zone.y - 4, zone.w + 8, zone.h + 8);
       }
 
-      return zones;
+      return { zones, signaturePageIndex };
     } catch (e) {
       this.logger.warn(`Empty-space detection failed (${e.message}) — using fallback positions`);
-      return this.fallback(specs);
+      return { zones: this.fallback(specs), signaturePageIndex: 0 };
     }
   }
 
@@ -166,6 +196,44 @@ export class EmptySpaceService {
       }
     }
     return count;
+  }
+
+  // ─── Vision-based closeY detection (image PDFs) ─────────────────────────────
+
+  /**
+   * Ask Gemini Vision to estimate the Y position of the complimentary close /
+   * signature block as a fraction of page height from the TOP (0.0–1.0).
+   * Converts to pdf-lib Y (from bottom): closeY = pageH * (1 - fraction).
+   * Returns null if Gemini is unavailable or response is unparseable.
+   */
+  private async detectCloseYFromVision(pdfBuffer: Buffer, pageH: number): Promise<number | null> {
+    if (!this.gemini.getApiKey()) return null;
+    try {
+      const base64 = pdfBuffer.toString('base64');
+      const prompt =
+        'This is a Thai official letter PDF (image-based). ' +
+        'Estimate the vertical position of the complimentary close line ' +
+        '(e.g. "ขอแสดงความนับถือ") or the start of the signature block ' +
+        'as a fraction of the total page height measured from the TOP of the page (0.0 = top, 1.0 = bottom). ' +
+        'Reply with ONLY a JSON object: {"closeYFraction": <number>}';
+      const raw = await this.gemini.generateFromParts({
+        parts: [
+          { inlineData: { mimeType: 'application/pdf', data: base64 } },
+          { text: prompt },
+        ],
+        maxOutputTokens: 64,
+        temperature: 0,
+      });
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) return null;
+      const parsed = JSON.parse(match[0]);
+      const fraction = parsed?.closeYFraction;
+      if (typeof fraction !== 'number' || fraction < 0 || fraction > 1) return null;
+      // Convert top-fraction → pdf-lib Y (from bottom)
+      return pageH * (1 - fraction);
+    } catch {
+      return null;
+    }
   }
 
   // ─── Complimentary close detection ──────────────────────────────────────────

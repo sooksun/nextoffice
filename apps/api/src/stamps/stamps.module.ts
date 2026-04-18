@@ -7,9 +7,10 @@ import { StampCanvasService } from './services/stamp-canvas.service';
 import { IntakeModule } from '../intake/intake.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
+import { GeminiModule } from '../gemini/gemini.module';
 
 @Module({
-  imports: [IntakeModule, PrismaModule, AuthModule],
+  imports: [IntakeModule, PrismaModule, AuthModule, GeminiModule],
   controllers: [StampsController],
   providers: [EmptySpaceService, StampCanvasService, PdfStampService, StampStorageService],
   exports: [PdfStampService, StampStorageService, EmptySpaceService],
