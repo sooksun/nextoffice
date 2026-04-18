@@ -54,12 +54,21 @@ if (!LIFF_ID) {
   process.exit(1);
 }
 
-// ─── Register Sarabun font ────────────────────────────────────────────────────
-const fontDir = path.join(__dirname, '..', 'src', 'stamps', 'fonts');
-try {
-  GlobalFonts.registerFromPath(path.join(fontDir, 'Sarabun-Regular.ttf'), 'Sarabun');
-  GlobalFonts.registerFromPath(path.join(fontDir, 'Sarabun-Bold.ttf'), 'SarabunBold');
-} catch (e) {
+// ─── Register Sarabun font (looks in dev src/ and dist/ paths) ───────────────
+const fontCandidates = [
+  path.join(__dirname, '..', 'src', 'stamps', 'fonts'),
+  path.join(__dirname, '..', 'dist', 'src', 'stamps', 'fonts'),
+];
+const fontDir = fontCandidates.find((p) => fs.existsSync(path.join(p, 'Sarabun-Regular.ttf')));
+if (fontDir) {
+  try {
+    GlobalFonts.registerFromPath(path.join(fontDir, 'Sarabun-Regular.ttf'), 'Sarabun');
+    GlobalFonts.registerFromPath(path.join(fontDir, 'Sarabun-Bold.ttf'), 'SarabunBold');
+    console.log(`    using fonts from ${fontDir}`);
+  } catch (e) {
+    console.warn('⚠ Sarabun font register failed — falling back to default');
+  }
+} else {
   console.warn('⚠ Sarabun font not found — falling back to default');
 }
 
