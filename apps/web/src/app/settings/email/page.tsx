@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser } from "@/lib/auth";
 import { Mail, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel, FieldHint } from "@/components/ui/field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface SmtpConfig {
   smtpHost: string;
@@ -22,8 +28,16 @@ const PRESETS: Record<string, Partial<SmtpConfig>> = {
   yahoo: { smtpHost: "smtp.mail.yahoo.com", smtpPort: 587, smtpSecure: false },
 };
 
+function subscribeStorage(cb: () => void): () => void {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+function getOrgIdFromUser(): number {
+  return getUser()?.organizationId ?? 1;
+}
+
 export default function EmailSettingsPage() {
-  const [orgId, setOrgId] = useState<number>(0);
+  const orgId = useSyncExternalStore(subscribeStorage, getOrgIdFromUser, () => 1);
   const [form, setForm] = useState<SmtpConfig>({
     smtpHost: "",
     smtpPort: 587,
@@ -37,10 +51,7 @@ export default function EmailSettingsPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
   useEffect(() => {
-    const user = getUser();
-    const id = (user as any)?.organizationId || 1;
-    setOrgId(id);
-    apiFetch<SmtpConfig & { configured: boolean }>(`/organizations/${id}/smtp`)
+    apiFetch<SmtpConfig & { configured: boolean }>(`/organizations/${orgId}/smtp`)
       .then((cfg) => {
         setForm({
           smtpHost: cfg.smtpHost || "",
@@ -52,7 +63,7 @@ export default function EmailSettingsPage() {
         });
       })
       .catch(() => {});
-  }, []);
+  }, [orgId]);
 
   const update = (field: keyof SmtpConfig, value: string | number | boolean) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -113,128 +124,123 @@ export default function EmailSettingsPage() {
       </div>
 
       {/* Preset buttons */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        <span className="text-sm text-on-surface-variant self-center mr-2">Preset:</span>
-        {Object.entries(PRESETS).map(([key, _]) => (
-          <button
-            key={key}
-            onClick={() => applyPreset(key)}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-surface-bright text-on-surface-variant hover:text-primary hover:border-primary/30 border border-outline-variant/20 transition-colors capitalize"
-          >
+      <div className="flex flex-wrap gap-2 mb-6 items-center">
+        <span className="text-sm text-on-surface-variant mr-2">Preset:</span>
+        {Object.keys(PRESETS).map((key) => (
+          <Button key={key} variant="outline" size="sm" onClick={() => applyPreset(key)} className="capitalize">
             {key}
-          </button>
+          </Button>
         ))}
       </div>
 
-      <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm p-6 space-y-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">SMTP Host</label>
-            <input
-              type="text"
-              value={form.smtpHost}
-              onChange={(e) => update("smtpHost", e.target.value)}
-              placeholder="smtp.gmail.com"
-              className="input-text w-full"
-            />
+      <Card>
+        <CardContent className="p-6 space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel htmlFor="smtpHost">SMTP Host</FieldLabel>
+              <Input
+                id="smtpHost"
+                type="text"
+                value={form.smtpHost}
+                onChange={(e) => update("smtpHost", e.target.value)}
+                placeholder="smtp.gmail.com"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="smtpPort">Port</FieldLabel>
+              <Input
+                id="smtpPort"
+                type="number"
+                value={form.smtpPort}
+                onChange={(e) => update("smtpPort", parseInt(e.target.value) || 587)}
+              />
+            </Field>
           </div>
-          <div>
-            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">Port</label>
-            <input
-              type="number"
-              value={form.smtpPort}
-              onChange={(e) => update("smtpPort", parseInt(e.target.value) || 587)}
-              className="input-text w-full"
-            />
-          </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">Username</label>
-            <input
-              type="text"
-              value={form.smtpUser}
-              onChange={(e) => update("smtpUser", e.target.value)}
+          <div className="grid grid-cols-2 gap-4">
+            <Field>
+              <FieldLabel htmlFor="smtpUser">Username</FieldLabel>
+              <Input
+                id="smtpUser"
+                type="text"
+                value={form.smtpUser}
+                onChange={(e) => update("smtpUser", e.target.value)}
+                placeholder="saraban@school.ac.th"
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="smtpPass">Password</FieldLabel>
+              <Input
+                id="smtpPass"
+                type="password"
+                value={form.smtpPass}
+                onChange={(e) => update("smtpPass", e.target.value)}
+                placeholder="App password"
+              />
+            </Field>
+          </div>
+
+          <Field>
+            <FieldLabel htmlFor="smtpFrom">From Email (อีเมลสารบรรณ)</FieldLabel>
+            <Input
+              id="smtpFrom"
+              type="email"
+              value={form.smtpFrom}
+              onChange={(e) => update("smtpFrom", e.target.value)}
               placeholder="saraban@school.ac.th"
-              className="input-text w-full"
             />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-on-surface-variant mb-1 block">Password</label>
-            <input
-              type="password"
-              value={form.smtpPass}
-              onChange={(e) => update("smtpPass", e.target.value)}
-              placeholder="App password"
-              className="input-text w-full"
-            />
-          </div>
-        </div>
+            <FieldHint>
+              ตามระเบียบฯ ฉบับที่ 4 ให้ใช้รูปแบบ saraban@xxx เช่น saraban@school.ac.th
+            </FieldHint>
+          </Field>
 
-        <div>
-          <label className="text-sm font-semibold text-on-surface-variant mb-1 block">
-            From Email (อีเมลสารบรรณ)
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <Checkbox
+              checked={form.smtpSecure}
+              onCheckedChange={(v) => update("smtpSecure", v === true)}
+            />
+            <span className="text-sm text-on-surface-variant">ใช้ SSL/TLS (port 465)</span>
           </label>
-          <input
-            type="email"
-            value={form.smtpFrom}
-            onChange={(e) => update("smtpFrom", e.target.value)}
-            placeholder="saraban@school.ac.th"
-            className="input-text w-full"
-          />
-          <p className="text-xs text-on-surface-variant mt-1">
-            ตามระเบียบฯ ฉบับที่ 4 ให้ใช้รูปแบบ saraban@xxx เช่น saraban@school.ac.th
-          </p>
-        </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={form.smtpSecure}
-            onChange={(e) => update("smtpSecure", e.target.checked)}
-            className="w-4 h-4 rounded border-outline-variant"
-          />
-          <span className="text-sm text-on-surface-variant">ใช้ SSL/TLS (port 465)</span>
-        </label>
+          {testResult && (
+            <Alert variant={testResult.ok ? "success" : "error"}>
+              {testResult.ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+              <AlertDescription>
+                {testResult.ok ? "เชื่อมต่อ SMTP สำเร็จ" : `ไม่สำเร็จ: ${testResult.error}`}
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Test result */}
-        {testResult && (
-          <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${testResult.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
-            {testResult.ok ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-            {testResult.ok ? "เชื่อมต่อ SMTP สำเร็จ" : `ไม่สำเร็จ: ${testResult.error}`}
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={handleTest}
+              disabled={testing || !form.smtpHost}
+              className="flex-1"
+            >
+              {testing ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+              {testing ? "กำลังทดสอบ..." : "ทดสอบการเชื่อมต่อ"}
+            </Button>
+            <Button size="lg" onClick={handleSave} disabled={loading} className="flex-1">
+              {loading ? "กำลังบันทึก..." : "บันทึก"}
+            </Button>
           </div>
-        )}
-
-        <div className="flex gap-3 pt-2">
-          <button
-            onClick={handleTest}
-            disabled={testing || !form.smtpHost}
-            className="flex-1 py-3 px-4 bg-surface-bright text-on-surface border border-outline-variant/20 rounded-2xl flex items-center justify-center gap-2 text-sm font-bold transition-transform active:scale-95 disabled:opacity-50"
-          >
-            {testing ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
-            {testing ? "กำลังทดสอบ..." : "ทดสอบการเชื่อมต่อ"}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="flex-1 py-3 px-4 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95 disabled:opacity-50"
-          >
-            {loading ? "กำลังบันทึก..." : "บันทึก"}
-          </button>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Gmail instructions */}
-      <div className="mt-6 rounded-2xl border border-outline-variant/10 bg-surface-bright p-5">
-        <h3 className="text-sm font-bold text-on-surface mb-2">สำหรับ Gmail / Google Workspace</h3>
-        <ol className="text-xs text-on-surface-variant space-y-1 list-decimal list-inside">
-          <li>เปิด 2-Step Verification ใน Google Account</li>
-          <li>ไปที่ Security &gt; App passwords &gt; สร้าง App password สำหรับ &quot;Mail&quot;</li>
-          <li>ใช้ App password แทน password ปกติ</li>
-          <li>Host: smtp.gmail.com / Port: 587 / Secure: ปิด (STARTTLS)</li>
-        </ol>
-      </div>
+      <Card className="mt-6 bg-surface-low">
+        <CardContent className="p-5">
+          <h3 className="text-sm font-bold text-on-surface mb-2">สำหรับ Gmail / Google Workspace</h3>
+          <ol className="text-xs text-on-surface-variant space-y-1 list-decimal list-inside">
+            <li>เปิด 2-Step Verification ใน Google Account</li>
+            <li>ไปที่ Security &gt; App passwords &gt; สร้าง App password สำหรับ &quot;Mail&quot;</li>
+            <li>ใช้ App password แทน password ปกติ</li>
+            <li>Host: smtp.gmail.com / Port: 587 / Secure: ปิด (STARTTLS)</li>
+          </ol>
+        </CardContent>
+      </Card>
     </div>
   );
 }
