@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Bell, LogOut, Search, Menu as MenuIcon, Grid3x3 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { getUser, getToken, logout, isImpersonating } from "@/lib/auth";
+import { Search, Menu as MenuIcon, Grid3x3 } from "lucide-react";
+import { getUser, getToken, isImpersonating } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import clsx from "clsx";
 import ImpersonateMenu from "./ImpersonateMenu";
@@ -12,6 +10,8 @@ import AdminSwitchPanel from "./AdminSwitchPanel";
 import Breadcrumb from "./Breadcrumb";
 import ThemeToggle from "./ThemeToggle";
 import QuickSearchDialog from "./QuickSearchDialog";
+import NotificationDropdown from "./NotificationDropdown";
+import AccountDropdown from "./AccountDropdown";
 
 export interface HeaderProps {
   scrolled: boolean;
@@ -24,12 +24,9 @@ function subscribeStorage(cb: () => void): () => void {
 }
 
 export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
-  const router = useRouter();
   const user = getUser();
-  const [pendingCount, setPendingCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // Reactive reads from localStorage — no setState-in-effect.
   const impersonating = useSyncExternalStore(
     subscribeStorage,
     () => isImpersonating(),
@@ -39,9 +36,6 @@ export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
   useEffect(() => {
     if (!getToken()) return;
     void apiFetch("/auth/me").catch(() => {});
-    void apiFetch<{ summary: { total: number; overdue: number } }>("/cases/my-tasks")
-      .then((d) => setPendingCount(d.summary.total))
-      .catch(() => {});
   }, []);
 
   // Cmd/Ctrl+K opens QuickSearch
@@ -55,15 +49,6 @@ export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  function handleLogout() {
-    logout();
-    router.replace("/login");
-  }
-
-  const initials = user?.fullName
-    ? user.fullName.split(" ").slice(0, 2).map((w) => w.charAt(0)).join("")
-    : "?";
 
   return (
     <div className={clsx("top-bar group relative", scrolled && "scrolled")}>
@@ -101,25 +86,8 @@ export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
         <AdminSwitchPanel />
         {user?.roleCode === "ADMIN" && !impersonating && <ImpersonateMenu />}
 
-        {/* Notifications */}
-        <Link
-          href="/notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-colors"
-          title="การแจ้งเตือน"
-        >
-          <Bell size={18} />
-          {pendingCount > 0 && (
-            <span
-              className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5"
-              style={{
-                background: "linear-gradient(135deg, #dc2626, #ef4444)",
-                boxShadow: "0 0 6px rgba(220,38,38,0.5)",
-              }}
-            >
-              {pendingCount > 99 ? "99+" : pendingCount}
-            </span>
-          )}
-        </Link>
+        {/* Notifications dropdown */}
+        <NotificationDropdown />
 
         {/* Apps grid (placeholder) */}
         <button
@@ -132,53 +100,11 @@ export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
         {/* Divider */}
         <div className="w-px h-5 bg-outline-variant/40 mx-1" />
 
-        {/* User area */}
-        {user && (
-          <div className="flex items-center gap-2">
-            <div
-              className="relative w-8 h-8 rounded-full flex items-center justify-center cursor-pointer select-none"
-              style={{
-                background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
-                boxShadow: "0 0 0 2px rgba(99,102,241,0.3), 0 2px 8px rgba(124,58,237,0.25)",
-              }}
-              title={user.fullName}
-            >
-              <span className="text-xs font-bold text-white leading-none">{initials}</span>
-            </div>
-            <div className="hidden lg:flex flex-col max-w-[120px]">
-              <span className="text-xs font-semibold text-on-surface truncate leading-tight">
-                {user.fullName}
-              </span>
-              {user.roleCode && (
-                <span className="text-[10px] text-on-surface-variant/80 truncate leading-tight">
-                  {roleLabelTH(user.roleCode)}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-outline hover:text-error hover:bg-error-container/40 transition-colors"
-              title="ออกจากระบบ"
-            >
-              <LogOut size={14} />
-            </button>
-          </div>
-        )}
+        {/* Account dropdown */}
+        <AccountDropdown />
       </div>
 
       <QuickSearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
-}
-
-function roleLabelTH(roleCode: string): string {
-  const map: Record<string, string> = {
-    ADMIN: "ผู้ดูแลระบบ",
-    DIRECTOR: "ผู้อำนวยการ",
-    VICE_DIRECTOR: "รองผู้อำนวยการ",
-    HEAD_TEACHER: "หัวหน้ากลุ่มสาระ",
-    TEACHER: "ครู",
-    CLERK: "ธุรการ",
-  };
-  return map[roleCode] ?? roleCode;
 }
