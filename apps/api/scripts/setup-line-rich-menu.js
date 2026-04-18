@@ -87,11 +87,11 @@ function drawRichMenu() {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  // Vertical dividers
+  // Vertical dividers (4 columns)
   ctx.strokeStyle = 'rgba(255,255,255,0.25)';
   ctx.lineWidth = 3;
-  for (let i = 1; i < 3; i++) {
-    const x = (WIDTH / 3) * i;
+  for (let i = 1; i < 4; i++) {
+    const x = (WIDTH / 4) * i;
     ctx.beginPath();
     ctx.moveTo(x, 120);
     ctx.lineTo(x, HEIGHT - 120);
@@ -153,6 +153,26 @@ function drawRichMenu() {
       ctx.lineTo(cx + s * 0.33, cy + s * 0.33);
       ctx.stroke();
     },
+    clock: (cx, cy, s) => {
+      // Analog clock — circle + two hands
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = s * 0.08;
+      ctx.lineCap = 'round';
+      // Outer circle
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.38, 0, Math.PI * 2);
+      ctx.stroke();
+      // Hour hand (pointing ~10 o'clock)
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx - s * 0.16, cy - s * 0.1);
+      ctx.stroke();
+      // Minute hand (pointing up, 12 o'clock)
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx, cy - s * 0.24);
+      ctx.stroke();
+    },
   };
 
   function roundRect(x, y, w, h, r) {
@@ -171,35 +191,36 @@ function drawRichMenu() {
 
   const cells = [
     { iconFn: icons.dashboard, label: 'แดชบอร์ด', sub: 'ภาพรวมงาน' },
-    { iconFn: icons.tasks, label: 'งานของฉัน', sub: 'หนังสือค้างดำเนินการ' },
-    { iconFn: icons.search, label: 'ค้นหาหนังสือ', sub: 'เลขที่ / หัวเรื่อง' },
+    { iconFn: icons.tasks, label: 'งานของฉัน', sub: 'หนังสือค้าง' },
+    { iconFn: icons.clock, label: 'ลงเวลา', sub: 'เข้า-ออก งาน' },
+    { iconFn: icons.search, label: 'ค้นหา', sub: 'เลขที่ / หัวเรื่อง' },
   ];
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   cells.forEach((cell, i) => {
-    const cx = WIDTH / 3 / 2 + (WIDTH / 3) * i;
+    const cx = WIDTH / 4 / 2 + (WIDTH / 4) * i;
     const cy = HEIGHT / 2;
 
     // Circular icon background
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     ctx.beginPath();
-    ctx.arc(cx, cy - 140, 140, 0, Math.PI * 2);
+    ctx.arc(cx, cy - 140, 130, 0, Math.PI * 2);
     ctx.fill();
 
-    // Icon drawing
-    cell.iconFn(cx, cy - 140, 260);
+    // Icon drawing (smaller since 4 columns are narrower)
+    cell.iconFn(cx, cy - 140, 220);
 
-    // Label (Thai)
+    // Label (Thai) — smaller to fit narrower columns
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 90px SarabunBold, sans-serif';
+    ctx.font = 'bold 78px SarabunBold, sans-serif';
     ctx.fillText(cell.label, cx, cy + 90);
 
     // Sub label
-    ctx.font = '48px Sarabun, sans-serif';
+    ctx.font = '42px Sarabun, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText(cell.sub, cx, cy + 170);
+    ctx.fillText(cell.sub, cx, cy + 160);
   });
 
   return canvas.encode('png');
@@ -249,19 +270,22 @@ async function createRichMenu() {
     areas: [
       // Column 1 — Dashboard → LIFF
       {
-        bounds: { x: 0, y: 0, width: WIDTH / 3, height: HEIGHT },
+        bounds: { x: 0, y: 0, width: WIDTH / 4, height: HEIGHT },
         action: { type: 'uri', uri: liffUrl },
       },
-      // Column 2 — My Tasks → LIFF (same base, user sees my-tasks section in dashboard)
+      // Column 2 — My Tasks → LIFF (dashboard shows my-tasks section)
       {
-        bounds: { x: WIDTH / 3, y: 0, width: WIDTH / 3, height: HEIGHT },
+        bounds: { x: WIDTH / 4, y: 0, width: WIDTH / 4, height: HEIGHT },
         action: { type: 'uri', uri: liffUrl },
       },
-      // Column 3 — Search → open keyboard prefilled with "ค้นหา "
-      // User types keyword after it and sends → bot regex ^ค้นหา\s+(.+)$ matches
-      // → handleSearchCases() returns Flex carousel of matching cases
+      // Column 3 — Check-in/out → LIFF /checkin
       {
-        bounds: { x: (WIDTH / 3) * 2, y: 0, width: WIDTH / 3, height: HEIGHT },
+        bounds: { x: (WIDTH / 4) * 2, y: 0, width: WIDTH / 4, height: HEIGHT },
+        action: { type: 'uri', uri: `${liffUrl}/checkin` },
+      },
+      // Column 4 — Search → open keyboard prefilled with "ค้นหา "
+      {
+        bounds: { x: (WIDTH / 4) * 3, y: 0, width: WIDTH / 4, height: HEIGHT },
         action: {
           type: 'postback',
           data: 'action=search-prompt',

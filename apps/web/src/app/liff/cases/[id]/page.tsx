@@ -17,7 +17,17 @@ interface CaseDetail {
   dueDate: string | null;
   description: string | null;
   directorNote: string | null;
+  directorStampStatus: string | null;
   intake?: { id: number };
+}
+
+interface Assignment {
+  id: number;
+  assignedToUserId: number;
+  status: string; // pending | accepted | in_progress | completed
+  assignedRole: string | null;
+  note: string | null;
+  dueDate: string | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -30,6 +40,58 @@ const STATUS_LABEL: Record<string, string> = {
   completed: "เสร็จแล้ว",
 };
 
+// Workflow steps — derived from case.status + directorStampStatus + assignment.status
+interface StepState {
+  label: string;
+  done: boolean;
+  active: boolean;
+}
+
+function buildWorkflowSteps(
+  caseStatus: string,
+  directorStampStatus: string | null,
+  myAssignment: Assignment | null,
+): StepState[] {
+  const s = caseStatus;
+  const registered = ["registered", "assigned", "in_progress", "completed"].includes(s);
+  const signed = directorStampStatus === "applied";
+  const assigned = ["assigned", "in_progress", "completed"].includes(s);
+  const ackd = myAssignment?.status === "accepted" || myAssignment?.status === "in_progress" || myAssignment?.status === "completed";
+  const done = myAssignment?.status === "completed" || s === "completed";
+
+  return [
+    {
+      label: "ลงรับ",
+      done: registered,
+      active: !registered && s === "new",
+    },
+    {
+      label: "ผอ. ลงนาม",
+      done: signed,
+      active: registered && !signed,
+    },
+    {
+      label: "มอบหมาย",
+      done: assigned,
+      active: signed && !assigned,
+    },
+    ...(myAssignment
+      ? [
+          {
+            label: "รับทราบ",
+            done: ackd,
+            active: assigned && !ackd,
+          },
+          {
+            label: "ดำเนินการเสร็จ",
+            done,
+            active: ackd && !done,
+          },
+        ]
+      : []),
+  ];
+}
+
 export default function LiffCaseDetailPage() {
   const { status: liffStatus } = useLiff();
   const params = useParams();
@@ -37,26 +99,47 @@ export default function LiffCaseDetailPage() {
   const caseId = params.id as string;
 
   const [data, setData] = useState<CaseDetail | null>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [user, setUser] = useState<any>(null);
 
+  const fetchAll = async () => {
+    const [d, a] = await Promise.all([
+      apiFetch<CaseDetail>(`/cases/${caseId}`),
+      apiFetch<Assignment[] | { data: Assignment[] }>(`/cases/${caseId}/assignments`).catch(() => [] as Assignment[]),
+    ]);
+    setData(d);
+    setAssignments(Array.isArray(a) ? a : (a as any).data ?? []);
+  };
+
   useEffect(() => {
     if (liffStatus !== "ready") return;
     setUser(JSON.parse(localStorage.getItem("user") ?? "null"));
-    apiFetch<CaseDetail>(`/cases/${caseId}`)
-      .then(setData)
+    fetchAll()
       .catch(() => toast.error("ไม่พบข้อมูลหนังสือ"))
       .finally(() => setLoading(false));
+
   }, [caseId, liffStatus]);
 
   const intakeId = data?.intake?.id ?? data?.description?.match(/intake:(\d+)/)?.[1];
   const pdfUrl = intakeId ? `/api/files/intake/${intakeId}?stamped=true` : null;
 
   const isDirector = user && ["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(user.roleCode);
-  const isClerk = user && ["CLERK", "ADMIN"].includes(user.roleCode);
+  const isClerk = user && ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(user.roleCode);
+
+  const myAssignment = assignments.find((a) => Number(a.assignedToUserId) === Number(user?.id)) ?? null;
+
   const canRegister = isClerk && data?.status === "new";
   const canSign = isDirector && data?.status === "registered";
+  const canAcknowledge = !!myAssignment && myAssignment.status === "pending";
+  const canComplete =
+    !!myAssignment &&
+    (myAssignment.status === "accepted" || myAssignment.status === "in_progress");
+
+  const steps = data
+    ? buildWorkflowSteps(data.status, data.directorStampStatus, myAssignment)
+    : [];
 
   const handleRegister = async () => {
     if (!confirm("ยืนยันลงรับหนังสือนี้?")) return;
@@ -64,9 +147,24 @@ export default function LiffCaseDetailPage() {
     try {
       await apiFetch(`/cases/${caseId}/register`, { method: "POST", body: "{}" });
       toast.success("ลงรับสำเร็จ");
-      router.refresh();
-      const updated = await apiFetch<CaseDetail>(`/cases/${caseId}`);
-      setData(updated);
+      await fetchAll();
+    } catch (e: any) {
+      toast.error(e.message ?? "ไม่สำเร็จ");
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const updateAssignment = async (status: string, successMsg: string) => {
+    if (!myAssignment) return;
+    setActing(true);
+    try {
+      await apiFetch(`/cases/assignments/${myAssignment.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      toast.success(successMsg);
+      await fetchAll();
     } catch (e: any) {
       toast.error(e.message ?? "ไม่สำเร็จ");
     } finally {
@@ -77,12 +175,15 @@ export default function LiffCaseDetailPage() {
   if (loading) return <div className="p-6 text-center text-sm text-slate-500">กำลังโหลด…</div>;
   if (!data) return <div className="p-6 text-center text-sm text-slate-500">ไม่พบข้อมูล</div>;
 
+  const hasAnyAction = canRegister || canSign || canAcknowledge || canComplete;
+
   return (
-    <div className="mx-auto max-w-md px-4 py-4">
+    <div className="mx-auto max-w-md px-4 py-4 pb-28">
       <Link href="/liff" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500">
         ← กลับ
       </Link>
 
+      {/* Header */}
       <div className="mb-4 rounded-lg bg-white p-4 shadow-sm">
         <div className="mb-2 flex items-center gap-2">
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
@@ -106,12 +207,49 @@ export default function LiffCaseDetailPage() {
         )}
       </div>
 
-      {pdfUrl && (
-        <div className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <iframe src={pdfUrl} className="w-full" style={{ height: "60vh" }} title="เอกสาร" />
+      {/* Workflow timeline */}
+      {steps.length > 0 && (
+        <div className="mb-4 rounded-lg bg-white p-3 shadow-sm">
+          <p className="mb-2 text-xs font-semibold text-slate-700">ขั้นตอนที่ผ่านมา</p>
+          <ol className="space-y-1.5">
+            {steps.map((step, i) => (
+              <li key={i} className="flex items-center gap-2 text-xs">
+                <span
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                    step.done
+                      ? "bg-emerald-500 text-white"
+                      : step.active
+                        ? "bg-amber-400 text-white"
+                        : "bg-slate-200 text-slate-500"
+                  }`}
+                >
+                  {step.done ? "✓" : i + 1}
+                </span>
+                <span
+                  className={
+                    step.done
+                      ? "text-slate-500 line-through"
+                      : step.active
+                        ? "font-medium text-amber-700"
+                        : "text-slate-400"
+                  }
+                >
+                  {step.label}
+                </span>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
 
+      {/* PDF */}
+      {pdfUrl && (
+        <div className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <iframe src={pdfUrl} className="w-full" style={{ height: "50vh" }} title="เอกสาร" />
+        </div>
+      )}
+
+      {/* Director note */}
       {data.directorNote && (
         <div className="mb-4 rounded-lg border-l-4 border-green-500 bg-green-50 p-3">
           <p className="mb-1 text-xs font-semibold text-green-800">คำสั่ง ผอ.</p>
@@ -119,25 +257,76 @@ export default function LiffCaseDetailPage() {
         </div>
       )}
 
-      <div className="space-y-2">
-        {canRegister && (
-          <button
-            onClick={handleRegister}
-            disabled={acting}
-            className="w-full rounded-lg bg-blue-500 py-3 text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-50"
-          >
-            {acting ? "กำลังดำเนินการ…" : "ลงรับหนังสือ"}
-          </button>
-        )}
-        {canSign && (
-          <Link
-            href={`/liff/sign/${caseId}`}
-            className="block w-full rounded-lg bg-green-600 py-3 text-center text-sm font-semibold text-white active:scale-[0.98]"
-          >
-            ลงนามเกษียณหนังสือ
-          </Link>
-        )}
-      </div>
+      {/* My assignment info */}
+      {myAssignment && (
+        <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+          <p className="mb-1 text-xs font-semibold text-indigo-800">งานของคุณในเรื่องนี้</p>
+          <p className="text-xs text-indigo-700">
+            สถานะ:{" "}
+            {myAssignment.status === "pending"
+              ? "รอรับทราบ"
+              : myAssignment.status === "accepted"
+                ? "รับทราบแล้ว"
+                : myAssignment.status === "in_progress"
+                  ? "กำลังดำเนินการ"
+                  : "เสร็จแล้ว"}
+          </p>
+          {myAssignment.note && (
+            <p className="mt-1 whitespace-pre-wrap text-xs text-indigo-700">
+              หมายเหตุ: {myAssignment.note}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Action buttons (fixed bottom) */}
+      {hasAnyAction && (
+        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 p-3 backdrop-blur">
+          <div className="mx-auto max-w-md space-y-2">
+            {canRegister && (
+              <button
+                onClick={handleRegister}
+                disabled={acting}
+                className="w-full rounded-lg bg-blue-500 py-3 text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-50"
+              >
+                {acting ? "กำลังดำเนินการ…" : "ลงรับหนังสือ"}
+              </button>
+            )}
+            {canSign && (
+              <Link
+                href={`/liff/sign/${caseId}`}
+                className="block w-full rounded-lg bg-green-600 py-3 text-center text-sm font-semibold text-white active:scale-[0.98]"
+              >
+                ลงนามเกษียณหนังสือ
+              </Link>
+            )}
+            {canAcknowledge && (
+              <button
+                onClick={() => updateAssignment("accepted", "รับทราบเรียบร้อย")}
+                disabled={acting}
+                className="w-full rounded-lg bg-indigo-600 py-3 text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-50"
+              >
+                ✓ รับทราบงานที่ได้รับมอบหมาย
+              </button>
+            )}
+            {canComplete && (
+              <button
+                onClick={() => updateAssignment("completed", "บันทึกว่าดำเนินการเสร็จแล้ว")}
+                disabled={acting}
+                className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-50"
+              >
+                ✓ ดำเนินการเสร็จแล้ว
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!hasAnyAction && data.status === "completed" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center text-sm text-emerald-800">
+          ✓ เรื่องนี้ดำเนินการเสร็จแล้ว
+        </div>
+      )}
     </div>
   );
 }

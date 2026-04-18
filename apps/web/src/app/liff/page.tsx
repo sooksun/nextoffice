@@ -101,6 +101,22 @@ export default function LiffDashboardPage() {
         <>
           <AttendanceCard today={today} />
 
+          {/* Quick links */}
+          <div className="mb-6 grid grid-cols-2 gap-2">
+            <Link
+              href="/liff/calendar"
+              className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
+            >
+              📅 ปฏิทิน 7 วัน
+            </Link>
+            <Link
+              href="/liff/attendance/history"
+              className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
+            >
+              🕒 ประวัติลงเวลา
+            </Link>
+          </div>
+
           {isDirector && (
             <>
               <Section title="รออนุมัติส่ง" count={pendingOutbound.length}>
