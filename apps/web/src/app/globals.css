@@ -187,15 +187,15 @@
   --c-on-error: #450a0a;
   --c-on-error-container: #fecaca;
 
-  --c-surface: #0f0c1f;
-  --c-surface-dim: #08061a;
-  --c-surface-bright: #1a1633;
-  --c-surface-lowest: #080517;
-  --c-surface-low: #131027;
-  --c-surface-mid: #1a1633;
-  --c-surface-high: #25204a;
-  --c-surface-highest: #2e2758;
-  --c-surface-variant: #1e1a3e;
+  --c-surface: #0a0818;
+  --c-surface-dim: #05040e;
+  --c-surface-bright: #1f1b40;
+  --c-surface-lowest: #14102c;
+  --c-surface-low: #181435;
+  --c-surface-mid: #22204a;
+  --c-surface-high: #2a2758;
+  --c-surface-highest: #33306b;
+  --c-surface-variant: #272448;
   --c-on-surface: #e8e5ff;
   --c-on-surface-variant: #b3aee0;
 
@@ -318,20 +318,24 @@ h1, h2, h3, h4, .font-headline {
 }
 
 /* ─── Shared form utilities ─── */
+/* Adaptive bg — surface-lowest = white in light mode, near-black in dark;
+   text-on-surface is always the inverse so contrast is preserved both ways. */
 .input-text {
-  @apply rounded-xl border border-outline-variant/40 bg-white/80 px-3 py-2 text-sm text-on-surface
+  @apply rounded-xl border border-outline-variant/40 bg-surface-lowest px-3 py-2 text-sm text-on-surface
+         placeholder:text-on-surface-variant/50
          focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50
-         backdrop-blur-sm transition-all;
+         transition-all;
 }
 .input-select {
-  @apply rounded-xl border border-outline-variant/40 bg-white/80 px-3 py-2 text-sm text-on-surface
+  @apply rounded-xl border border-outline-variant/40 bg-surface-lowest px-3 py-2 text-sm text-on-surface
          focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50
-         backdrop-blur-sm transition-all;
+         transition-all;
 }
 .input-date {
-  @apply rounded-xl border border-outline-variant/40 bg-white/80 px-3 py-2 text-sm text-on-surface
+  @apply rounded-xl border border-outline-variant/40 bg-surface-lowest px-3 py-2 text-sm text-on-surface
+         placeholder:text-on-surface-variant/50
          focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50
-         backdrop-blur-sm transition-all;
+         transition-all;
 }
 .label-sm {
   @apply block text-sm font-semibold text-on-surface-variant mb-1;
@@ -353,11 +357,14 @@ h1, h2, h3, h4, .font-headline {
 
 /* ─── Glassmorphism card ─── */
 .glass-card {
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in oklab, var(--c-surface-bright), transparent 30%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(196, 190, 237, 0.4);
+  border: 1px solid var(--c-outline-variant);
   box-shadow: 0 4px 24px rgba(124, 58, 237, 0.06);
+}
+.dark .glass-card {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 }
 
 /* ─── Gradient text ─── */
@@ -685,4 +692,5 @@ html, body { transition: background-color 180ms ease, color 180ms ease; }
   border: 1px solid var(--c-outline-variant);
   border-radius: 1.75rem;
 }
-.dark .rubick-content { background: var(--c-surface-lowest); }
+/* Dark mode — keep surface-bright so the card is LIGHTER than body,
+   giving it a floating appearance against the darker scroll area. */
