@@ -257,10 +257,18 @@ async function createRichMenu() {
         bounds: { x: WIDTH / 3, y: 0, width: WIDTH / 3, height: HEIGHT },
         action: { type: 'uri', uri: liffUrl },
       },
-      // Column 3 — Search → LIFF search page
+      // Column 3 — Search → open keyboard prefilled with "ค้นหา "
+      // User types keyword after it and sends → bot regex ^ค้นหา\s+(.+)$ matches
+      // → handleSearchCases() returns Flex carousel of matching cases
       {
         bounds: { x: (WIDTH / 3) * 2, y: 0, width: WIDTH / 3, height: HEIGHT },
-        action: { type: 'uri', uri: `${liffUrl}/search` },
+        action: {
+          type: 'postback',
+          data: 'action=search-prompt',
+          displayText: 'ค้นหาหนังสือ',
+          inputOption: 'openKeyboard',
+          fillInText: 'ค้นหา ',
+        },
       },
     ],
   };
