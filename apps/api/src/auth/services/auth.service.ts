@@ -294,6 +294,33 @@ export class AuthService {
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
+  /**
+   * Issue a JWT + user payload for a given user ID.
+   * Used by external auth paths (e.g. LINE MINI App login via LIFF access token).
+   */
+  async createSessionForUserId(userId: bigint) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        organization: {
+          include: {
+            parentOrganization: { select: { id: true, name: true, areaCode: true, orgType: true } },
+            activeAcademicYear: { select: { id: true, year: true, name: true } },
+          },
+        },
+      },
+    });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('บัญชีไม่สามารถใช้งานได้');
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+    const token = this.signToken(user);
+    return { token, user: this.serializeUser(user) };
+  }
+
   private signToken(user: any, adminId?: number): string {
     const secret = this.config.get<string>('JWT_SECRET', 'nextoffice-dev-secret');
     const expiresIn = this.config.get<string>('JWT_EXPIRES_IN', '7d');

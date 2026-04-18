@@ -1,6 +1,8 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { LineWebhookController } from './controllers/line-webhook.controller';
 import { LineReplyController } from './controllers/line-reply.controller';
+import { LineAuthController } from './controllers/line-auth.controller';
+import { LineAuthService } from './services/line-auth.service';
 import { LineSignatureService } from './services/line-signature.service';
 import { LineEventsService } from './services/line-events.service';
 import { LineUsersService } from './services/line-users.service';
@@ -19,7 +21,7 @@ import { KnowledgeImportModule } from '../knowledge-import/knowledge-import.modu
 
 @Module({
   imports: [QueueModule, AuthModule, GeminiModule, forwardRef(() => CasesModule), KnowledgeImportModule],
-  controllers: [LineWebhookController, LineReplyController],
+  controllers: [LineWebhookController, LineReplyController, LineAuthController],
   providers: [
     LineSignatureService,
     LineEventsService,
@@ -30,6 +32,7 @@ import { KnowledgeImportModule } from '../knowledge-import/knowledge-import.modu
     LineWorkflowService,
     LineInquiryService,
     LineAttendanceService,
+    LineAuthService,
     IntentClassifierService,
   ],
   exports: [LineMessagingService, LineUsersService, LineSessionService, LineAttendanceService],
