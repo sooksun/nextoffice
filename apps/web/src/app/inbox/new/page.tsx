@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastError, toastSuccess, toastWarning } from "@/lib/toast";
 import Link from "next/link";
 import {
-  ArrowLeft, FilePlus, FileText, CheckCircle, Loader2, Upload, X,
+  ArrowLeft, FilePlus, FileText, CheckCircle, Loader2, Upload, X, Sparkles,
 } from "lucide-react";
 import clsx from "clsx";
 import ThaiDatePicker from "@/components/ui/ThaiDatePicker";
@@ -30,12 +30,40 @@ interface AttachedFile {
   mimeType: string;
 }
 
+interface IntakeAiResult {
+  subjectText?: string | null;
+  documentNo?: string | null;
+  issuingAuthority?: string | null;
+  summaryText?: string | null;
+  urgency?: string | null;
+  deadlineDate?: string | null;
+  documentDate?: string | null;
+}
+
+interface IntakeDetail {
+  id: number;
+  originalFileName?: string | null;
+  mimeType?: string | null;
+  aiResult?: IntakeAiResult | null;
+}
+
+function mapUrgencyToForm(u: string | null | undefined): string {
+  const low = (u ?? "").toLowerCase();
+  if (["high", "most_urgent", "very_urgent"].includes(low)) return "very_urgent";
+  if (["medium", "urgent"].includes(low)) return "urgent";
+  return "normal";
+}
+
 function NewInboxForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const intakeIdParam = searchParams.get("intakeId");
 
   const [loading, setLoading]     = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
   const [attached, setAttached]   = useState<AttachedFile | null>(null);
+  const prefillDone = useRef(false);
 
   const [form, setForm] = useState({
     title:         "",
@@ -49,6 +77,41 @@ function NewInboxForm() {
   });
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+  // When coming from DocumentUploadModal, pre-fill from intake + attach the file.
+  useEffect(() => {
+    if (!intakeIdParam || prefillDone.current) return;
+    prefillDone.current = true;
+    const id = Number(intakeIdParam);
+    if (!Number.isFinite(id)) return;
+
+    setPrefilling(true);
+    apiFetch<IntakeDetail>(`/intake/${id}`)
+      .then((intake) => {
+        const ai = intake.aiResult ?? null;
+        if (ai) {
+          setForm((prev) => ({
+            ...prev,
+            title: ai.subjectText ?? prev.title,
+            documentNo: ai.documentNo ?? prev.documentNo,
+            documentDate: ai.documentDate ?? prev.documentDate,
+            senderOrg: ai.issuingAuthority ?? prev.senderOrg,
+            urgencyLevel: mapUrgencyToForm(ai.urgency),
+            dueDate: ai.deadlineDate ? ai.deadlineDate.split("T")[0] : prev.dueDate,
+            description: ai.summaryText ?? prev.description,
+          }));
+        }
+        setAttached({
+          intakeId: intake.id,
+          fileName: intake.originalFileName ?? `intake-${intake.id}`,
+          mimeType: intake.mimeType ?? "application/octet-stream",
+        });
+      })
+      .catch(() => {
+        toastError("โหลดข้อมูล intake ไม่สำเร็จ");
+      })
+      .finally(() => setPrefilling(false));
+  }, [intakeIdParam]);
 
   const update = (field: string, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -118,6 +181,25 @@ function NewInboxForm() {
           <p className="text-xs text-on-surface-variant">กรอกข้อมูลเอกสารที่ได้รับ</p>
         </div>
       </div>
+
+      {/* AI prefill banner */}
+      {prefilling && (
+        <div className="mb-5 flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5 text-sm text-primary">
+          <Loader2 size={16} className="animate-spin" />
+          กำลังโหลดข้อมูลจาก AI...
+        </div>
+      )}
+      {!prefilling && intakeIdParam && attached && (
+        <div className="mb-5 flex items-start gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
+          <Sparkles size={16} className="text-primary mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-primary">ฟอร์มถูกเติมอัตโนมัติจาก AI</p>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              ตรวจสอบ/แก้ไขข้อมูลด้านล่างก่อนกดลงทะเบียน
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* File attachment */}
       {!attached ? (
