@@ -43,6 +43,7 @@ import { NewsModule } from './news/news.module';
 import { TenderModule } from './tender/tender.module';
 import { WebboardModule } from './webboard/webboard.module';
 import { MessagesModule } from './messages/messages.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { MessagesModule } from './messages/messages.module';
     TenderModule,
     WebboardModule,
     MessagesModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
