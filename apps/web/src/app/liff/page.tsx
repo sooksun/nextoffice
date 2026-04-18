@@ -110,6 +110,12 @@ export default function LiffDashboardPage() {
               📝 ใบลา
             </Link>
             <Link
+              href="/liff/travel"
+              className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
+            >
+              🚗 ไปราชการ
+            </Link>
+            <Link
               href="/liff/news"
               className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
             >
@@ -126,6 +132,12 @@ export default function LiffDashboardPage() {
               className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
             >
               🕒 ประวัติลงเวลา
+            </Link>
+            <Link
+              href="/liff/signature"
+              className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
+            >
+              ✍ ลายเซ็น
             </Link>
           </div>
 

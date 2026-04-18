@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useLiff } from "../../LiffBoot";
+import ShareButton from "../../ShareButton";
 
 interface NewsPost {
   id: number;
@@ -45,9 +46,20 @@ export default function LiffNewsDetailPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-4">
-      <Link href="/liff/news" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500">
-        ← กลับ
-      </Link>
+      <div className="mb-3 flex items-center justify-between">
+        <Link
+          href="/liff/news"
+          className="inline-flex items-center gap-1 text-sm text-slate-500"
+        >
+          ← กลับ
+        </Link>
+        <ShareButton
+          text={`[ประกาศ] ${post.title}\n\n${post.content.substring(0, 200)}${
+            post.content.length > 200 ? "..." : ""
+          }`}
+          label="📤 แชร์"
+        />
+      </div>
 
       {post.imageUrl && (
         <img

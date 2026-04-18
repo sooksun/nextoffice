@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import { useLiff } from "../../LiffBoot";
+import ShareButton from "../../ShareButton";
 
 interface CaseDetail {
   id: number;
@@ -209,9 +210,15 @@ export default function LiffCaseDetailPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-4 pb-28">
-      <Link href="/liff" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500">
-        ← กลับ
-      </Link>
+      <div className="mb-3 flex items-center justify-between">
+        <Link href="/liff" className="inline-flex items-center gap-1 text-sm text-slate-500">
+          ← กลับ
+        </Link>
+        <ShareButton
+          text={`[หนังสือ] ${data.title}${data.registrationNo ? `\nทะเบียน: ${data.registrationNo}` : ""}${data.documentNo ? `\nเลขที่: ${data.documentNo}` : ""}`}
+          label="📤"
+        />
+      </div>
 
       {/* Header */}
       <div className="mb-4 rounded-lg bg-white p-4 shadow-sm">
