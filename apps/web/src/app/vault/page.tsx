@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { toastSuccess, toastError } from "@/lib/toast";
 import Link from "next/link";
 import {
   BookOpen,
@@ -11,7 +12,17 @@ import {
   BarChart3,
   CalendarClock,
   Database,
+  Wand2,
+  Loader2,
 } from "lucide-react";
+
+interface BatchGenerateResult {
+  candidateCount: number;
+  totalCases: number;
+  alreadyGenerated: number;
+  generated: number;
+  failures: Array<{ caseId: number; error: string }>;
+}
 
 interface VaultNote {
   id: number;
@@ -96,6 +107,7 @@ function ConfidenceBadge({ score }: { score: number | null }) {
 export default function VaultPage() {
   const [notes, setNotes] = useState<VaultNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
   const [noteType, setNoteType] = useState("");
   const [status, setStatus] = useState("");
 
@@ -119,16 +131,63 @@ export default function VaultPage() {
     fetchNotes();
   }, [fetchNotes]);
 
+  async function handleBatchGenerate() {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      const res = await apiFetch<BatchGenerateResult>("/vault/notes/batch-generate?limit=20", {
+        method: "POST",
+      });
+      if (res.generated > 0) {
+        toastSuccess(`สร้าง ${res.generated} บันทึกใหม่สำเร็จ`);
+      } else if (res.candidateCount === 0) {
+        toastSuccess(
+          res.alreadyGenerated > 0
+            ? `ไม่มี case ใหม่ที่รอสร้าง (สร้างไปแล้ว ${res.alreadyGenerated} รายการ)`
+            : "ยังไม่มี case ที่เข้าเกณฑ์ — ต้องมี case ที่ลงรับ/มอบหมาย/เสร็จสิ้นก่อน",
+        );
+      }
+      if (res.failures.length > 0) {
+        toastError(`ผิดพลาด ${res.failures.length} case`);
+      }
+      await fetchNotes();
+    } catch (err: unknown) {
+      toastError((err as Error).message || "สร้างบันทึกไม่สำเร็จ");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-black text-primary font-[family-name:var(--font-be-vietnam-pro)] tracking-tight">
-          Knowledge Vault
-        </h1>
-        <p className="text-on-surface-variant mt-1">
-          คลังความรู้อัตโนมัติจากเอกสารและนโยบาย
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-primary font-[family-name:var(--font-be-vietnam-pro)] tracking-tight">
+            Knowledge Vault
+          </h1>
+          <p className="text-on-surface-variant mt-1">
+            คลังความรู้อัตโนมัติจากเอกสารและนโยบาย
+          </p>
+        </div>
+        <button
+          onClick={handleBatchGenerate}
+          disabled={generating}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-primary text-on-primary shadow-lg shadow-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          title="สร้างบันทึกอัตโนมัติจาก case ที่ยังไม่เคยสร้าง (batch)"
+        >
+          {generating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              กำลังสร้าง…
+            </>
+          ) : (
+            <>
+              <Wand2 size={16} />
+              สร้างบันทึกจาก case (AI)
+            </>
+          )}
+        </button>
       </div>
 
       {/* Quick Stats */}
@@ -237,12 +296,21 @@ export default function VaultPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-16">
-          <Database size={48} className="text-outline/30 mx-auto mb-4" />
+        <div className="text-center py-16 rounded-2xl border border-dashed border-outline-variant/60 bg-surface-bright">
+          <Database size={48} className="text-on-surface-variant/40 mx-auto mb-4" />
           <h3 className="font-bold text-on-surface-variant mb-2">ยังไม่มีบันทึกความรู้</h3>
-          <p className="text-sm text-outline">
-            ระบบจะสร้างบันทึกอัตโนมัติเมื่อมีเอกสารเข้ามาในระบบ
+          <p className="text-sm text-on-surface-variant/80 max-w-md mx-auto">
+            กดปุ่ม <span className="font-semibold text-primary">สร้างบันทึกจาก case (AI)</span> ด้านบน
+            เพื่อให้ AI สังเคราะห์บันทึกจาก case ที่ลงรับ / มอบหมาย / เสร็จสิ้นแล้วในระบบ
           </p>
+          <button
+            onClick={handleBatchGenerate}
+            disabled={generating}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/15 disabled:opacity-50"
+          >
+            {generating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+            เริ่มสร้าง
+          </button>
         </div>
       )}
 

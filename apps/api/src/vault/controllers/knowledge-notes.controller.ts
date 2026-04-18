@@ -99,6 +99,56 @@ export class KnowledgeNotesController {
     return this.noteGenerator.generateFromCase(caseId, Number(user.organizationId));
   }
 
+  @Post('batch-generate')
+  @ApiOperation({ summary: 'Generate notes for all eligible cases/agendas in org (skips ones with existing notes)' })
+  async batchGenerate(
+    @CurrentUser() user: any,
+    @Query('limit') limit?: string,
+  ) {
+    const orgId = Number(user.organizationId);
+    const maxBatch = Math.min(Number(limit) || 20, 50);
+
+    // Find cases in org that don't yet have a knowledge note
+    const existing = await this.prisma.knowledgeNote.findMany({
+      where: { organizationId: BigInt(orgId), sourceType: 'inbound_case' },
+      select: { sourceId: true },
+    });
+    const doneIds = new Set(existing.map((n) => n.sourceId?.toString()).filter(Boolean));
+
+    const cases = await this.prisma.inboundCase.findMany({
+      where: {
+        organizationId: BigInt(orgId),
+        status: { in: ['registered', 'assigned', 'in_progress', 'completed'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: maxBatch * 2,
+      select: { id: true, title: true },
+    });
+
+    const eligible = cases.filter((c) => !doneIds.has(c.id.toString())).slice(0, maxBatch);
+
+    let generated = 0;
+    const failures: Array<{ caseId: number; error: string }> = [];
+
+    for (const c of eligible) {
+      try {
+        await this.noteGenerator.generateFromCase(Number(c.id), orgId);
+        generated++;
+      } catch (err: any) {
+        failures.push({ caseId: Number(c.id), error: err?.message ?? String(err) });
+      }
+    }
+
+    return {
+      orgId,
+      candidateCount: eligible.length,
+      totalCases: cases.length,
+      alreadyGenerated: doneIds.size,
+      generated,
+      failures,
+    };
+  }
+
   @Post('generate/agenda/:agendaId')
   @ApiOperation({ summary: 'Generate knowledge note from a HorizonAgenda' })
   async generateFromAgenda(@Param('agendaId', ParseIntPipe) agendaId: number, @CurrentUser() user: any) {
