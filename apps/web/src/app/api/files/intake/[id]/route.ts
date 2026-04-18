@@ -13,9 +13,12 @@ export async function GET(
   const { id } = await params;
   const internalBase = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
 
-  // Pass JWT token so the API can verify auth if needed in future
+  // Token from cookie (LIFF in-app) or query param (external browser)
   const store = await cookies();
-  const token = store.get("token")?.value;
+  const token =
+    store.get("token")?.value ??
+    request.nextUrl.searchParams.get("token") ??
+    undefined;
 
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;

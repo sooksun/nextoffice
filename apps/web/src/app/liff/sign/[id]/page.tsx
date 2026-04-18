@@ -54,7 +54,10 @@ export default function LiffSignPage() {
   }, [caseId, liffStatus]);
 
   const intakeId = caseData?.intake?.id ?? caseData?.description?.match(/intake:(\d+)/)?.[1];
-  const pdfUrl = intakeId ? `/api/files/intake/${intakeId}?stamped=true` : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const pdfUrl = intakeId
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/files/intake/${intakeId}?stamped=true${token ? `&token=${encodeURIComponent(token)}` : ""}`
+    : null;
 
   const handleSubmit = async () => {
     if (!noteText.trim()) return toast.error("กรุณาระบุคำสั่ง");
