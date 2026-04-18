@@ -29,9 +29,9 @@ const STATUS_LABEL: Record<string, string> = {
   overdue: "เกินกำหนด",
 };
 const STATUS_COLOR: Record<string, string> = {
-  active: "bg-blue-100 text-blue-800",
-  returned: "bg-green-100 text-green-800",
-  overdue: "bg-red-100 text-red-800",
+  active: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  returned: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  overdue: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
 export default function LoansPage() {
@@ -109,7 +109,7 @@ export default function LoansPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-3 py-1.5 rounded-xl text-sm ${tab === t.key ? "bg-primary text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            className={`px-3 py-1.5 rounded-xl text-sm ${tab === t.key ? "bg-primary text-white" : "bg-surface-mid text-on-surface-variant hover:bg-surface-high"}`}
           >
             {t.label}
           </button>
@@ -148,7 +148,7 @@ export default function LoansPage() {
 
       <div className="bg-surface-bright border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-surface-low text-on-surface-variant">
             <tr>
               <th className="px-3 py-2 text-left">เลขที่ยืม</th>
               <th className="px-3 py-2 text-left">เอกสาร</th>
@@ -161,11 +161,11 @@ export default function LoansPage() {
           </thead>
           <tbody className="divide-y">
             {items.map((l) => (
-              <tr key={l.id} className={`hover:bg-gray-50 ${l.status === "overdue" ? "bg-red-50" : ""}`}>
+              <tr key={l.id} className={`hover:bg-primary/5 ${l.status === "overdue" ? "bg-red-500/10" : ""}`}>
                 <td className="px-3 py-2 font-mono">{toThaiNumerals(l.loanNo)}</td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{l.registrySubject || "-"}</div>
-                  <div className="text-xs text-gray-500">{l.registryDocNo ? toThaiNumerals(l.registryDocNo) : ""}</div>
+                  <div className="text-xs text-on-surface-variant">{l.registryDocNo ? toThaiNumerals(l.registryDocNo) : ""}</div>
                 </td>
                 <td className="px-3 py-2">{l.borrowerName}</td>
                 <td className="px-3 py-2">{formatThaiDateShort(l.borrowDate)}</td>
@@ -174,7 +174,7 @@ export default function LoansPage() {
                   {l.status === "overdue" && <AlertTriangle className="w-3 h-3 inline ml-1 text-red-500" />}
                 </td>
                 <td className="px-3 py-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[l.status] || "bg-gray-100"}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[l.status] || "bg-surface-mid"}`}>
                     {STATUS_LABEL[l.status] || l.status}
                   </span>
                 </td>
@@ -188,13 +188,13 @@ export default function LoansPage() {
                     </button>
                   )}
                   {l.status === "returned" && l.returnDate && (
-                    <span className="text-xs text-gray-500">คืน {formatThaiDateShort(l.returnDate)}</span>
+                    <span className="text-xs text-on-surface-variant">คืน {formatThaiDateShort(l.returnDate)}</span>
                   )}
                 </td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">ไม่มีรายการ</td></tr>
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-on-surface-variant/70">ไม่มีรายการ</td></tr>
             )}
           </tbody>
         </table>

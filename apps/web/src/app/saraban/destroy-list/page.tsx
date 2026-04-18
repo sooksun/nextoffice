@@ -32,9 +32,9 @@ const DESTROY_STATUS_LABEL: Record<string, string> = {
   destroyed: "ทำลายแล้ว",
 };
 const DESTROY_STATUS_COLOR: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  approved: "bg-blue-100 text-blue-800",
-  destroyed: "bg-red-100 text-red-800",
+  pending: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  approved: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  destroyed: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
 export default function DestroyListPage() {
@@ -112,7 +112,7 @@ export default function DestroyListPage() {
                       {DESTROY_STATUS_LABEL[d.destructionRequest.status] ?? d.destructionRequest.status}
                     </span>
                   ) : (
-                    <span className="inline-flex px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-red-50 text-red-700">
+                    <span className="inline-flex px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-red-500/15 text-red-700 dark:text-red-300">
                       รอดำเนินการ
                     </span>
                   )}

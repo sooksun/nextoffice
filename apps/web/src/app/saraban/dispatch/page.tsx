@@ -44,9 +44,9 @@ const STATUS_LABEL: Record<string, string> = {
   returned: "ตีกลับ",
 };
 const STATUS_COLOR: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  delivered: "bg-green-100 text-green-800",
-  returned: "bg-red-100 text-red-800",
+  pending: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  delivered: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  returned: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
 export default function DispatchPage() {
@@ -179,7 +179,7 @@ export default function DispatchPage() {
 
       <div className="bg-surface-bright border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-surface-low text-on-surface-variant">
             <tr>
               <th className="px-3 py-2 text-left">เลขที่ส่ง</th>
               <th className="px-3 py-2 text-left">วันที่ส่ง</th>
@@ -192,17 +192,17 @@ export default function DispatchPage() {
           </thead>
           <tbody className="divide-y">
             {items.map((d) => (
-              <tr key={d.id} className="hover:bg-gray-50">
+              <tr key={d.id} className="hover:bg-surface-low">
                 <td className="px-3 py-2 font-mono">{toThaiNumerals(d.dispatchNo)}</td>
                 <td className="px-3 py-2">{formatThaiDateShort(d.dispatchDate)}</td>
                 <td className="px-3 py-2">
                   <div className="font-medium">{d.registrySubject || "-"}</div>
-                  <div className="text-xs text-gray-500">{d.registryDocNo ? toThaiNumerals(d.registryDocNo) : ""}</div>
+                  <div className="text-xs text-on-surface-variant">{d.registryDocNo ? toThaiNumerals(d.registryDocNo) : ""}</div>
                 </td>
                 <td className="px-3 py-2">{d.recipientOrg}</td>
                 <td className="px-3 py-2">{METHOD_LABEL[d.deliveryMethod] || d.deliveryMethod}</td>
                 <td className="px-3 py-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[d.status] || "bg-gray-100"}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[d.status] || "bg-surface-mid"}`}>
                     {STATUS_LABEL[d.status] || d.status}
                   </span>
                 </td>
@@ -225,7 +225,7 @@ export default function DispatchPage() {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">ยังไม่มีรายการส่ง</td></tr>
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-on-surface-variant/70">ยังไม่มีรายการส่ง</td></tr>
             )}
           </tbody>
         </table>
@@ -233,7 +233,7 @@ export default function DispatchPage() {
 
       {deliverModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-96 space-y-3">
+          <div className="bg-surface-bright rounded-2xl p-6 w-96 space-y-3">
             <h3 className="font-semibold">บันทึกการรับหนังสือ</h3>
             <input
               placeholder="ชื่อผู้รับ"

@@ -46,9 +46,9 @@ const STATUS_LABEL: Record<string, string> = {
   destroyed: "ทำลายแล้ว",
 };
 const STATUS_COLOR: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  approved: "bg-blue-100 text-blue-800",
-  destroyed: "bg-red-100 text-red-800",
+  pending: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  approved: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  destroyed: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
 export default function ArchivePage() {

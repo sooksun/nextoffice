@@ -40,9 +40,9 @@ const STATUS_LABEL: Record<string, string> = {
   completed: "ส่งมอบแล้ว",
 };
 const STATUS_COLOR: Record<string, string> = {
-  draft: "bg-yellow-100 text-yellow-800",
-  approved: "bg-blue-100 text-blue-800",
-  completed: "bg-green-100 text-green-800",
+  draft: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  approved: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  completed: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
 };
 
 export default function HandoverPage() {
@@ -170,11 +170,11 @@ export default function HandoverPage() {
           <div>
             <h3 className="text-sm font-medium mb-2">เอกสารที่ครบกำหนดเก็บรักษา ({toThaiNumerals(eligible.length)} รายการ)</h3>
             {eligible.length === 0 ? (
-              <p className="text-sm text-gray-400">ไม่มีเอกสารที่ครบกำหนด</p>
+              <p className="text-sm text-on-surface-variant/70">ไม่มีเอกสารที่ครบกำหนด</p>
             ) : (
               <div className="max-h-64 overflow-y-auto border rounded-xl">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
+                  <thead className="bg-surface-low sticky top-0">
                     <tr>
                       <th className="px-2 py-1.5 text-left w-8"></th>
                       <th className="px-2 py-1.5 text-left">ทะเบียน</th>
@@ -185,7 +185,7 @@ export default function HandoverPage() {
                   </thead>
                   <tbody className="divide-y">
                     {eligible.map((doc) => (
-                      <tr key={doc.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleSelect(doc.id)}>
+                      <tr key={doc.id} className="hover:bg-surface-low cursor-pointer" onClick={() => toggleSelect(doc.id)}>
                         <td className="px-2 py-1.5">
                           <input type="checkbox" checked={selectedIds.includes(doc.id)} readOnly />
                         </td>
@@ -199,7 +199,7 @@ export default function HandoverPage() {
                 </table>
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1">เลือกแล้ว {toThaiNumerals(selectedIds.length)} รายการ</p>
+            <p className="text-xs text-on-surface-variant mt-1">เลือกแล้ว {toThaiNumerals(selectedIds.length)} รายการ</p>
           </div>
 
           <button onClick={handleCreate} className="px-4 py-2 bg-primary text-white rounded-xl text-sm hover:opacity-90">
@@ -210,7 +210,7 @@ export default function HandoverPage() {
 
       <div className="bg-surface-bright border rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-surface-low text-on-surface-variant">
             <tr>
               <th className="px-3 py-2 text-left">เลขที่</th>
               <th className="px-3 py-2 text-left">วันที่</th>
@@ -223,17 +223,17 @@ export default function HandoverPage() {
           </thead>
           <tbody className="divide-y">
             {records.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50">
+              <tr key={r.id} className="hover:bg-surface-low">
                 <td className="px-3 py-2 font-mono">{toThaiNumerals(r.handoverNo)}</td>
                 <td className="px-3 py-2">{formatThaiDateShort(r.handoverDate)}</td>
                 <td className="px-3 py-2">
                   <div>{r.recipientOrg}</div>
-                  <div className="text-xs text-gray-500">{r.recipientName}</div>
+                  <div className="text-xs text-on-surface-variant">{r.recipientName}</div>
                 </td>
                 <td className="px-3 py-2">{toThaiNumerals(r.itemCount)} รายการ</td>
                 <td className="px-3 py-2">{r.createdByName}</td>
                 <td className="px-3 py-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[r.status] || "bg-gray-100"}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${STATUS_COLOR[r.status] || "bg-surface-mid"}`}>
                     {STATUS_LABEL[r.status] || r.status}
                   </span>
                 </td>
@@ -255,7 +255,7 @@ export default function HandoverPage() {
               </tr>
             ))}
             {records.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">ยังไม่มีบัญชีส่งมอบ</td></tr>
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-on-surface-variant/70">ยังไม่มีบัญชีส่งมอบ</td></tr>
             )}
           </tbody>
         </table>

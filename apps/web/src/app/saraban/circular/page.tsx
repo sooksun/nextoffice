@@ -13,8 +13,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const STATUS_COLOR: Record<string, string> = {
   draft: "bg-surface-bright text-on-surface-variant",
-  published: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
+  published: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  cancelled: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 const URGENCY_LABEL: Record<string, string> = {
   normal: "ปกติ",

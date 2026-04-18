@@ -1,24 +1,16 @@
 import { Suspense } from "react";
 import { apiFetch } from "@/lib/api";
-import { FileText, Printer } from "lucide-react";
+import { FileText } from "lucide-react";
 import { formatThaiDateShort, formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
 import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
+import { UrgencyBadge, URGENCY_LABEL } from "@/components/status-badges";
 import PrintButton from "./PrintButton";
 
 export const dynamic = "force-dynamic";
 
-const URGENCY_LABEL: Record<string, string> = {
-  normal: "ปกติ",
-  urgent: "ด่วน",
-  very_urgent: "ด่วนมาก",
-  most_urgent: "ด่วนที่สุด",
-};
-const URGENCY_COLOR: Record<string, string> = {
-  normal: "bg-surface-bright text-on-surface-variant",
-  urgent: "bg-yellow-100 text-yellow-800",
-  very_urgent: "bg-orange-100 text-orange-800",
-  most_urgent: "bg-red-100 text-red-800",
-};
 const STATUS_LABEL: Record<string, string> = {
   new: "ใหม่",
   analyzing: "วิเคราะห์",
@@ -121,25 +113,33 @@ export default async function InboundRegistryPage({
       </div>
 
       {/* Filter bar */}
-      <form method="GET" className="flex flex-wrap gap-3 mb-5 no-print">
-        <input type="text" name="search" defaultValue={sp.search ?? ""} placeholder="ค้นหา..." className="input-text flex-1 min-w-[200px]" />
-        <select name="status" defaultValue={sp.status ?? ""} className="input-select">
+      <form method="GET" className="flex flex-wrap gap-3 mb-5 no-print items-center">
+        <Input
+          type="text"
+          name="search"
+          defaultValue={sp.search ?? ""}
+          placeholder="ค้นหา..."
+          className="flex-1 min-w-[200px]"
+        />
+        <NativeSelect name="status" defaultValue={sp.status ?? ""} className="w-40">
           <option value="">ทุกสถานะ</option>
           {Object.entries(STATUS_LABEL).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
-        </select>
-        <select name="urgencyLevel" defaultValue={sp.urgencyLevel ?? ""} className="input-select">
+        </NativeSelect>
+        <NativeSelect name="urgencyLevel" defaultValue={sp.urgencyLevel ?? ""} className="w-48">
           <option value="">ทุกชั้นความเร็ว</option>
           {Object.entries(URGENCY_LABEL).map(([v, l]) => (
             <option key={v} value={v}>{l}</option>
           ))}
-        </select>
-        <Suspense fallback={<div className="w-40 h-9 rounded-xl bg-surface-bright animate-pulse" />}>
+        </NativeSelect>
+        <Suspense fallback={<div className="w-40 h-9 rounded-md bg-surface-bright animate-pulse" />}>
           <ThaiDateRangeFilter dateFrom={sp.dateFrom} dateTo={sp.dateTo} />
         </Suspense>
-        <button type="submit" className="btn-primary">กรอง</button>
-        <a href="/saraban/inbound" className="btn-ghost">ล้าง</a>
+        <Button type="submit">กรอง</Button>
+        <Button asChild variant="outline">
+          <a href="/saraban/inbound">ล้าง</a>
+        </Button>
       </form>
 
       {/* Table — แบบที่ 12 ทะเบียนรับ */}
@@ -199,9 +199,7 @@ export default async function InboundRegistryPage({
                     <span className="line-clamp-2">{buildActionSummary(c)}</span>
                   </td>
                   <td className="px-3 py-2 text-center">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold ${URGENCY_COLOR[c.urgencyLevel] ?? URGENCY_COLOR.normal}`}>
-                      {URGENCY_LABEL[c.urgencyLevel] ?? c.urgencyLevel}
-                    </span>
+                    <UrgencyBadge level={c.urgencyLevel} className="text-[10px]" />
                     <br />
                     <span className="text-[10px] text-on-surface-variant">{STATUS_LABEL[c.status] ?? c.status}</span>
                   </td>
