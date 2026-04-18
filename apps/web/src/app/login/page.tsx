@@ -1,28 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { login, loginWithGoogle } from "@/lib/auth";
 import { AlertCircle, Eye, EyeOff, Sparkles } from "lucide-react";
-import { GoogleLogin } from "@react-oauth/google";
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import Image from "next/image";
 import { useGoogleEnabled } from "./GoogleAuthProvider";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionExpired = searchParams.get("session") === "expired";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [sessionExpired, setSessionExpired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passFocused, setPassFocused] = useState(false);
-
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search);
-    if (q.get("session") === "expired") setSessionExpired(true);
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +41,7 @@ export default function LoginPage() {
     }
   }
 
-  async function handleGoogleSuccess(credentialResponse: any) {
+  async function handleGoogleSuccess(credentialResponse: CredentialResponse) {
     const idToken = credentialResponse?.credential;
     if (!idToken) return;
     setError("");
@@ -92,41 +89,32 @@ export default function LoginPage() {
         <div
           className="absolute rounded-full"
           style={{
-            width: 500,
-            height: 500,
-            top: "-120px",
-            left: "-100px",
+            width: 500, height: 500,
+            top: "-120px", left: "-100px",
             background: "radial-gradient(circle, rgba(99,102,241,0.25) 0%, transparent 70%)",
           }}
         />
         <div
           className="absolute rounded-full"
           style={{
-            width: 400,
-            height: 400,
-            bottom: "-80px",
-            right: "10%",
+            width: 400, height: 400,
+            bottom: "-80px", right: "10%",
             background: "radial-gradient(circle, rgba(168,85,247,0.2) 0%, transparent 70%)",
           }}
         />
         <div
           className="absolute rounded-full"
           style={{
-            width: 300,
-            height: 300,
-            top: "40%",
-            left: "30%",
+            width: 300, height: 300,
+            top: "40%", left: "30%",
             background: "radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)",
           }}
         />
       </div>
 
-      {/* Main content */}
       <div className="relative flex flex-1 items-center px-6 md:px-16 lg:px-24 gap-8 py-10">
-
         {/* Left — branding */}
         <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center gap-6">
-          {/* Logo glow */}
           <div className="relative">
             <div
               className="absolute inset-0 rounded-full blur-2xl"
@@ -141,8 +129,6 @@ export default function LoginPage() {
               priority
             />
           </div>
-
-          {/* Brand text */}
           <div className="flex flex-col items-center gap-2">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-indigo-200" />
@@ -161,8 +147,6 @@ export default function LoginPage() {
             </div>
             <p className="text-indigo-200/80 text-sm">ระบบสำนักงานอิเล็กทรอนิกส์ด้วยปัญญาประดิษฐ์</p>
           </div>
-
-          {/* School info card */}
           <div
             className="rounded-2xl px-8 py-5 text-center"
             style={{
@@ -178,8 +162,6 @@ export default function LoginPage() {
               สำนักงานเขตพื้นที่การศึกษาประถมศึกษาเชียงราย เขต 3
             </p>
           </div>
-
-          {/* Feature badges */}
           <div className="flex gap-2 flex-wrap justify-center">
             {["AI อัจฉริยะ", "ปลอดภัย", "ใช้งานง่าย"].map((tag) => (
               <span
@@ -207,7 +189,6 @@ export default function LoginPage() {
               boxShadow: "0 25px 60px rgba(79,70,229,0.25), 0 8px 20px rgba(0,0,0,0.15)",
             }}
           >
-            {/* Card header */}
             <div className="text-center mb-8">
               <div
                 className="inline-flex items-center justify-center w-12 h-12 rounded-2xl mb-4"
@@ -218,27 +199,29 @@ export default function LoginPage() {
               >
                 <Sparkles size={22} className="text-white" />
               </div>
-              <h2 className="text-xl font-bold text-on-surface">ล็อกอินเข้าใช้งานระบบ</h2>
-              <p className="text-sm text-on-surface-variant mt-1">NextOffice AI E-Office</p>
+              <h2 className="text-xl font-bold" style={{ color: "#1e1b2e" }}>ล็อกอินเข้าใช้งานระบบ</h2>
+              <p className="text-sm" style={{ color: "#4c4675" }}>NextOffice AI E-Office</p>
             </div>
 
-            {/* Alerts */}
             {sessionExpired && (
-              <div className="mb-4 flex items-start gap-2 px-4 py-3 rounded-xl text-sm"
-                style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", color: "#92400e" }}>
+              <div
+                className="mb-4 flex items-start gap-2 px-4 py-3 rounded-xl text-sm"
+                style={{ background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.3)", color: "#92400e" }}
+              >
                 <AlertCircle size={16} className="mt-0.5 shrink-0" />
                 เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง
               </div>
             )}
             {error && (
-              <div className="mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
-                style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", color: "#991b1b" }}>
+              <div
+                className="mb-4 flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
+                style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.25)", color: "#991b1b" }}
+              >
                 <AlertCircle size={16} className="shrink-0" />
                 {error}
               </div>
             )}
 
-            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-3">
               <input
                 type="text"
@@ -287,12 +270,6 @@ export default function LoginPage() {
                   boxShadow: "0 4px 16px rgba(124,58,237,0.4)",
                   marginTop: "8px",
                 }}
-                onMouseEnter={(e) => {
-                  if (!loading) (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 20px rgba(124,58,237,0.55)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(124,58,237,0.4)";
-                }}
               >
                 {loading ? (
                   <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -302,12 +279,11 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Google login */}
             {googleEnabled && (
               <>
                 <div className="flex items-center gap-3 my-5">
                   <div className="flex-1 h-px" style={{ background: "rgba(196,190,237,0.5)" }} />
-                  <span className="text-xs text-on-surface-variant">หรือ</span>
+                  <span className="text-xs" style={{ color: "#4c4675" }}>หรือ</span>
                   <div className="flex-1 h-px" style={{ background: "rgba(196,190,237,0.5)" }} />
                 </div>
                 <div className="flex justify-center">
@@ -340,15 +316,24 @@ export default function LoginPage() {
           <span style={{ color: "#a5b4fc", fontWeight: 600 }}>Solution Nextgen.</span>{" "}
           NextOffice AI E-Office
         </span>
-        <span
-          className="transition-colors cursor-pointer"
-          style={{ color: "rgba(196,190,237,0.7)" }}
-          onMouseEnter={(e) => ((e.target as HTMLElement).style.color = "white")}
-          onMouseLeave={(e) => ((e.target as HTMLElement).style.color = "rgba(196,190,237,0.7)")}
-        >
+        <a href="#" className="transition-colors hover:text-white" style={{ color: "rgba(196,190,237,0.7)" }}>
           ติดต่อเรา
-        </span>
+        </a>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen w-full flex items-center justify-center" style={{ background: "#1e1b4b" }}>
+          <span className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
