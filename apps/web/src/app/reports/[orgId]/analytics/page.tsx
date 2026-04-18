@@ -129,11 +129,11 @@ export default async function AnalyticsPage(props: { params: Promise<{ orgId: st
             </div>
           </div>
           <div className="bg-surface-lowest rounded-2xl border border-outline-variant/10 p-5 flex items-center gap-4">
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-              <CheckCircle size={18} className="text-green-700" />
+            <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+              <CheckCircle size={18} className="text-emerald-700 dark:text-emerald-300" />
             </div>
             <div>
-              <p className="text-2xl font-black text-green-700">{kpi.completionRate.toFixed(1)}%</p>
+              <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{kpi.completionRate.toFixed(1)}%</p>
               <p className="text-[10px] text-outline uppercase tracking-wider font-bold">อัตราเสร็จสิ้น</p>
             </div>
           </div>
