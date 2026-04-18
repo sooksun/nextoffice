@@ -30,6 +30,28 @@ interface Assignment {
   dueDate: string | null;
 }
 
+interface CaseActivity {
+  id: number;
+  action: string;
+  detail: any;
+  createdAt: string;
+  user?: { id: number; fullName: string; roleCode: string } | null;
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  created: "สร้างเรื่อง",
+  analyzed: "AI วิเคราะห์",
+  registered: "ลงรับ",
+  assigned: "มอบหมาย",
+  director_signed: "ผอ. ลงนาม",
+  status_changed: "เปลี่ยนสถานะ",
+  endorsement_updated: "แก้ไขบันทึกเสนอ",
+  assignment_accepted: "รับทราบงาน",
+  assignment_completed: "ดำเนินการเสร็จ",
+  rejected: "ตีกลับ",
+  hold: "พักเรื่อง",
+};
+
 const STATUS_LABEL: Record<string, string> = {
   new: "ใหม่",
   analyzing: "กำลังวิเคราะห์",
@@ -100,17 +122,25 @@ export default function LiffCaseDetailPage() {
 
   const [data, setData] = useState<CaseDetail | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [activities, setActivities] = useState<CaseActivity[]>([]);
+  const [showActivities, setShowActivities] = useState(false);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   const fetchAll = async () => {
-    const [d, a] = await Promise.all([
+    const [d, a, act] = await Promise.all([
       apiFetch<CaseDetail>(`/cases/${caseId}`),
-      apiFetch<Assignment[] | { data: Assignment[] }>(`/cases/${caseId}/assignments`).catch(() => [] as Assignment[]),
+      apiFetch<Assignment[] | { data: Assignment[] }>(`/cases/${caseId}/assignments`).catch(
+        () => [] as Assignment[],
+      ),
+      apiFetch<CaseActivity[] | { data: CaseActivity[] }>(`/cases/${caseId}/activities`).catch(
+        () => [] as CaseActivity[],
+      ),
     ]);
     setData(d);
     setAssignments(Array.isArray(a) ? a : (a as any).data ?? []);
+    setActivities(Array.isArray(act) ? act : (act as any).data ?? []);
   };
 
   useEffect(() => {
@@ -275,6 +305,43 @@ export default function LiffCaseDetailPage() {
             <p className="mt-1 whitespace-pre-wrap text-xs text-indigo-700">
               หมายเหตุ: {myAssignment.note}
             </p>
+          )}
+        </div>
+      )}
+
+      {/* Activity timeline (collapsible) */}
+      {activities.length > 0 && (
+        <div className="mb-4 rounded-lg bg-white p-3 shadow-sm">
+          <button
+            onClick={() => setShowActivities(!showActivities)}
+            className="flex w-full items-center justify-between text-left text-xs font-semibold text-slate-700"
+          >
+            <span>ประวัติการดำเนินงาน ({activities.length})</span>
+            <span className="text-slate-400">{showActivities ? "▼" : "▶"}</span>
+          </button>
+          {showActivities && (
+            <ol className="mt-3 space-y-2 border-l-2 border-slate-200 pl-3">
+              {activities
+                .slice()
+                .reverse()
+                .map((a) => (
+                  <li key={a.id} className="relative text-xs">
+                    <span className="absolute -left-[17px] top-1 block h-2 w-2 rounded-full bg-slate-400" />
+                    <p className="font-medium text-slate-700">
+                      {ACTION_LABEL[a.action] ?? a.action}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {new Date(a.createdAt).toLocaleString("th-TH", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {a.user?.fullName && <> · {a.user.fullName}</>}
+                    </p>
+                  </li>
+                ))}
+            </ol>
           )}
         </div>
       )}

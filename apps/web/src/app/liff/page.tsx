@@ -104,6 +104,18 @@ export default function LiffDashboardPage() {
           {/* Quick links */}
           <div className="mb-6 grid grid-cols-2 gap-2">
             <Link
+              href="/liff/leave"
+              className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
+            >
+              📝 ใบลา
+            </Link>
+            <Link
+              href="/liff/news"
+              className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
+            >
+              📣 ประกาศ
+            </Link>
+            <Link
               href="/liff/calendar"
               className="rounded-lg border border-slate-200 bg-white p-3 text-center text-sm font-medium text-slate-700 shadow-sm active:scale-[0.98]"
             >
