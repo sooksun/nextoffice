@@ -30,11 +30,11 @@ const ROLE_LABEL: Record<string, string> = {
 
 const ROLE_COLOR: Record<string, string> = {
   DIRECTOR: "bg-violet-100 text-violet-800",
-  VICE_DIRECTOR: "bg-blue-100 text-blue-800",
+  VICE_DIRECTOR: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
   HEAD_TEACHER: "bg-teal-100 text-teal-800",
-  TEACHER: "bg-green-100 text-green-800",
-  CLERK: "bg-orange-100 text-orange-800",
-  ADMIN: "bg-red-100 text-red-800",
+  TEACHER: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  CLERK: "bg-orange-500/20 text-orange-800 dark:text-orange-300",
+  ADMIN: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
 export default function LineAccountsPage() {
@@ -142,7 +142,7 @@ export default function LineAccountsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold ${ROLE_COLOR[u.roleCode] ?? "bg-gray-100 text-gray-800"}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold ${ROLE_COLOR[u.roleCode] ?? "bg-surface-mid text-gray-800"}`}>
                       {ROLE_LABEL[u.roleCode] ?? u.roleCode}
                     </span>
                   </td>
@@ -175,7 +175,7 @@ export default function LineAccountsPage() {
                   <td className="px-4 py-3">
                     {u.lastPairingCode ? (
                       <div className="flex items-center gap-1">
-                        <code className="bg-yellow-50 text-yellow-800 px-2 py-0.5 rounded text-xs font-bold tracking-widest">
+                        <code className="bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded text-xs font-bold tracking-widest">
                           {u.lastPairingCode}
                         </code>
                         <button onClick={() => copyCode(u.lastPairingCode!)} className="p-0.5 hover:bg-surface-bright rounded">

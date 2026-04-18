@@ -13,9 +13,9 @@ const STATUS_LABEL: Record<string, string> = {
   draft: "ร่าง", pending: "รออนุมัติ", approved: "อนุมัติ", rejected: "ไม่อนุมัติ", cancelled: "ยกเลิก",
 };
 const STATUS_COLOR: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-600", pending: "bg-yellow-100 text-yellow-800",
-  approved: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-800",
-  cancelled: "bg-gray-100 text-gray-500",
+  draft: "bg-surface-mid text-on-surface-variant", pending: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  approved: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300", rejected: "bg-red-500/20 text-red-800 dark:text-red-300",
+  cancelled: "bg-surface-mid text-on-surface-variant",
 };
 
 interface LeaveRequest {
@@ -86,7 +86,7 @@ export default async function LeavePage() {
                 </td>
                 <td className="px-4 py-3 text-xs">{r.totalDays} วัน</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[r.status] ?? "bg-gray-100"}`}>
+                  <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[r.status] ?? "bg-surface-mid"}`}>
                     {STATUS_LABEL[r.status] ?? r.status}
                   </span>
                 </td>

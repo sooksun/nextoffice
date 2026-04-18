@@ -150,7 +150,7 @@ export default function PromptsSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
+      <div className="flex items-center justify-center h-64 text-on-surface-variant">
         <Loader2 className="animate-spin mr-2" size={20} />
         กำลังโหลด...
       </div>
@@ -169,7 +169,7 @@ export default function PromptsSettingsPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">ตั้งค่า System Prompts</h1>
-            <p className="text-sm text-gray-500">กำหนดคำสั่ง AI สำหรับแต่ละขั้นตอนการทำงาน</p>
+            <p className="text-sm text-on-surface-variant">กำหนดคำสั่ง AI สำหรับแต่ละขั้นตอนการทำงาน</p>
           </div>
         </div>
         {totalDirty > 0 && (
@@ -187,16 +187,16 @@ export default function PromptsSettingsPage() {
           const dirtyInGroup = items.filter((p) => edits[p.promptKey]?.dirty).length;
 
           return (
-            <div key={groupName} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div key={groupName} className="bg-white rounded-2xl shadow-sm border border-outline-variant/40 overflow-hidden">
               {/* Group Header */}
               <button
-                className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-low transition-colors"
                 onClick={() => setExpandedGroups((prev) => ({ ...prev, [groupName]: !isOpen }))}
               >
                 <div className="flex items-center gap-3">
-                  {isOpen ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRight size={18} className="text-gray-400" />}
+                  {isOpen ? <ChevronDown size={18} className="text-on-surface-variant/70" /> : <ChevronRight size={18} className="text-on-surface-variant/70" />}
                   <span className="font-semibold text-gray-800">{groupName}</span>
-                  <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{items.length} prompts</span>
+                  <span className="text-xs bg-surface-mid text-on-surface-variant px-2 py-0.5 rounded-full">{items.length} prompts</span>
                   {dirtyInGroup > 0 && (
                     <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">{dirtyInGroup} ที่ยังไม่บันทึก</span>
                   )}
@@ -218,12 +218,12 @@ export default function PromptsSettingsPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold text-gray-800 text-sm">{prompt.label}</h3>
-                              <code className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">{prompt.promptKey}</code>
+                              <code className="text-xs bg-surface-mid text-on-surface-variant px-1.5 py-0.5 rounded font-mono">{prompt.promptKey}</code>
                               {e.dirty && <span className="text-xs text-amber-600 font-medium">• ยังไม่บันทึก</span>}
                             </div>
                             {prompt.description && (
-                              <p className="text-xs text-gray-500 mt-1 flex items-start gap-1">
-                                <Info size={11} className="shrink-0 mt-0.5 text-gray-400" />
+                              <p className="text-xs text-on-surface-variant mt-1 flex items-start gap-1">
+                                <Info size={11} className="shrink-0 mt-0.5 text-on-surface-variant/70" />
                                 {prompt.description}
                               </p>
                             )}
@@ -239,7 +239,7 @@ export default function PromptsSettingsPage() {
 
                         {/* Prompt Textarea */}
                         <textarea
-                          className="w-full text-sm font-mono bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 resize-y min-h-[120px] focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
+                          className="w-full text-sm font-mono bg-surface-low border border-outline-variant/60 rounded-xl px-3 py-2.5 resize-y min-h-[120px] focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
                           value={e.promptText}
                           onChange={(ev) => setEdit(prompt.promptKey, { promptText: ev.target.value, dirty: true, saved: false })}
                           rows={6}
@@ -249,12 +249,12 @@ export default function PromptsSettingsPage() {
                         {/* Parameters + Actions */}
                         <div className="flex items-center gap-4 mt-3 flex-wrap">
                           {/* Temperature */}
-                          <label className="flex items-center gap-2 text-xs text-gray-600">
+                          <label className="flex items-center gap-2 text-xs text-on-surface-variant">
                             <Thermometer size={13} className="text-orange-400" />
                             Temperature
                             <input
                               type="number"
-                              className="w-16 text-center border border-gray-200 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                              className="w-16 text-center border border-outline-variant/60 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
                               min={0} max={1} step={0.05}
                               value={e.temperature}
                               onChange={(ev) => setEdit(prompt.promptKey, { temperature: parseFloat(ev.target.value) || 0, dirty: true, saved: false })}
@@ -262,12 +262,12 @@ export default function PromptsSettingsPage() {
                           </label>
 
                           {/* Max Tokens */}
-                          <label className="flex items-center gap-2 text-xs text-gray-600">
+                          <label className="flex items-center gap-2 text-xs text-on-surface-variant">
                             <Hash size={13} className="text-purple-400" />
                             Max Tokens
                             <input
                               type="number"
-                              className="w-20 text-center border border-gray-200 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                              className="w-20 text-center border border-outline-variant/60 rounded-lg px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400"
                               min={64} max={8192} step={64}
                               value={e.maxTokens}
                               onChange={(ev) => setEdit(prompt.promptKey, { maxTokens: parseInt(ev.target.value) || 1024, dirty: true, saved: false })}
@@ -276,7 +276,7 @@ export default function PromptsSettingsPage() {
 
                           {/* Updated info */}
                           {prompt.updatedBy && (
-                            <span className="text-xs text-gray-400 ml-auto hidden sm:block">
+                            <span className="text-xs text-on-surface-variant/70 ml-auto hidden sm:block">
                               แก้ไขล่าสุดโดย {prompt.updatedBy}
                             </span>
                           )}
@@ -286,7 +286,7 @@ export default function PromptsSettingsPage() {
                             <button
                               onClick={() => handleReset(prompt.promptKey)}
                               disabled={e.resetting || e.saving}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-outline-variant/60 text-on-surface-variant rounded-lg hover:bg-surface-low disabled:opacity-50 transition-colors"
                             >
                               {e.resetting ? (
                                 <Loader2 size={12} className="animate-spin" />
@@ -300,10 +300,10 @@ export default function PromptsSettingsPage() {
                               disabled={!e.dirty || e.saving}
                               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
                                 e.saved
-                                  ? "bg-green-100 text-green-700 border border-green-200"
+                                  ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-green-200"
                                   : e.dirty
                                   ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                  : "bg-surface-mid text-on-surface-variant/70 cursor-not-allowed"
                               }`}
                             >
                               {e.saving ? (

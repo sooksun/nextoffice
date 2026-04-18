@@ -15,11 +15,11 @@ const STATUS_LABEL: Record<string, string> = {
   returned: "ส่งคืน",
 };
 const STATUS_COLOR: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  reviewing: "bg-blue-100 text-blue-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  returned: "bg-orange-100 text-orange-800",
+  pending: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  reviewing: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  approved: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
+  rejected: "bg-red-500/20 text-red-800 dark:text-red-300",
+  returned: "bg-orange-500/20 text-orange-800 dark:text-orange-300",
 };
 
 interface PresentationFile {

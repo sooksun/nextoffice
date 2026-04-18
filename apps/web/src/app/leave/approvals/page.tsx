@@ -52,12 +52,12 @@ export default async function ApprovalsPage() {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <form action={`/api/leave/${l.id}/approve`} method="POST">
-                    <button className="p-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
+                    <button className="p-2 rounded-xl bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 hover:bg-green-200 transition-colors">
                       <CheckCircle size={16} />
                     </button>
                   </form>
                   <form action={`/api/leave/${l.id}/reject`} method="POST">
-                    <button className="p-2 rounded-xl bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
+                    <button className="p-2 rounded-xl bg-red-500/20 text-red-800 dark:text-red-300 hover:bg-red-200 transition-colors">
                       <XCircle size={16} />
                     </button>
                   </form>
@@ -85,10 +85,10 @@ export default async function ApprovalsPage() {
                   <p className="text-xs text-on-surface-variant mt-1">เรื่อง: {t.purpose}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button className="p-2 rounded-xl bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
+                  <button className="p-2 rounded-xl bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 hover:bg-green-200 transition-colors">
                     <CheckCircle size={16} />
                   </button>
-                  <button className="p-2 rounded-xl bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
+                  <button className="p-2 rounded-xl bg-red-500/20 text-red-800 dark:text-red-300 hover:bg-red-200 transition-colors">
                     <XCircle size={16} />
                   </button>
                 </div>
