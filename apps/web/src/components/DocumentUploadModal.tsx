@@ -394,20 +394,27 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
 
           {/* STEP 3: Not Official */}
           {step === "not_official" && (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-                <XCircle size={32} className="text-red-500" />
+            <div className="flex flex-col items-center justify-center py-8 gap-4">
+              <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <AlertTriangle size={32} className="text-amber-500" />
               </div>
-              <h3 className="text-lg font-bold text-red-700">ไม่ใช่หนังสือราชการ</h3>
+              <h3 className="text-lg font-bold text-amber-700 dark:text-amber-300">AI ประเมินว่าไม่ใช่หนังสือราชการ</h3>
               <p className="text-sm text-on-surface-variant text-center max-w-md">
-                AI ตรวจสอบแล้วพบว่าเอกสารนี้ไม่ใช่หนังสือราชการ 6 ประเภท
-                ตามระเบียบสำนักนายกรัฐมนตรี ไม่สามารถบันทึกในระบบสารบรรณได้
+                AI ตรวจสอบแล้วพบว่าเอกสารนี้ <strong>ไม่น่าจะเป็น</strong>หนังสือราชการ 6 ประเภท
+                ตามระเบียบสำนักนายกรัฐมนตรี
               </p>
               {result?.reasoningSummary && (
                 <p className="text-xs text-on-surface-variant bg-surface-bright p-3 rounded-xl max-w-md text-center">
-                  {result.reasoningSummary}
+                  <strong>เหตุผล:</strong> {result.reasoningSummary}
                 </p>
               )}
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/5 border border-primary/20 text-xs text-on-surface-variant max-w-md">
+                <AlertTriangle size={14} className="text-primary shrink-0" />
+                <span>
+                  หาก AI จำแนกผิด และนี่คือหนังสือราชการจริง
+                  คุณสามารถกด <strong className="text-primary">ลงทะเบียนอยู่ดี</strong> เพื่อเข้าสู่ฟอร์มบันทึกข้อมูลเอง
+                </span>
+              </div>
             </div>
           )}
 
@@ -702,7 +709,17 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
             </>
           )}
           {step === "not_official" && (
-            <button onClick={handleClose} className="btn-primary">ปิด</button>
+            <>
+              <button onClick={handleClose} className="btn-ghost">ปิด</button>
+              <button
+                onClick={handleSaveAndGo}
+                className="btn-primary flex items-center gap-2"
+                title="AI จำแนกผิด — บังคับเข้าสู่ฟอร์มลงทะเบียน"
+              >
+                <CheckCircle size={16} />
+                ลงทะเบียนอยู่ดี
+              </button>
+            </>
           )}
           {step === "result" && (
             <>
