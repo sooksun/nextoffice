@@ -230,18 +230,48 @@ export default function KnowledgeImportPage() {
       qdrantChunkCount: 0,
       chunks: [],
     });
-    try {
-      const token = getAuthToken();
-      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const [detailRes, chunksRes] = await Promise.all([
-        fetch(`${apiBase}/knowledge-import/${item.id}`, { headers }),
-        fetch(`${apiBase}/knowledge-import/${item.id}/chunks`, { headers }),
-      ]);
-      if (!detailRes.ok || !chunksRes.ok) {
-        throw new Error("โหลดข้อมูลไม่สำเร็จ");
-      }
-      const detail = await detailRes.json();
-      const chunksData = await chunksRes.json();
+    const token = getAuthToken();
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+    // Fetch detail + chunks independently — if the /chunks endpoint is
+    // missing (e.g. API not yet rebuilt), we still show the extracted text.
+    const [detailSettled, chunksSettled] = await Promise.allSettled([
+      fetch(`${apiBase}/knowledge-import/${item.id}`, { headers }),
+      fetch(`${apiBase}/knowledge-import/${item.id}/chunks`, { headers }),
+    ]);
+
+    let detail: {
+      id: number;
+      title: string;
+      category: string | null;
+      status: Status;
+      chunkCount: number;
+      extractedText: string | null;
+    } | null = null;
+    let chunksData: { qdrantChunkCount: number; chunks: ChunkInfo[] } | null = null;
+    let errorMsg: string | null = null;
+
+    if (detailSettled.status === "fulfilled" && detailSettled.value.ok) {
+      detail = await detailSettled.value.json();
+    } else if (detailSettled.status === "fulfilled") {
+      errorMsg = `โหลดรายละเอียดล้มเหลว (HTTP ${detailSettled.value.status})`;
+    } else {
+      errorMsg = detailSettled.reason?.message ?? "โหลดรายละเอียดล้มเหลว";
+    }
+
+    if (chunksSettled.status === "fulfilled" && chunksSettled.value.ok) {
+      chunksData = await chunksSettled.value.json();
+    } else if (chunksSettled.status === "fulfilled") {
+      const status = chunksSettled.value.status;
+      const text = status === 404
+        ? "API ยังไม่รองรับ endpoint /chunks — rebuild api container"
+        : `โหลด chunks ล้มเหลว (HTTP ${status})`;
+      toastError(text);
+    } else {
+      toastError(chunksSettled.reason?.message ?? "โหลด chunks ล้มเหลว");
+    }
+
+    if (detail) {
       setInspecting({
         item: {
           id: detail.id,
@@ -251,15 +281,14 @@ export default function KnowledgeImportPage() {
           chunkCount: detail.chunkCount,
           extractedText: detail.extractedText,
         },
-        qdrantChunkCount: chunksData.qdrantChunkCount,
-        chunks: chunksData.chunks,
+        qdrantChunkCount: chunksData?.qdrantChunkCount ?? 0,
+        chunks: chunksData?.chunks ?? [],
       });
-    } catch (err: unknown) {
-      toastError((err as Error).message || "ไม่สามารถตรวจสอบข้อมูลได้");
+    } else {
+      toastError(errorMsg ?? "ไม่สามารถตรวจสอบข้อมูลได้");
       setInspecting(null);
-    } finally {
-      setInspectLoading(false);
     }
+    setInspectLoading(false);
   };
 
   const handleAdminResetOrg = async () => {
