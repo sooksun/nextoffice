@@ -59,7 +59,7 @@ function PredictionCard({ prediction }: { prediction: Prediction }) {
   const val = prediction.value as Record<string, any>;
 
   return (
-    <div className="border rounded-lg p-4 bg-white shadow-sm">
+    <div className="border rounded-lg p-4 bg-surface-bright shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-lg">{typeInfo.icon}</span>

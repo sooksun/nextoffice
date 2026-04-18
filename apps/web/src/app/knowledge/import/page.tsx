@@ -407,7 +407,7 @@ export default function KnowledgeImportPage() {
             <button
               onClick={handleAdminResetQdrant}
               disabled={resetting}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-white border border-red-300 text-red-700 text-sm font-medium rounded-xl hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-surface-bright border border-red-500/40 text-red-700 dark:text-red-300 text-sm font-medium rounded-xl hover:bg-red-500/15 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Drop + recreate Qdrant knowledge collection (ทุกองค์กร)"
             >
               <Trash2 size={14} />

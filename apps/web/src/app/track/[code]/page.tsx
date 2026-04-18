@@ -60,7 +60,7 @@ export default async function TrackPage({ params }: { params: Promise<{ code: st
   return (
     <div className="min-h-screen bg-surface-low">
       <div className="max-w-2xl mx-auto py-8 px-4">
-        <div className="bg-white rounded-2xl shadow-sm border p-6">
+        <div className="bg-surface-bright rounded-2xl shadow-sm border p-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">ติดตามเอกสาร</h1>
           <p className="text-sm text-on-surface-variant mb-6">รหัส: {code}</p>
 

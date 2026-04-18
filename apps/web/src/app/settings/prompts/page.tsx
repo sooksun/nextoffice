@@ -187,7 +187,7 @@ export default function PromptsSettingsPage() {
           const dirtyInGroup = items.filter((p) => edits[p.promptKey]?.dirty).length;
 
           return (
-            <div key={groupName} className="bg-white rounded-2xl shadow-sm border border-outline-variant/40 overflow-hidden">
+            <div key={groupName} className="bg-surface-bright rounded-2xl shadow-sm border border-outline-variant/40 overflow-hidden">
               {/* Group Header */}
               <button
                 className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-low transition-colors"

@@ -163,7 +163,7 @@ export default function DirectorSigningDetailPage() {
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               rows={5}
-              className="w-full rounded-xl border border-outline-variant/30 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+              className="w-full rounded-xl border border-outline-variant/30 bg-surface-lowest px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
               placeholder="ระบุคำสั่ง / เกษียณหนังสือ..."
             />
             <p className="text-xs text-outline mt-1 text-right">
@@ -218,7 +218,7 @@ export default function DirectorSigningDetailPage() {
             {signatureMethod === "electronic" && (
               <div>
                 {hasElectronicSig && sigPreviewUrl ? (
-                  <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white border border-outline-variant/20">
+                  <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-surface-bright border border-outline-variant/20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={sigPreviewUrl}
