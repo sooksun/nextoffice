@@ -54,6 +54,16 @@ function mapUrgencyToForm(u: string | null | undefined): string {
   return "normal";
 }
 
+/** Default due date = today + N days (YYYY-MM-DD, local). */
+function defaultDueDate(daysFromNow = 3): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function NewInboxForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,7 +82,7 @@ function NewInboxForm() {
     senderOrg:     "",
     recipientNote: "ผู้อำนวยการโรงเรียน",
     urgencyLevel:  "normal",
-    dueDate:       "",
+    dueDate:       defaultDueDate(3),  // today + 3 days; AI will overwrite if it finds one
     description:   "",
   });
 
@@ -97,7 +107,8 @@ function NewInboxForm() {
             documentDate: ai.documentDate ?? prev.documentDate,
             senderOrg: ai.issuingAuthority ?? prev.senderOrg,
             urgencyLevel: mapUrgencyToForm(ai.urgency),
-            dueDate: ai.deadlineDate ? ai.deadlineDate.split("T")[0] : prev.dueDate,
+            // Prefer AI-extracted deadline; fall back to today + 3 days
+            dueDate: ai.deadlineDate ? ai.deadlineDate.split("T")[0] : defaultDueDate(3),
             description: ai.summaryText ?? prev.description,
           }));
         }

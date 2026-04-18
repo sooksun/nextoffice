@@ -107,10 +107,9 @@ export class PdfStampService {
 
     // Stamp 1: y locked 8pt from top of page (scaled)
     if (zones[0]) zones[0] = { ...zones[0], y: pageH - s1H - Math.round(8 * ss) };
-    // Stamp 2: shift up 20pt from complimentary close baseline (scaled)
-    if (zones[1]) zones[1] = { ...zones[1], y: zones[1].y + Math.round(20 * ss) };
-    // Stamp 3: shift up 40pt relative to computed zone (scaled)
-    if (zones[2]) zones[2] = { ...zones[2], y: zones[2].y + Math.round(40 * ss) };
+    // Stamps 2 & 3: empty-space finder now places them BELOW the signature
+    // block (see EmptySpaceService.findLowerHalfFixed), so the previous
+    // +20/+40pt manual nudges are no longer needed.
 
     // ── 3. Render PNGs at original A4 dimensions (crisp 3× canvas) ─────────
     const [png1, png2, png3] = await Promise.all([

@@ -290,12 +290,20 @@ export class IntakeService {
           if (u.includes('ด่วน') || u === 'urgent') return 'urgent';
           return 'normal';
         })();
+        // Default due date = today + 3 days when AI cannot extract a deadline from the document
+        const fallbackDueDate = (() => {
+          const d = new Date();
+          d.setHours(23, 59, 59, 999);
+          d.setDate(d.getDate() + 3);
+          return d;
+        })();
+        const dueDate = metadata?.deadlineDate ? new Date(metadata.deadlineDate) : fallbackDueDate;
         const newCase = await this.prisma.inboundCase.create({
           data: {
             organizationId: orgId,
             title,
             description: [metadata?.summary || '', intakeRef].filter(Boolean).join('\n'),
-            dueDate: metadata?.deadlineDate ? new Date(metadata.deadlineDate) : null,
+            dueDate,
             urgencyLevel,
             status: 'new',
           },
