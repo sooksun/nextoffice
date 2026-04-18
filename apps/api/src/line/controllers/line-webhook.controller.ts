@@ -18,9 +18,11 @@ import { LineWorkflowService } from '../services/line-workflow.service';
 import { LineMessagingService } from '../services/line-messaging.service';
 import { LineInquiryService } from '../services/line-inquiry.service';
 import { LineAttendanceService } from '../services/line-attendance.service';
+import { LineSessionService } from '../services/line-session.service';
 import { IntentClassifierService } from '../../ai/services/intent-classifier.service';
 import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.service';
 import { KnowledgeImportService } from '../../knowledge-import/knowledge-import.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @ApiTags('line')
 @Controller('line')
@@ -39,6 +41,8 @@ export class LineWebhookController {
     private readonly intentSvc: IntentClassifierService,
     private readonly dispatcher: QueueDispatcherService,
     private readonly knowledgeImportSvc: KnowledgeImportService,
+    private readonly sessionSvc: LineSessionService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post('webhook')
@@ -92,6 +96,44 @@ export class LineWebhookController {
             if (uid && rt) {
               const handled = await this.pairingSvc.handleAutoLink(uid, text, rt);
               if (handled) continue;
+            }
+
+            // Bare "ค้นหา" → open search session, ask for keyword in next message
+            if (uid && rt && /^ค้นหา\s*$/.test(text)) {
+              const lineUser = await this.prisma.lineUser.findUnique({
+                where: { lineUserId: uid },
+              });
+              if (lineUser) {
+                await this.sessionSvc.openSearchSession(lineUser.id);
+                await this.messagingSvc.reply(rt, [
+                  {
+                    type: 'text',
+                    text: '🔍 กรุณาพิมพ์คำที่ต้องการค้นหา\n\nตัวอย่าง:\n• "กสศ 0645"\n• "ประชุม"\n• "รักษ์ถิ่น"\n• "จัดสรรงบประมาณ"',
+                  },
+                ]);
+                continue;
+              }
+            }
+
+            // Active search session → treat any non-command text as keyword
+            if (uid && rt && text.length >= 2) {
+              const isCommand =
+                /^(ผูกบัญชี|ลงรับ|ลงนาม|รอลงนาม|สรุปรอลงนาม|รายงาน|มอบหมาย|รับทราบ|เสร็จแล้ว|งานของฉัน|สถานะงาน|รอพิจารณา|สร้างเรื่อง|ดึงสาระสำคัญ|ร่างตอบ|ทะเบียน|อนุมัติส่ง|รออนุมัติ|หนังสือรออนุมัติ|รายการรออนุมัติ|สถานะรับทราบ|ติดตาม|ดูเรื่อง|ค้นหา|ภาพรวม|แดชบอร์ด|สรุปวันนี้|งานเกินกำหนด|งานค้าง|เกินกำหนด|เมนู|menu|เปลี่ยน\s*(user|ยูสเซอร์|ผู้ใช้)|ลงเวลา|เช็คอิน|สถานะลงเวลา|เวลาวันนี้|สถานะการลา|ลาเหลือ|วันลา|ขอลา|ส่งใบลา|ขอไปราชการ|ไปราชการ)/i.test(
+                  text,
+                );
+              if (!isCommand) {
+                const lineUser = await this.prisma.lineUser.findUnique({
+                  where: { lineUserId: uid },
+                });
+                if (lineUser) {
+                  const active = await this.sessionSvc.getActiveSession(lineUser.id);
+                  if (active?.sessionType === 'search' && active.currentStep === 'awaiting_keyword') {
+                    await this.inquirySvc.handleSearchCases(uid, text, rt);
+                    await this.sessionSvc.closeSession(active.id);
+                    continue;
+                  }
+                }
+              }
             }
 
             // Intercept system commands before dispatching to queue
