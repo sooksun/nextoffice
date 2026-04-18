@@ -25,10 +25,16 @@ export class SystemPromptsService implements OnModuleInit {
     }
     try {
       // Keys ที่ต้อง force-update เมื่อ default เปลี่ยน (เช่น OCR maxTokens เพิ่มจาก 4096→8192)
-      const FORCE_UPDATE_KEYS: Record<string, number> = {
+      const FORCE_UPDATE_MAXTOKENS: Record<string, number> = {
         'ocr.pdf': 8192,
         'ocr.image': 8192,
         'extract.metadata': 1650,
+      };
+
+      // Keys ที่ต้อง force-update ถ้า DB prompt ไม่มี marker (= ยังเป็น prompt เวอร์ชันเก่า)
+      // Marker คือ substring ที่ต้องมีอยู่ใน prompt เวอร์ชันใหม่เท่านั้น
+      const FORCE_UPDATE_MARKER: Record<string, string> = {
+        'classify.llm': '[v2-lenient]',
       };
 
       for (const d of DEFAULT_PROMPTS) {
@@ -48,8 +54,18 @@ export class SystemPromptsService implements OnModuleInit {
             },
           });
           this.logger.log(`Seeded default prompt: ${d.promptKey}`);
-        } else if (FORCE_UPDATE_KEYS[d.promptKey] && existing.maxTokens < FORCE_UPDATE_KEYS[d.promptKey]) {
-          // Force-update OCR prompts ที่ยังใช้ค่าเก่า
+          continue;
+        }
+
+        const needsMaxTokenUpdate =
+          FORCE_UPDATE_MAXTOKENS[d.promptKey] &&
+          existing.maxTokens < FORCE_UPDATE_MAXTOKENS[d.promptKey];
+
+        const needsMarkerUpdate =
+          FORCE_UPDATE_MARKER[d.promptKey] &&
+          !String(existing.promptText || '').includes(FORCE_UPDATE_MARKER[d.promptKey]);
+
+        if (needsMaxTokenUpdate || needsMarkerUpdate) {
           await (this.prisma as any).systemPrompt.update({
             where: { promptKey: d.promptKey },
             data: {
@@ -60,7 +76,8 @@ export class SystemPromptsService implements OnModuleInit {
             },
           });
           this.cache.delete(d.promptKey);
-          this.logger.log(`Auto-migrated prompt: ${d.promptKey} (maxTokens ${existing.maxTokens} → ${d.maxTokens})`);
+          const reason = needsMarkerUpdate ? `missing marker "${FORCE_UPDATE_MARKER[d.promptKey]}"` : `maxTokens ${existing.maxTokens} → ${d.maxTokens}`;
+          this.logger.log(`Auto-migrated prompt: ${d.promptKey} (${reason})`);
         }
       }
     } catch (err) {

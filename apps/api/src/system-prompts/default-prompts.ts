@@ -34,22 +34,36 @@ export const DEFAULT_PROMPTS: PromptDefault[] = [
     promptKey: 'classify.llm',
     groupName: 'จำแนกประเภทเอกสาร',
     label: 'จำแนกประเภทหนังสือราชการ',
-    description: 'ใช้เมื่อ heuristic score < 0.9 — ส่ง extracted text ให้ LLM ตัดสินว่าเป็นหนังสือราชการหรือไม่ ตอบเป็น JSON',
-    promptText: `You are an expert Thai government document classifier.
-Analyze the following extracted text and determine if it is an official Thai government letter (หนังสือราชการ).
+    description: 'ใช้เมื่อ heuristic score < 0.7 — ส่ง extracted text ให้ LLM ตัดสินว่าเป็นหนังสือราชการหรือไม่ ตอบเป็น JSON',
+    promptText: `คุณเป็นผู้เชี่ยวชาญจำแนกเอกสารราชการไทย — [v2-lenient]
 
-Text:
+เอกสารที่ตรวจสอบ:
 {{extracted_text}}
 
-Respond ONLY with valid JSON in this exact format:
+เกณฑ์การจำแนกเป็น "หนังสือราชการไทย" (is_official_document = true)
+นับเป็นหนังสือราชการถ้าพบ **≥ 2 ข้อ** จากรายการต่อไปนี้:
+1. มีเลขที่หนังสือ เช่น "ที่ ศธ 0200/ว123" หรือ "ที่ กสศ./1234"
+2. มีบรรทัด "เรื่อง ..." ที่ระบุหัวข้อหนังสือ
+3. มีบรรทัด "เรียน ..." ที่ระบุผู้รับ
+4. มีวลีลงท้าย เช่น "จึงเรียนมาเพื่อโปรดทราบ", "จึงเรียนมาเพื่อพิจารณา", "ขอแสดงความนับถือ", "ด้วยความนับถือ"
+5. มีชื่อส่วนราชการที่ส่วนหัวหรือท้าย เช่น "กระทรวง...", "สำนักงาน...", "กรม...", "โรงเรียน...", "องค์การบริหารส่วน...", "เทศบาล...", "สพฐ.", "สพป.", "สพม.", "กสศ.", "กพฐ."
+6. มีรูปแบบวันที่ไทย เช่น "๒๐ มีนาคม ๒๕๖๙" หรือ "20 มีนาคม 2569"
+7. มีตำแหน่งผู้ลงนามแบบราชการ เช่น "ผู้อำนวยการ...", "อธิบดี...", "ปลัด...", "ผู้ว่าราชการ..."
+
+**หลักการสำคัญ:**
+- ให้ค่าเป็น **true** ถ้าเข้าเกณฑ์ ≥ 2 ข้อ (แม้บาง OCR จะไม่ชัด — ให้ความเมตตา)
+- ให้ค่าเป็น **false เฉพาะ** เมื่อเห็นชัดว่าเป็น: ใบปลิวโฆษณา, ใบเสร็จร้านค้าทั่วไป, bill รายบุคคล, แชทส่วนตัว, รูปภาพที่ไม่ใช่เอกสาร
+- ถ้าไม่แน่ใจ → เลือก **true** พร้อม confidence 0.5-0.7 (false negative แย่กว่า false positive เพราะผู้ใช้ไม่สามารถลงทะเบียนได้)
+
+ตอบเป็น JSON เท่านั้น (ไม่ต้องมี markdown code fence):
 {
-  "is_official_document": true/false/null,
+  "is_official_document": true | false,
   "confidence": 0.0-1.0,
-  "document_subtype": "request_letter|circular|announcement|report|other",
-  "reasoning_summary": "brief explanation in English"
+  "document_subtype": "request_letter | circular | announcement | report | other",
+  "reasoning_summary": "อธิบายสั้นๆ ว่าเข้าเกณฑ์ข้อไหนบ้าง"
 }`,
-    temperature: 0.2,
-    maxTokens: 512,
+    temperature: 0.1,
+    maxTokens: 800,
   },
 
   // ── Extraction ───────────────────────────────────────────────────────────
