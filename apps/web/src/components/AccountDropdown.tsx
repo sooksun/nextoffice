@@ -1,10 +1,10 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { User, Settings, LogOut, ShieldCheck, BookOpen, ChevronDown } from "lucide-react";
-import { getUser, logout, type AuthUser } from "@/lib/auth";
+import { logout, type AuthUser } from "@/lib/auth";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,8 +18,14 @@ function subscribeStorage(cb: () => void): () => void {
   window.addEventListener("storage", cb);
   return () => window.removeEventListener("storage", cb);
 }
-function snapshot(): AuthUser | null {
-  return getUser();
+// Return the RAW localStorage string — stable identity per content — so
+// useSyncExternalStore doesn't trigger an infinite render loop (React #185).
+function getUserJson(): string {
+  try {
+    return localStorage.getItem("user") ?? "";
+  } catch {
+    return "";
+  }
 }
 
 const ROLE_LABEL_TH: Record<string, string> = {
@@ -36,7 +42,15 @@ const ROLE_LABEL_TH: Record<string, string> = {
  */
 export default function AccountDropdown() {
   const router = useRouter();
-  const user = useSyncExternalStore<AuthUser | null>(subscribeStorage, snapshot, () => null);
+  const userJson = useSyncExternalStore(subscribeStorage, getUserJson, () => "");
+  const user = useMemo<AuthUser | null>(() => {
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson) as AuthUser;
+    } catch {
+      return null;
+    }
+  }, [userJson]);
 
   if (!user) return null;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import {
@@ -53,12 +53,12 @@ function subscribeStorage(cb: () => void): () => void {
   window.addEventListener("storage", cb);
   return () => window.removeEventListener("storage", cb);
 }
-function getStoredUser(): StoredUser | null {
+// Return raw string (stable identity); parse inside the component via useMemo.
+function getUserJson(): string {
   try {
-    const u = JSON.parse(localStorage.getItem("user") || "{}");
-    return u && u.id ? u : null;
+    return localStorage.getItem("user") ?? "";
   } catch {
-    return null;
+    return "";
   }
 }
 
@@ -70,7 +70,16 @@ type DashboardData = {
 };
 
 export default function DirectorDashboard() {
-  const user = useSyncExternalStore<StoredUser | null>(subscribeStorage, getStoredUser, () => null);
+  const userJson = useSyncExternalStore(subscribeStorage, getUserJson, () => "");
+  const user = useMemo<StoredUser | null>(() => {
+    if (!userJson) return null;
+    try {
+      const u = JSON.parse(userJson);
+      return u?.id ? u : null;
+    } catch {
+      return null;
+    }
+  }, [userJson]);
   const [data, setData] = useState<DashboardData | null>(null);
   const [, startTransition] = useTransition();
 
