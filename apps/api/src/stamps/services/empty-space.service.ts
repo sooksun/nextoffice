@@ -183,25 +183,37 @@ export class EmptySpaceService {
 
   /**
    * Scan text items for a Thai complimentary close phrase.
-   * Only considers items in the bottom 45% of the page to avoid
-   * false positives from similar phrases in the body text.
+   *
+   * Returns the Y of the LOWEST (closest-to-bottom) match, so that a
+   * stray "ด้วยความนับถือ" appearing in body text earlier on the page
+   * does not win over the actual sign-off line near the signature.
+   *
+   * Only items in the bottom 65% of the page are considered.
    * Returns the Y coordinate (pdf-lib, from bottom) or null if not found.
    */
   private detectComplimentaryCloseY(items: any[], pageH: number): number | null {
     const yLimit = pageH * 0.65; // only bottom 65% of page
+    let bestY: number | null = null;
+    let bestPhrase = '';
     for (const item of items) {
       if (!item.transform || !item.str) continue;
       const itemY: number = item.transform[5];
-      if (itemY > yLimit) continue; // skip items in upper 55%
+      if (itemY > yLimit) continue;
       const str: string = item.str.trim();
       for (const phrase of this.CLOSE_PHRASES) {
         if (str.includes(phrase)) {
-          this.logger.debug(`Close phrase "${phrase}" found at Y=${itemY}`);
-          return itemY;
+          if (bestY === null || itemY < bestY) {
+            bestY = itemY;
+            bestPhrase = phrase;
+          }
+          break;
         }
       }
     }
-    return null;
+    if (bestY !== null) {
+      this.logger.debug(`Close phrase "${bestPhrase}" — using lowest match at Y=${bestY}`);
+    }
+    return bestY;
   }
 
   // ─── Lower-half fixed-X placement ──────────────────────────────────────────
@@ -209,15 +221,17 @@ export class EmptySpaceService {
   /**
    * Place stamp at a fixed X (left margin 10 or right margin 10).
    *
-   * Anchoring priority (in PDF coordinates, y grows upward):
+   * Anchoring (in PDF coordinates, y grows upward):
    *  1. If a complimentary close ("ขอแสดงความนับถือ") is detected, the
-   *     signature block sits BELOW it (smaller Y). Find the bottom-most
-   *     text item below closeY and place the stamp TOP just below that
-   *     (with a small gap), so the stamp never overlaps the signer name
-   *     or position line.
-   *  2. If the stamp doesn't fit there (page too short), fall back to
-   *     anchoring the stamp TOP at closeY (old behaviour).
-   *  3. If no close phrase is found, scan bottom 60% for a low-density Y.
+   *     stamp TOP is aligned exactly to that baseline (closeY). Stamp
+   *     content extends DOWNWARD from there (stamp occupies y=closeY-h
+   *     to y=closeY). Because the signature block is typically right-
+   *     aligned and the stamp uses a fixed left/right margin, the two
+   *     do not overlap horizontally when:
+   *       - stamp 2 is on the left (margin 10pt) and sig block is right
+   *       - stamp 3 is on the right side below sig block
+   *  2. If no close phrase is found, scan bottom 60% of the page for a
+   *     low-density Y using weighted scoring.
    */
   private findLowerHalfFixed(
     grid: Uint8Array, cols: number, rows: number,
@@ -234,40 +248,11 @@ export class EmptySpaceService {
       ? 10
       : Math.round(pageW - spec.w - 10);
 
-    // If complimentary close detected, place stamp BELOW the signature block
+    // Align stamp TOP to complimentary close baseline
     if (closeY !== null) {
-      // Find the bottom-most text item that sits below closeY (the signer's
-      // name/position line). Only consider items not too close to the page
-      // bottom (≥ 40pt from bottom) so we don't catch page-footer noise.
-      let sigBottomY: number | null = null;
-      for (const rect of textRects) {
-        if (rect.y >= closeY) continue;       // skip items above/at the close phrase
-        if (rect.y < 40) continue;            // skip footer area
-        if (sigBottomY === null || rect.y < sigBottomY) {
-          sigBottomY = rect.y;
-        }
-      }
-
-      // Preferred: stamp TOP = sigBottomY - 8pt gap (so stamp starts below sig)
-      if (sigBottomY !== null) {
-        const stampTop = sigBottomY - 8;
-        const py = stampTop - spec.h;
-        if (py >= 10) {
-          this.logger.debug(
-            `Stamp ${spec.preference} — anchored below sig block (closeY=${closeY}, sigBottomY=${sigBottomY}), placed at (${fixedX}, ${py})`,
-          );
-          return { x: fixedX, y: py, w: spec.w, h: spec.h };
-        }
-        this.logger.debug(
-          `Stamp ${spec.preference} — below-sig position would clip (py=${py}), falling back to closeY anchor`,
-        );
-      }
-
-      // Fallback: anchor stamp TOP at closeY (old behaviour) — stamp occupies
-      // closeY-h to closeY, which may overlap the sig block but at least fits.
       const py = Math.max(closeY - spec.h, 10);
       this.logger.debug(
-        `Stamp ${spec.preference} — fallback anchored to close Y=${closeY}, placed at (${fixedX}, ${py})`,
+        `Stamp ${spec.preference} — TOP aligned to closeY=${closeY}, placed at (${fixedX}, ${py})`,
       );
       return { x: fixedX, y: py, w: spec.w, h: spec.h };
     }
