@@ -98,34 +98,108 @@ function drawRichMenu() {
     ctx.stroke();
   }
 
-  // Buttons: icon + Thai label
+  // Icons drawn with canvas primitives (no emoji font dependency)
+  const icons = {
+    dashboard: (cx, cy, s) => {
+      // 2x2 grid of rounded squares
+      ctx.fillStyle = '#ffffff';
+      const g = s * 0.35;
+      const gap = s * 0.12;
+      const r = s * 0.08;
+      const positions = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
+      positions.forEach(([dx, dy]) => {
+        const x = cx + dx * (g / 2 + gap / 2) - g / 2;
+        const y = cy + dy * (g / 2 + gap / 2) - g / 2;
+        roundRect(x, y, g, g, r);
+        ctx.fill();
+      });
+    },
+    tasks: (cx, cy, s) => {
+      // Clipboard: outline + checkmark line
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = s * 0.08;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      // Outer rectangle
+      const w = s * 0.7;
+      const h = s * 0.85;
+      roundRect(cx - w / 2, cy - h / 2, w, h, s * 0.1);
+      ctx.stroke();
+      // Top clip
+      ctx.fillStyle = '#ffffff';
+      const cw = s * 0.35;
+      const ch = s * 0.15;
+      roundRect(cx - cw / 2, cy - h / 2 - ch / 2, cw, ch, s * 0.05);
+      ctx.fill();
+      // Checkmark
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.18, cy + s * 0.05);
+      ctx.lineTo(cx - s * 0.05, cy + s * 0.2);
+      ctx.lineTo(cx + s * 0.22, cy - s * 0.12);
+      ctx.stroke();
+    },
+    search: (cx, cy, s) => {
+      // Magnifying glass
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = s * 0.08;
+      ctx.lineCap = 'round';
+      // Circle
+      ctx.beginPath();
+      ctx.arc(cx - s * 0.1, cy - s * 0.1, s * 0.3, 0, Math.PI * 2);
+      ctx.stroke();
+      // Handle
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.13, cy + s * 0.13);
+      ctx.lineTo(cx + s * 0.33, cy + s * 0.33);
+      ctx.stroke();
+    },
+  };
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   const cells = [
-    { icon: '📊', label: 'แดชบอร์ด', sub: 'ภาพรวมงาน' },
-    { icon: '📋', label: 'งานของฉัน', sub: 'หนังสือค้างดำเนินการ' },
-    { icon: '🔍', label: 'ค้นหาหนังสือ', sub: 'ตามเลขที่ / หัวเรื่อง' },
+    { iconFn: icons.dashboard, label: 'แดชบอร์ด', sub: 'ภาพรวมงาน' },
+    { iconFn: icons.tasks, label: 'งานของฉัน', sub: 'หนังสือค้างดำเนินการ' },
+    { iconFn: icons.search, label: 'ค้นหาหนังสือ', sub: 'เลขที่ / หัวเรื่อง' },
   ];
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
 
   cells.forEach((cell, i) => {
     const cx = WIDTH / 3 / 2 + (WIDTH / 3) * i;
     const cy = HEIGHT / 2;
 
-    // Icon
-    ctx.font = '180px sans-serif';
-    ctx.fillText(cell.icon, cx, cy - 120);
+    // Circular icon background
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.arc(cx, cy - 140, 140, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Icon drawing
+    cell.iconFn(cx, cy - 140, 260);
 
     // Label (Thai)
-    ctx.font = 'bold 90px SarabunBold, Sarabun, sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(cell.label, cx, cy + 60);
+    ctx.font = 'bold 90px SarabunBold, sans-serif';
+    ctx.fillText(cell.label, cx, cy + 90);
 
     // Sub label
     ctx.font = '48px Sarabun, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillText(cell.sub, cx, cy + 150);
+    ctx.fillText(cell.sub, cx, cy + 170);
   });
 
   return canvas.encode('png');
@@ -183,10 +257,10 @@ async function createRichMenu() {
         bounds: { x: WIDTH / 3, y: 0, width: WIDTH / 3, height: HEIGHT },
         action: { type: 'uri', uri: liffUrl },
       },
-      // Column 3 — Search → text message prompt
+      // Column 3 — Search → LIFF search page
       {
         bounds: { x: (WIDTH / 3) * 2, y: 0, width: WIDTH / 3, height: HEIGHT },
-        action: { type: 'message', text: 'ค้นหา ' },
+        action: { type: 'uri', uri: `${liffUrl}/search` },
       },
     ],
   };
