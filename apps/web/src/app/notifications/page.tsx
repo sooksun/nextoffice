@@ -75,8 +75,8 @@ const URGENCY_LABEL: Record<string, string> = {
 
 const URGENCY_CLASSES: Record<string, string> = {
   most_urgent: "bg-error/15 text-error border-error/30",
-  very_urgent: "bg-orange-100 text-orange-700 border-orange-200",
-  urgent: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  very_urgent: "bg-orange-500/20 text-orange-800 dark:text-orange-300 border-orange-200",
+  urgent: "bg-amber-500/20 text-amber-800 dark:text-amber-300 border-yellow-200",
   normal: "bg-surface-high text-on-surface-variant border-outline-variant/20",
 };
 

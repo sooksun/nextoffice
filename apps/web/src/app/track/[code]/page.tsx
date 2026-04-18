@@ -58,11 +58,11 @@ export default async function TrackPage({ params }: { params: Promise<{ code: st
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface-low">
       <div className="max-w-2xl mx-auto py-8 px-4">
         <div className="bg-white rounded-2xl shadow-sm border p-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">ติดตามเอกสาร</h1>
-          <p className="text-sm text-gray-500 mb-6">รหัส: {code}</p>
+          <p className="text-sm text-on-surface-variant mb-6">รหัส: {code}</p>
 
           <div className="space-y-3 mb-6">
             <InfoRow label="ประเภท" value={TYPE_LABEL[data.registryType] || data.registryType} />
@@ -84,15 +84,15 @@ export default async function TrackPage({ params }: { params: Promise<{ code: st
           {data.timeline.length > 0 && (
             <>
               <h2 className="text-base font-semibold text-gray-900 mb-3">ประวัติการดำเนินการ</h2>
-              <ol className="relative border-l-2 border-gray-200 ml-3 space-y-4">
+              <ol className="relative border-l-2 border-outline-variant/60 ml-3 space-y-4">
                 {data.timeline.map((t, i) => (
                   <li key={i} className="ml-4">
                     <div className="absolute -left-[7px] mt-1.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-white" />
                     <p className="text-sm font-medium text-gray-900">
                       {ACTION_LABEL[t.action] || t.action}
                     </p>
-                    {t.detail && <p className="text-xs text-gray-500">{t.detail}</p>}
-                    <p className="text-xs text-gray-400">{formatThaiDate(t.date)}</p>
+                    {t.detail && <p className="text-xs text-on-surface-variant">{t.detail}</p>}
+                    <p className="text-xs text-on-surface-variant/70">{formatThaiDate(t.date)}</p>
                   </li>
                 ))}
               </ol>
@@ -100,7 +100,7 @@ export default async function TrackPage({ params }: { params: Promise<{ code: st
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-4">NextOffice — ระบบสำนักงานอิเล็กทรอนิกส์</p>
+        <p className="text-center text-xs text-on-surface-variant/70 mt-4">NextOffice — ระบบสำนักงานอิเล็กทรอนิกส์</p>
       </div>
     </div>
   );
@@ -110,7 +110,7 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
   if (!value) return null;
   return (
     <div className="flex gap-2">
-      <span className="text-sm text-gray-500 w-28 shrink-0">{label}</span>
+      <span className="text-sm text-on-surface-variant w-28 shrink-0">{label}</span>
       <span className="text-sm text-gray-900">{value}</span>
     </div>
   );

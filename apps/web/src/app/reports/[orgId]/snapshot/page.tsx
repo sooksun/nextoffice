@@ -31,7 +31,7 @@ function StatCard({ label, value, icon, color }: { label: string; value: number;
     <div className={`rounded-lg p-4 ${color}`}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-2xl">{icon}</span>
-        <span className="text-sm font-medium text-gray-600">{label}</span>
+        <span className="text-sm font-medium text-on-surface-variant">{label}</span>
       </div>
       <p className="text-3xl font-bold">{value}</p>
     </div>
@@ -40,10 +40,10 @@ function StatCard({ label, value, icon, color }: { label: string; value: number;
 
 function urgencyBadge(urgency: string) {
   const colors: Record<string, string> = {
-    normal: "bg-gray-100 text-gray-600",
-    urgent: "bg-yellow-100 text-yellow-800",
-    very_urgent: "bg-orange-100 text-orange-800",
-    most_urgent: "bg-red-100 text-red-800",
+    normal: "bg-surface-mid text-on-surface-variant",
+    urgent: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+    very_urgent: "bg-orange-500/20 text-orange-800 dark:text-orange-300",
+    most_urgent: "bg-red-500/20 text-red-800 dark:text-red-300",
   };
   const labels: Record<string, string> = {
     normal: "ปกติ",
@@ -52,7 +52,7 @@ function urgencyBadge(urgency: string) {
     most_urgent: "ด่วนที่สุด",
   };
   return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[urgency] || "bg-gray-100"}`}>
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[urgency] || "bg-surface-mid"}`}>
       {labels[urgency] || urgency}
     </span>
   );
@@ -64,7 +64,7 @@ export default async function ExecutiveSnapshotPage(props: { params: Promise<{ o
 
   if (!data) {
     return (
-      <div className="max-w-4xl mx-auto p-6 text-center text-gray-500">
+      <div className="max-w-4xl mx-auto p-6 text-center text-on-surface-variant">
         <p>ไม่สามารถโหลดข้อมูลได้</p>
       </div>
     );
@@ -77,7 +77,7 @@ export default async function ExecutiveSnapshotPage(props: { params: Promise<{ o
           &larr; กลับหน้ารายงาน
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Executive Snapshot</h1>
-        <p className="text-sm text-gray-500">สรุปภาพรวมประจำวัน {data.date}</p>
+        <p className="text-sm text-on-surface-variant">สรุปภาพรวมประจำวัน {data.date}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -90,18 +90,18 @@ export default async function ExecutiveSnapshotPage(props: { params: Promise<{ o
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-3">เรื่องล่าสุด</h2>
         {data.recentItems.length === 0 ? (
-          <p className="text-gray-500">ไม่มีเรื่องในวันนี้</p>
+          <p className="text-on-surface-variant">ไม่มีเรื่องในวันนี้</p>
         ) : (
           <div className="space-y-2">
             {data.recentItems.map((item) => (
               <Link
                 key={item.id}
                 href={`/cases/${item.id}`}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center justify-between p-3 border rounded-lg hover:bg-surface-low transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-on-surface-variant">
                     {new Date(item.createdAt).toLocaleString("th-TH")}
                   </p>
                 </div>

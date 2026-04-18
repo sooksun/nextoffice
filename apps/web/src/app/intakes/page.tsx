@@ -158,12 +158,12 @@ export default function IntakesPage() {
                         </p>
                       )}
                       {intake.aiResult?.isOfficialDocument === true && (
-                        <span className="inline-flex mt-1 text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-semibold">
+                        <span className="inline-flex mt-1 text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded font-semibold">
                           หนังสือราชการ
                         </span>
                       )}
                       {intake.aiResult?.isOfficialDocument === false && (
-                        <span className="inline-flex mt-1 text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">
+                        <span className="inline-flex mt-1 text-[10px] px-1.5 py-0.5 bg-surface-mid text-on-surface-variant rounded">
                           ไม่ใช่ราชการ
                         </span>
                       )}

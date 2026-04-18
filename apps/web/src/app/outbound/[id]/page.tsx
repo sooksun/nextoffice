@@ -12,8 +12,8 @@ const STATUS_LABEL: Record<string, string> = {
   draft: "ร่าง", pending_approval: "รออนุมัติ", approved: "อนุมัติแล้ว", sent: "ส่งแล้ว",
 };
 const STATUS_COLOR: Record<string, string> = {
-  draft: "bg-surface-bright text-on-surface-variant", pending_approval: "bg-yellow-100 text-yellow-800",
-  approved: "bg-blue-100 text-blue-800", sent: "bg-green-100 text-green-800",
+  draft: "bg-surface-bright text-on-surface-variant", pending_approval: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  approved: "bg-blue-500/20 text-blue-800 dark:text-blue-300", sent: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
 };
 const URGENCY_LABEL: Record<string, string> = {
   normal: "ทั่วไป", urgent: "ด่วน", very_urgent: "ด่วนที่สุด", most_urgent: "ด่วนที่สุด",

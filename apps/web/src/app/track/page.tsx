@@ -22,7 +22,7 @@ export default function TrackIndexPage() {
           <QrCode size={32} className="text-primary" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900">ติดตามเอกสาร</h1>
-        <p className="text-sm text-gray-500 text-center">
+        <p className="text-sm text-on-surface-variant text-center">
           กรอกรหัสติดตามจาก QR Code เพื่อดูสถานะเอกสาร
         </p>
       </div>
@@ -34,9 +34,9 @@ export default function TrackIndexPage() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="วางรหัสติดตาม เช่น a1b2c3d4-..."
-            className="w-full px-4 py-3 pr-12 rounded-2xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            className="w-full px-4 py-3 pr-12 rounded-2xl border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
           />
-          <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/70" />
         </div>
         <button
           type="submit"

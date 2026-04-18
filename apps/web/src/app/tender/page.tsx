@@ -13,10 +13,10 @@ const STATUS_LABEL: Record<string, string> = {
   awarded: "คัดเลือกแล้ว",
 };
 const STATUS_COLOR: Record<string, string> = {
-  open: "bg-green-100 text-green-800",
+  open: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300",
   closed: "bg-surface-bright text-on-surface-variant",
-  cancelled: "bg-red-100 text-red-800",
-  awarded: "bg-blue-100 text-blue-800",
+  cancelled: "bg-red-500/20 text-red-800 dark:text-red-300",
+  awarded: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
 };
 const TENDER_TYPE_LABEL: Record<string, string> = {
   price_check: "สอบราคา",

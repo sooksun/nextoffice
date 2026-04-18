@@ -25,10 +25,10 @@ const URGENCY_LABEL: Record<string, string> = {
   most_urgent: "ด่วนที่สุด",
 };
 const URGENCY_COLOR: Record<string, string> = {
-  normal: "bg-blue-100 text-blue-800",
-  urgent: "bg-yellow-100 text-yellow-800",
-  very_urgent: "bg-orange-100 text-orange-800",
-  most_urgent: "bg-red-100 text-red-800",
+  normal: "bg-blue-500/20 text-blue-800 dark:text-blue-300",
+  urgent: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
+  very_urgent: "bg-orange-500/20 text-orange-800 dark:text-orange-300",
+  most_urgent: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
 export default function DirectorSigningPage() {

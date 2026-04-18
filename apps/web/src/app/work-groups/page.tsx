@@ -4,10 +4,10 @@ import { Building2, Users, ChevronRight } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 const GROUP_COLOR: Record<string, string> = {
-  academic: "bg-blue-100 text-blue-800 border-blue-200",
-  budget: "bg-green-100 text-green-800 border-green-200",
-  personnel: "bg-purple-100 text-purple-800 border-purple-200",
-  general: "bg-orange-100 text-orange-800 border-orange-200",
+  academic: "bg-blue-500/20 text-blue-800 dark:text-blue-300 border-blue-200",
+  budget: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-green-200",
+  personnel: "bg-purple-500/20 text-purple-800 dark:text-purple-300 border-purple-200",
+  general: "bg-orange-500/20 text-orange-800 dark:text-orange-300 border-orange-200",
 };
 const GROUP_ICON_COLOR: Record<string, string> = {
   academic: "bg-blue-500",
