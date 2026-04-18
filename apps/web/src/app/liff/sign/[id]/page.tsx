@@ -94,8 +94,16 @@ export default function LiffSignPage() {
       <p className="mb-4 line-clamp-2 text-xs text-slate-500">{caseData.title}</p>
 
       {pdfUrl && (
-        <div className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <iframe src={pdfUrl} className="w-full" style={{ height: "40vh" }} title="เอกสาร" />
+        <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4 text-center">
+          <p className="mb-1 text-xs text-slate-500">ไฟล์เอกสารแนบ</p>
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white active:scale-[0.98]"
+          >
+            เปิดดูเอกสาร PDF
+          </a>
         </div>
       )}
 
