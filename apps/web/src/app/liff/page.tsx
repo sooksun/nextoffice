@@ -34,12 +34,19 @@ interface PendingOutbound {
   recipientName: string | null;
 }
 
+interface TodayAttendance {
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  status: string | null;
+}
+
 export default function LiffDashboardPage() {
   const { displayName, pictureUrl, status } = useLiff();
   const [user, setUser] = useState<any>(null);
   const [myTasks, setMyTasks] = useState<MyTask[]>([]);
   const [pendingSign, setPendingSign] = useState<PendingSign[]>([]);
   const [pendingOutbound, setPendingOutbound] = useState<PendingOutbound[]>([]);
+  const [today, setToday] = useState<TodayAttendance | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -49,8 +56,12 @@ export default function LiffDashboardPage() {
 
     (async () => {
       try {
-        const tasks = await apiFetch<MyTask[]>("/cases/my-tasks");
+        const [tasks, attendance] = await Promise.all([
+          apiFetch<MyTask[]>("/cases/my-tasks").catch(() => []),
+          apiFetch<TodayAttendance>("/attendance/today").catch(() => null),
+        ]);
         setMyTasks(Array.isArray(tasks) ? tasks : []);
+        setToday(attendance);
 
         if (["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(u?.roleCode)) {
           const [pending, outbound] = await Promise.all([
@@ -88,6 +99,8 @@ export default function LiffDashboardPage() {
         <div className="text-center text-sm text-slate-500">กำลังโหลด…</div>
       ) : (
         <>
+          <AttendanceCard today={today} />
+
           {isDirector && (
             <>
               <Section title="รออนุมัติส่ง" count={pendingOutbound.length}>
@@ -220,4 +233,62 @@ function UrgencyBadge({ level }: { level: string }) {
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="rounded-lg bg-white p-6 text-center text-sm text-slate-500">{children}</div>;
+}
+
+function AttendanceCard({ today }: { today: TodayAttendance | null }) {
+  const checkedIn = !!today?.checkInAt;
+  const checkedOut = !!today?.checkOutAt;
+
+  if (checkedOut) {
+    return (
+      <section className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+        <p className="text-xs font-semibold text-emerald-800">ลงเวลาวันนี้ครบแล้ว ✓</p>
+        <p className="mt-1 text-xs text-emerald-700">
+          เข้า{" "}
+          {new Date(today!.checkInAt!).toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}{" "}
+          · ออก{" "}
+          {new Date(today!.checkOutAt!).toLocaleTimeString("th-TH", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      </section>
+    );
+  }
+
+  if (checkedIn) {
+    return (
+      <Link
+        href="/liff/checkin?mode=out"
+        className="mb-6 block rounded-lg border border-indigo-200 bg-indigo-50 p-3 active:scale-[0.99]"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-indigo-800">เข้างานแล้ว</p>
+            <p className="mt-0.5 text-xs text-indigo-700">
+              เมื่อ{" "}
+              {new Date(today!.checkInAt!).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          </div>
+          <span className="text-sm font-semibold text-indigo-700">ลงเวลาออก →</span>
+        </div>
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href="/liff/checkin?mode=in"
+      className="mb-6 block rounded-lg border border-emerald-300 bg-emerald-600 p-4 text-center shadow-sm active:scale-[0.99]"
+    >
+      <p className="text-base font-semibold text-white">📸 ลงเวลาเข้างาน</p>
+      <p className="mt-1 text-xs text-emerald-100">ถ่ายรูปใบหน้า + ตำแหน่งที่ตั้ง</p>
+    </Link>
+  );
 }
