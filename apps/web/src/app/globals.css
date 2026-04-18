@@ -232,6 +232,83 @@
   --sm-gradient: linear-gradient(160deg, #05030e 0%, #0f0a2e 45%, #1e1040 100%);
 }
 
+/* ─── COLOR SCHEME VARIANTS ───────────────────────────────────────────
+   Swaps --c-primary + --c-secondary + --sm-accent for each data-color-scheme
+   attribute on <html>. Defaults to purple/indigo (the values already set
+   in :root / .dark above).  */
+
+/* Blue ocean */
+html[data-color-scheme="blue"] {
+  --c-primary: #2563eb;
+  --c-primary-container: #1e40af;
+  --c-secondary: #0ea5e9;
+  --c-secondary-container: #0369a1;
+  --sm-accent: 96 165 250;
+  --primary-hsl: 217 91% 60%;
+  --ring: 217 91% 60%;
+}
+html.dark[data-color-scheme="blue"] {
+  --c-primary: #60a5fa;
+  --c-primary-container: #1d4ed8;
+  --c-secondary: #7dd3fc;
+  --c-secondary-container: #075985;
+  --sm-accent: 96 165 250;
+}
+
+/* Emerald */
+html[data-color-scheme="emerald"] {
+  --c-primary: #059669;
+  --c-primary-container: #065f46;
+  --c-secondary: #14b8a6;
+  --c-secondary-container: #0f766e;
+  --sm-accent: 110 231 183;
+  --primary-hsl: 160 84% 39%;
+  --ring: 160 84% 39%;
+}
+html.dark[data-color-scheme="emerald"] {
+  --c-primary: #34d399;
+  --c-primary-container: #047857;
+  --c-secondary: #5eead4;
+  --c-secondary-container: #115e59;
+  --sm-accent: 110 231 183;
+}
+
+/* Rose */
+html[data-color-scheme="rose"] {
+  --c-primary: #e11d48;
+  --c-primary-container: #9f1239;
+  --c-secondary: #f43f5e;
+  --c-secondary-container: #be123c;
+  --sm-accent: 251 113 133;
+  --primary-hsl: 346 77% 50%;
+  --ring: 346 77% 50%;
+}
+html.dark[data-color-scheme="rose"] {
+  --c-primary: #fb7185;
+  --c-primary-container: #be123c;
+  --c-secondary: #fda4af;
+  --c-secondary-container: #9f1239;
+  --sm-accent: 251 113 133;
+}
+
+/* Amber */
+html[data-color-scheme="amber"] {
+  --c-primary: #d97706;
+  --c-primary-container: #92400e;
+  --c-secondary: #f59e0b;
+  --c-secondary-container: #b45309;
+  --sm-accent: 251 191 36;
+  --primary-hsl: 32 95% 44%;
+  --ring: 32 95% 44%;
+}
+html.dark[data-color-scheme="amber"] {
+  --c-primary: #fbbf24;
+  --c-primary-container: #b45309;
+  --c-secondary: #fde68a;
+  --c-secondary-container: #92400e;
+  --sm-accent: 251 191 36;
+}
+
 /* ─── big-calendar custom utilities ─── */
 .bg-calendar-disabled-hour {
   background-image: repeating-linear-gradient(-60deg, hsl(var(--border)) 0 0.5px, transparent 0.5px 8px);

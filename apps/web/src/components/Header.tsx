@@ -9,6 +9,7 @@ import ImpersonateMenu from "./ImpersonateMenu";
 import AdminSwitchPanel from "./AdminSwitchPanel";
 import Breadcrumb from "./Breadcrumb";
 import ThemeToggle from "./ThemeToggle";
+import ColorSchemePicker from "./ColorSchemePicker";
 import QuickSearchDialog from "./QuickSearchDialog";
 import NotificationDropdown from "./NotificationDropdown";
 import AccountDropdown from "./AccountDropdown";
@@ -79,7 +80,8 @@ export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
           </kbd>
         </button>
 
-        {/* Theme toggle */}
+        {/* Color scheme + theme toggle */}
+        <ColorSchemePicker />
         <ThemeToggle />
 
         {/* Admin tools */}

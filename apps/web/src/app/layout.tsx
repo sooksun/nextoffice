@@ -18,14 +18,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Inline script: applies `.dark` class to <html> before React hydrates, to
- * prevent a flash of the wrong theme. Keep in sync with `useDarkMode`.
+ * Inline script: applies `.dark` class + `data-color-scheme` attribute to
+ * <html> before React hydrates, to prevent a flash of the wrong theme.
+ * Keep in sync with `useDarkMode` and `useColorScheme`.
  */
 const THEME_INIT = `
-(function(){try{var m=localStorage.getItem('theme.mode');
+(function(){try{var r=document.documentElement;
+var m=localStorage.getItem('theme.mode');
 var dark=m==='dark'||(m!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);
-var r=document.documentElement;if(dark){r.classList.add('dark');r.style.colorScheme='dark';}
-else{r.style.colorScheme='light';}}catch(e){}})();
+if(dark){r.classList.add('dark');r.style.colorScheme='dark';}else{r.style.colorScheme='light';}
+var c=localStorage.getItem('theme.colorScheme');
+if(c&&c!=='purple'&&['blue','emerald','rose','amber'].indexOf(c)>=0){r.setAttribute('data-color-scheme',c);}
+}catch(e){}})();
 `;
 
 export default function RootLayout({
