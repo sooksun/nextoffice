@@ -4,31 +4,23 @@ import Link from "next/link";
 import { Inbox, Plus } from "lucide-react";
 import { formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
 import ThaiDateRangeFilter from "@/components/ui/ThaiDateRangeFilter";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  TableRoot,
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  UrgencyBadge,
+  CaseStatusBadge,
+} from "@/components/status-badges";
 
 export const dynamic = "force-dynamic";
-
-const URGENCY_LABEL: Record<string, string> = {
-  normal: "ปกติ",
-  urgent: "ด่วน",
-  very_urgent: "ด่วนที่สุด",
-  most_urgent: "ด่วนที่สุด",
-};
-const URGENCY_COLOR: Record<string, string> = {
-  normal: "bg-blue-100 text-blue-800",
-  urgent: "bg-yellow-100 text-yellow-800",
-  very_urgent: "bg-orange-100 text-orange-800",
-  most_urgent: "bg-red-100 text-red-800",
-};
-const STATUS_LABEL: Record<string, string> = {
-  new: "ใหม่",
-  analyzing: "วิเคราะห์",
-  proposed: "เสนอ AI",
-  registered: "ลงรับแล้ว",
-  assigned: "มอบหมายแล้ว",
-  in_progress: "กำลังดำเนินการ",
-  completed: "เสร็จสิ้น",
-  archived: "เก็บถาวร",
-};
 
 interface InboxCase {
   id: number;
@@ -69,6 +61,7 @@ export default async function InboxPage({
 
   return (
     <div>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -79,92 +72,93 @@ export default async function InboxPage({
             <p className="text-xs text-on-surface-variant">พบ {toThaiNumerals(total)} รายการ</p>
           </div>
         </div>
-        <Link
-          href="/inbox/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
-        >
-          <Plus size={16} />
-          รับเอกสารใหม่
-        </Link>
+        <Button asChild size="lg">
+          <Link href="/inbox/new">
+            <Plus size={16} />
+            รับเอกสารใหม่
+          </Link>
+        </Button>
       </div>
 
       {/* Search & Filter */}
-      <form method="GET" className="flex flex-wrap gap-3 mb-5">
-        <input
+      <form method="GET" className="flex flex-wrap gap-3 mb-5 items-center">
+        <Input
           type="text"
           name="search"
           defaultValue={sp.search ?? ""}
           placeholder="ค้นหา..."
-          className="input-text flex-1 min-w-[200px]"
+          className="flex-1 min-w-[200px]"
         />
-        <Suspense fallback={<div className="w-40 h-9 rounded-xl bg-surface-bright animate-pulse" />}>
+        <Suspense fallback={<div className="w-40 h-9 rounded-md bg-surface-bright animate-pulse" />}>
           <ThaiDateRangeFilter dateFrom={sp.dateFrom} dateTo={sp.dateTo} />
         </Suspense>
-        <button type="submit" className="btn-primary">ค้นหา</button>
-        <Link href="/inbox" className="btn-ghost">ล้าง</Link>
+        <Button type="submit">ค้นหา</Button>
+        <Button asChild variant="outline">
+          <Link href="/inbox">ล้าง</Link>
+        </Button>
       </form>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-bright text-on-surface-variant text-xs uppercase tracking-wide">
-            <tr>
-              <th className="px-4 py-3 text-left w-10">#</th>
-              <th className="px-4 py-3 text-left w-24">เอกสาร</th>
-              <th className="px-4 py-3 text-left">ชื่อเรื่อง</th>
-              <th className="px-4 py-3 text-left">ที่หนังสือ</th>
-              <th className="px-4 py-3 text-left">เลขรับ</th>
-              <th className="px-4 py-3 text-left">ผู้ส่ง</th>
-              <th className="px-4 py-3 text-left">สถานะ</th>
-              <th className="px-4 py-3 text-left">วันที่รับ</th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableRoot>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">#</TableHead>
+              <TableHead className="w-24">เอกสาร</TableHead>
+              <TableHead>ชื่อเรื่อง</TableHead>
+              <TableHead>ที่หนังสือ</TableHead>
+              <TableHead>เลขรับ</TableHead>
+              <TableHead>ผู้ส่ง</TableHead>
+              <TableHead>สถานะ</TableHead>
+              <TableHead>วันที่รับ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {data.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-on-surface-variant">
+              <TableRow>
+                <TableCell colSpan={8} className="py-10 text-center text-on-surface-variant">
                   ไม่พบเอกสาร
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
             {data.map((c, i) => (
-              <tr key={c.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50 transition-colors">
-                <td className="px-4 py-3 text-on-surface-variant">{toThaiNumerals(i + 1)}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold ${URGENCY_COLOR[c.urgencyLevel] ?? URGENCY_COLOR.normal}`}>
-                    {URGENCY_LABEL[c.urgencyLevel] ?? c.urgencyLevel}
-                  </span>
-                </td>
-                <td className="px-4 py-3 max-w-md">
-                  <Link href={`/inbox/${c.id}`} className="hover:text-primary hover:underline line-clamp-2 leading-relaxed font-medium">
+              <TableRow key={c.id}>
+                <TableCell className="text-on-surface-variant">{toThaiNumerals(i + 1)}</TableCell>
+                <TableCell>
+                  <UrgencyBadge level={c.urgencyLevel} />
+                </TableCell>
+                <TableCell className="max-w-md">
+                  <Link
+                    href={`/inbox/${c.id}`}
+                    className="hover:text-primary hover:underline line-clamp-2 leading-relaxed font-medium"
+                  >
                     {c.title}
                   </Link>
-                </td>
-                <td className="px-4 py-3 text-xs whitespace-nowrap font-mono text-on-surface-variant">
+                </TableCell>
+                <TableCell className="text-xs whitespace-nowrap font-mono text-on-surface-variant">
                   {c.documentNo || c.sourceDocument?.documentCode || "—"}
-                </td>
-                <td className="px-4 py-3 text-xs whitespace-nowrap">
-                  {c.registrationNo
-                    ? <span className="font-mono font-bold text-primary">{toThaiNumerals(c.registrationNo)}</span>
-                    : <span className="text-on-surface-variant">—</span>
-                  }
-                </td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant">
+                </TableCell>
+                <TableCell className="text-xs whitespace-nowrap">
+                  {c.registrationNo ? (
+                    <span className="font-mono font-bold text-primary">{toThaiNumerals(c.registrationNo)}</span>
+                  ) : (
+                    <span className="text-on-surface-variant">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-xs text-on-surface-variant">
                   {c.sourceDocument?.issuingAuthority || "—"}
-                </td>
-                <td className="px-4 py-3">
-                  <span className="text-xs text-on-surface-variant">
-                    {STATUS_LABEL[c.status] ?? c.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">
+                </TableCell>
+                <TableCell>
+                  <CaseStatusBadge status={c.status} />
+                </TableCell>
+                <TableCell className="text-xs text-on-surface-variant whitespace-nowrap">
                   {formatThaiDateTime(c.receivedAt)}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableRoot>
     </div>
   );
 }
