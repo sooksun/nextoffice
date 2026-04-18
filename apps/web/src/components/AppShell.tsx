@@ -9,7 +9,7 @@ import ChatPanel from "@/components/ChatPanel";
 import ImpersonateBanner from "@/components/ImpersonateBanner";
 import { useSideMenu } from "@/hooks/useSideMenu";
 
-const SHELL_EXCLUDED = ["/login"];
+const SHELL_EXCLUDED = ["/login", "/liff"];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

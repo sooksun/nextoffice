@@ -4,7 +4,8 @@ import { startTransition, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { isLoggedIn } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/privacy", "/terms"];
+// /liff is excluded because LiffBoot handles its own auth flow (LINE token → JWT)
+const PUBLIC_PATHS = ["/login", "/privacy", "/terms", "/liff"];
 
 export default function AuthProvider({
   children,
