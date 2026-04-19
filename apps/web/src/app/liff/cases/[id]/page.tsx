@@ -36,12 +36,12 @@ interface CaseDetail {
 
 interface Assignment {
   id: number;
-  assignedToUserId: number;
+  role: string | null;
   status: string;
-  assignedRole: string | null;
   note: string | null;
   dueDate: string | null;
-  assignedTo?: { id: number; fullName: string; roleCode: string } | null;
+  assignedTo: { id: number; fullName: string; roleCode: string; department: string | null } | null;
+  assignedBy?: { id: number; fullName: string; roleCode: string } | null;
 }
 
 interface CaseActivity {
@@ -183,7 +183,7 @@ export default function LiffCaseDetailPage() {
 
   const isDirector = user && ["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(user.roleCode);
   const isClerk = user && ["CLERK", "DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(user.roleCode);
-  const myAssignment = assignments.find((a) => Number(a.assignedToUserId) === Number(user?.id)) ?? null;
+  const myAssignment = assignments.find((a) => Number(a.assignedTo?.id) === Number(user?.id)) ?? null;
 
   const canRegister = isClerk && data?.status === "new";
   const canSign = isDirector && data?.status === "registered";
@@ -358,17 +358,17 @@ export default function LiffCaseDetailPage() {
           <p className="mb-2 text-xs font-semibold text-slate-700">การมอบหมาย ({assignments.length})</p>
           <div className="space-y-2">
             {assignments.map((a) => {
-              const isMe = Number(a.assignedToUserId) === Number(user?.id);
+              const isMe = Number(a.assignedTo?.id) === Number(user?.id);
               const canAck = isMe && a.status === "pending";
               const canDone = isMe && (a.status === "accepted" || a.status === "in_progress");
               return (
                 <div key={a.id} className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs text-slate-800">
-                      {(a as any).assignedTo?.fullName ?? `ผู้ใช้ #${a.assignedToUserId}`}
+                      {a.assignedTo?.fullName ?? `ผู้ใช้ #${a.id}`}
                     </p>
-                    {a.assignedRole && (
-                      <p className="text-[11px] text-slate-500">{a.assignedRole}</p>
+                    {a.role && (
+                      <p className="text-[11px] text-slate-500">{a.role}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
