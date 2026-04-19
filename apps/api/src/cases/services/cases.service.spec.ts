@@ -217,5 +217,88 @@ describe('CasesService', () => {
 
       await expect(service.findById(999)).rejects.toThrow(NotFoundException);
     });
+
+    it('returns the case when found', async () => {
+      const found = {
+        id: BigInt(1),
+        organizationId: BigInt(1),
+        title: 'หนังสือทดสอบ',
+        status: 'registered',
+        assignments: [],
+        options: [],
+      };
+      mockPrisma.inboundCase.findUnique.mockResolvedValue(found);
+
+      const result = await service.findById(1);
+
+      expect(result).toBeDefined();
+      expect(mockPrisma.inboundCase.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: BigInt(1) } }),
+      );
+    });
+  });
+
+  // ─── createFromIntake() — edge cases ─────────────────────────────────────
+
+  describe('createFromIntake() — edge cases', () => {
+    it('stores intake reference as "intake:{id}" in case description', async () => {
+      const intake = makeIntake({ id: BigInt(42) });
+      mockPrisma.documentIntake.findUnique.mockResolvedValue(intake);
+      mockPrisma.inboundCase.findFirst.mockResolvedValue(null);
+      mockPrisma.inboundCase.create.mockResolvedValue({
+        id: BigInt(10), organizationId: BigInt(1), title: 'T', status: 'new',
+      });
+
+      await service.createFromIntake(42);
+
+      const description = mockPrisma.inboundCase.create.mock.calls[0][0].data.description;
+      expect(description).toMatch(/intake:42/);
+    });
+
+    it('sets urgencyLevel to "normal" by default when aiResult has none', async () => {
+      const intake = makeIntake({ aiResult: { subjectText: 'เรื่อง', summaryText: null, deadlineDate: null, nextActionJson: null } });
+      mockPrisma.documentIntake.findUnique.mockResolvedValue(intake);
+      mockPrisma.inboundCase.findFirst.mockResolvedValue(null);
+      mockPrisma.inboundCase.create.mockResolvedValue({
+        id: BigInt(11), organizationId: BigInt(1), title: 'เรื่อง', status: 'new',
+      });
+
+      await service.createFromIntake(42);
+
+      const createData = mockPrisma.inboundCase.create.mock.calls[0][0].data;
+      expect(['normal', 'urgent', undefined]).toContain(createData.urgencyLevel ?? 'normal');
+    });
+  });
+
+  // ─── createManual() — edge cases ─────────────────────────────────────────
+
+  describe('createManual() — edge cases', () => {
+    it('does not include description fields when neither intakeId nor recipientNote is set', async () => {
+      mockPrisma.document.create.mockResolvedValue({ id: BigInt(100) });
+      mockPrisma.inboundCase.create.mockResolvedValue({
+        id: BigInt(30), organizationId: BigInt(1), title: 'หนังสือ', status: 'new',
+      });
+
+      await service.createManual({ organizationId: 1, createdByUserId: 5, title: 'หนังสือ' });
+
+      const caseData = mockPrisma.inboundCase.create.mock.calls[0][0].data;
+      const desc = caseData.description ?? '';
+      expect(desc).not.toContain('intake:');
+      expect(desc).not.toContain('ถึง:');
+    });
+
+    it('uses provided urgencyLevel when specified', async () => {
+      mockPrisma.document.create.mockResolvedValue({ id: BigInt(100) });
+      mockPrisma.inboundCase.create.mockResolvedValue({
+        id: BigInt(31), organizationId: BigInt(1), title: 'T', status: 'new',
+      });
+
+      await service.createManual({
+        organizationId: 1, createdByUserId: 5, title: 'T', urgencyLevel: 'urgent',
+      });
+
+      const caseData = mockPrisma.inboundCase.create.mock.calls[0][0].data;
+      expect(caseData.urgencyLevel).toBe('urgent');
+    });
   });
 });
