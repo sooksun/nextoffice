@@ -11,7 +11,7 @@ const MONTHS_SHORT: Record<number, string> = {
   9: "ก.ย.", 10: "ต.ค.", 11: "พ.ย.", 12: "ธ.ค.",
 };
 
-const MONTHS_LONG: Record<number, string> = {
+export const MONTHS_LONG: Record<number, string> = {
   1: "มกราคม", 2: "กุมภาพันธ์", 3: "มีนาคม", 4: "เมษายน",
   5: "พฤษภาคม", 6: "มิถุนายน", 7: "กรกฎาคม", 8: "สิงหาคม",
   9: "กันยายน", 10: "ตุลาคม", 11: "พฤศจิกายน", 12: "ธันวาคม",

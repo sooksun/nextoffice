@@ -4,7 +4,9 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError, toastWarning } from "@/lib/toast";
-import { ThaiDate, isoToThaiDate, thaiDateToIso, formatThaiDateLabel } from "@/lib/thai-date";
+import { ThaiDate, isoToThaiDate, thaiDateToIso, formatThaiDateLabel, MONTHS_LONG } from "@/lib/thai-date";
+
+const THAI_MONTHS = Object.values(MONTHS_LONG);
 import { UserPlus, X, Calendar, CalendarOff, CalendarCheck, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 
 const MAX_DIRECTOR_NOTE_CHARS = 300;

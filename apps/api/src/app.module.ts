@@ -44,6 +44,7 @@ import { TenderModule } from './tender/tender.module';
 import { WebboardModule } from './webboard/webboard.module';
 import { MessagesModule } from './messages/messages.module';
 import { SearchModule } from './search/search.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { SearchModule } from './search/search.module';
     WebboardModule,
     MessagesModule,
     SearchModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
