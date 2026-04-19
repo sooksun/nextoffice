@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Optional, Inject } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Optional, Inject } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileStorageService } from './file-storage.service';
 import { GoogleDriveService } from './google-drive.service';
@@ -9,6 +9,8 @@ import { ExtractionService } from '../../ai/services/extraction.service';
 
 @Injectable()
 export class IntakeService {
+  private readonly logger = new Logger(IntakeService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: FileStorageService,
@@ -359,20 +361,50 @@ export class IntakeService {
   async getFileBuffer(id: number, organizationId?: number): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
     const intake = await this.prisma.documentIntake.findUnique({ where: { id: BigInt(id) } });
     if (!intake) throw new NotFoundException(`DocumentIntake #${id} not found`);
+
+    // Org check — allow if intake is in user's org OR if user's org has a case referencing this intake.
+    // (LINE Bot uploads may leave intake.organizationId null or mapped to a different org than the case.)
     if (organizationId && intake.organizationId && Number(intake.organizationId) !== organizationId) {
-      throw new NotFoundException(`DocumentIntake #${id} not found`);
+      const linkedCase = await this.prisma.inboundCase.findFirst({
+        where: {
+          organizationId: BigInt(organizationId),
+          description: { contains: `intake:${id}` },
+        },
+        select: { id: true },
+      });
+      if (!linkedCase) {
+        this.logger.warn(
+          `getFileBuffer denied: intake #${id} org=${intake.organizationId} vs user org=${organizationId} (no linked case in user's org)`,
+        );
+        throw new NotFoundException(`DocumentIntake #${id} not found`);
+      }
+      this.logger.log(
+        `getFileBuffer: intake #${id} org=${intake.organizationId} mismatch with user org=${organizationId} — allowed via linked case #${linkedCase.id}`,
+      );
     }
-    if (!intake.storagePath) throw new NotFoundException('ไม่พบไฟล์ต้นฉบับ');
+
+    if (!intake.storagePath) {
+      this.logger.warn(`getFileBuffer: intake #${id} has no storagePath`);
+      throw new NotFoundException('ไม่พบไฟล์ต้นฉบับ (ไม่มีข้อมูลที่จัดเก็บ)');
+    }
+
     // storagePath stored as "bucket/path" or just "path"
     const objectPath = intake.storagePath.startsWith(`${this.storage['bucket']}/`)
       ? intake.storagePath.slice(`${this.storage['bucket']}/`.length)
       : intake.storagePath;
-    const buffer = await this.storage.getBuffer(objectPath);
-    return {
-      buffer,
-      mimeType: intake.mimeType || 'application/octet-stream',
-      fileName: (intake as any).originalFileName || `intake-${id}.pdf`,
-    };
+    try {
+      const buffer = await this.storage.getBuffer(objectPath);
+      return {
+        buffer,
+        mimeType: intake.mimeType || 'application/octet-stream',
+        fileName: (intake as any).originalFileName || `intake-${id}.pdf`,
+      };
+    } catch (err: any) {
+      this.logger.error(
+        `getFileBuffer: MinIO getObject failed for intake #${id} path="${objectPath}": ${err.message}`,
+      );
+      throw new NotFoundException('ไม่พบไฟล์ต้นฉบับ (ไฟล์อาจถูกลบจากที่จัดเก็บ)');
+    }
   }
 
   async getResult(id: number, organizationId?: number) {
