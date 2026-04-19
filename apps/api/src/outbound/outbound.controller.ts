@@ -32,6 +32,15 @@ export class OutboundController {
     return this.svc.findAll(organizationId, status, letterType, user?.roleCode);
   }
 
+  @Get('by-case/:caseId')
+  @ApiOperation({ summary: 'List outbound documents linked to an inbound case' })
+  getByCase(
+    @CurrentUser() user: any,
+    @Param('caseId', ParseIntPipe) caseId: number,
+  ) {
+    return this.svc.getByCase(caseId, Number(user?.organizationId));
+  }
+
   @Get('my/documents')
   @ApiOperation({ summary: 'List outbound documents for the current user organization (no orgId required)' })
   @ApiQuery({ name: 'status', required: false })

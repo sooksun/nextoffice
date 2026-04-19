@@ -106,6 +106,17 @@ function parseSenderFromDescription(desc: string | null) {
   return { documentCode: docNo, issuingAuthority: sender };
 }
 
+interface RelatedOutbound {
+  id: number;
+  subject: string;
+  letterType: string;
+  status: string;
+  documentNo: string | null;
+  createdAt: string;
+  recipientName: string | null;
+  createdBy: { id: number; fullName: string } | null;
+}
+
 async function getCase(id: string) {
   try { return await apiFetch<CaseDetail>(`/cases/${id}`); } catch { return null; }
 }
@@ -114,6 +125,9 @@ async function getAssignments(id: string) {
 }
 async function getActivities(id: string) {
   try { return await apiFetch<Activity[]>(`/cases/${id}/activities`); } catch { return []; }
+}
+async function getRelatedOutbound(id: string) {
+  try { return await apiFetch<RelatedOutbound[]>(`/outbound/by-case/${id}`); } catch { return []; }
 }
 
 /** URL ไฟล์ — ถ้า status ผ่าน registered ขึ้นไป ให้ดึง stamped version */
@@ -130,10 +144,11 @@ export default async function InboxDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [caseData, assignments, activities] = await Promise.all([
+  const [caseData, assignments, activities, relatedOutbound] = await Promise.all([
     getCase(id),
     getAssignments(id),
     getActivities(id),
+    getRelatedOutbound(id),
   ]);
 
   const hasFile = !!(caseData?.intake?.id && caseData?.intake?.storagePath);
@@ -334,6 +349,85 @@ export default async function InboxDetailPage({
 
       {/* Endorsement Panel */}
       <EndorsementPanel caseId={caseData.id} directorNote={caseData.directorNote} />
+
+      {/* Related Outbound Documents (รายงาน / บันทึกข้อความที่สร้างจากหนังสือนี้) */}
+      {relatedOutbound.length > 0 && (
+        <Card className="mb-6 border-violet-200">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-violet-700 uppercase tracking-wide flex items-center gap-1.5">
+                <FileText size={14} />
+                เอกสารรายงาน / ตอบหนังสือ ({relatedOutbound.length})
+              </h2>
+              {["assigned", "in_progress"].includes(caseData.status) && (
+                <CreateResponseDocButton
+                  caseId={caseData.id}
+                  caseTitle={caseData.title}
+                  directorNote={caseData.directorNote}
+                />
+              )}
+            </div>
+            <div className="space-y-2">
+              {relatedOutbound.map((doc) => (
+                <Link
+                  key={doc.id}
+                  href={`/outbound/${doc.id}`}
+                  className="flex items-start justify-between gap-3 p-3 rounded-xl border border-outline-variant/20 hover:bg-surface-bright transition-colors group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-on-surface group-hover:text-primary truncate">
+                      {doc.subject}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <span className="text-[11px] text-on-surface-variant">
+                        {doc.letterType === "internal_memo" ? "บันทึกข้อความ" : "หนังสือภายนอก"}
+                      </span>
+                      {doc.recipientName && (
+                        <span className="text-[11px] text-on-surface-variant">เรียน {doc.recipientName}</span>
+                      )}
+                      {doc.documentNo && (
+                        <span className="text-[11px] font-mono text-primary">ที่ {doc.documentNo}</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant mt-0.5">
+                      {formatThaiDateShort(doc.createdAt)}
+                      {doc.createdBy && <> · {doc.createdBy.fullName}</>}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                    doc.status === "sent" ? "bg-emerald-100 text-emerald-700" :
+                    doc.status === "approved" ? "bg-blue-100 text-blue-700" :
+                    doc.status === "pending_approval" ? "bg-amber-100 text-amber-700" :
+                    "bg-slate-100 text-slate-600"
+                  }`}>
+                    {doc.status === "draft" ? "ร่าง" :
+                     doc.status === "pending_approval" ? "รออนุมัติ" :
+                     doc.status === "approved" ? "อนุมัติแล้ว" :
+                     doc.status === "sent" ? "ส่งแล้ว" : doc.status}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create response doc CTA when no docs yet + case is actionable */}
+      {relatedOutbound.length === 0 && ["assigned", "in_progress"].includes(caseData.status) && (
+        <Card className="mb-6 border-dashed border-violet-300 bg-violet-50/30">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-violet-800">ยังไม่มีรายงานการดำเนินการ</p>
+              <p className="text-xs text-violet-600 mt-0.5">สร้างบันทึกข้อความหรือหนังสือตอบกลับหนังสือนี้</p>
+            </div>
+            <CreateResponseDocButton
+              caseId={caseData.id}
+              caseTitle={caseData.title}
+              directorNote={caseData.directorNote}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Activity Timeline */}
       {activities.length > 0 && (

@@ -186,6 +186,7 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
   const [loading, setLoading] = useState(false);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [activeAssigneeIds, setActiveAssigneeIds] = useState<Set<number>>(new Set());
   const [directorNote, setDirectorNote] = useState("");
   const [routingPath, setRoutingPath] = useState<"direct" | "via_vice">("direct");
 
@@ -233,9 +234,13 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
       } catch { /* fall through to API */ }
     }
     try {
-      const existing = await apiFetch<{ assignedTo: { id: number } }[]>(`/cases/${caseId}/assignments`);
-      setSelected(new Set((existing ?? []).map((a) => a.assignedTo.id)));
+      const existing = await apiFetch<{ assignedTo: { id: number }; status: string }[]>(`/cases/${caseId}/assignments`);
+      const active = (existing ?? []).filter((a) => a.status !== "completed");
+      const activeIds = new Set(active.map((a) => Number(a.assignedTo.id)));
+      setActiveAssigneeIds(activeIds);
+      setSelected(new Set(activeIds));
     } catch {
+      setActiveAssigneeIds(new Set());
       setSelected(new Set());
     }
     setDueDateMode(caseDueDate ? "from_doc" : "none");
@@ -364,7 +369,9 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
           >
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-outline-variant/20">
-              <h3 className="text-lg font-bold text-on-surface">เสนอผู้อำนวยการ</h3>
+              <h3 className="text-lg font-bold text-on-surface">
+                {activeAssigneeIds.size > 0 ? "เพิ่ม / แก้ไขการมอบหมาย" : "เสนอผู้อำนวยการ"}
+              </h3>
               <button onClick={() => setOpen(false)} className="p-1 hover:bg-surface-bright rounded-lg">
                 <X size={20} />
               </button>
@@ -374,33 +381,62 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               {/* Staff list */}
               <div>
-                <label className="text-sm font-semibold text-on-surface-variant mb-2 block">
-                  เลือกผู้รับผิดชอบ
-                </label>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-sm font-semibold text-on-surface-variant">
+                    เลือกผู้รับผิดชอบ
+                  </label>
+                  {activeAssigneeIds.size > 0 && (
+                    <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
+                      มอบหมายแล้ว {activeAssigneeIds.size} คน
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
                   {staff.length === 0 && (
                     <p className="text-sm text-on-surface-variant py-3 text-center">กำลังโหลด...</p>
                   )}
-                  {staff.map((s) => (
-                    <label
-                      key={s.id}
-                      className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface-bright cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selected.has(s.id)}
-                        onChange={() => toggleUser(s.id)}
-                        className="w-4 h-4 rounded border-outline-variant"
-                      />
-                      <div>
-                        <p className="text-sm font-medium">{s.fullName}</p>
-                        <p className="text-xs text-on-surface-variant uppercase tracking-wide">
-                          {s.department || s.roleCode}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
+                  {staff.map((s) => {
+                    const isActive = activeAssigneeIds.has(s.id);
+                    const isNewlySelected = selected.has(s.id) && !isActive;
+                    return (
+                      <label
+                        key={s.id}
+                        className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-colors ${
+                          isActive
+                            ? "bg-amber-50 border border-amber-200"
+                            : isNewlySelected
+                              ? "bg-primary/5 border border-primary/20"
+                              : "hover:bg-surface-bright border border-transparent"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected.has(s.id)}
+                          onChange={() => toggleUser(s.id)}
+                          className="w-4 h-4 rounded border-outline-variant"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-medium truncate">{s.fullName}</p>
+                            {isActive && (
+                              <span className="shrink-0 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
+                                มอบหมายแล้ว
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-on-surface-variant uppercase tracking-wide">
+                            {s.department || s.roleCode}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
+                {activeAssigneeIds.size > 0 && (
+                  <p className="mt-1.5 text-[11px] text-on-surface-variant/60 italic">
+                    ผู้ที่มอบหมายแล้ว: ยังอยู่ในรายการ — เลือกเพิ่มเติมเพื่อเพิ่มผู้รับผิดชอบใหม่
+                  </p>
+                )}
               </div>
 
               {/* AI Recommend */}
@@ -576,7 +612,11 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
                 disabled={loading || selected.size === 0}
                 className="btn-primary disabled:opacity-50"
               >
-                {loading ? "กำลังเสนอ..." : `เสนอผู้อำนวยการ (${selected.size})`}
+                {loading
+                ? "กำลังบันทึก..."
+                : activeAssigneeIds.size > 0
+                  ? `บันทึกการมอบหมาย (${selected.size} คน)`
+                  : `เสนอผู้อำนวยการ (${selected.size} คน)`}
               </button>
             </div>
           </div>

@@ -28,7 +28,7 @@ export default function AcknowledgeButton({ assignments }: Props) {
       const raw = localStorage.getItem("user");
       if (raw) {
         const u = JSON.parse(raw);
-        setCurrentUserId(u.id);
+        setCurrentUserId(Number(u.id));
       }
     } catch {}
   }, []);

@@ -765,6 +765,36 @@ ${typePrompt}
     return `${prefix} ${seq}/${buddhistYear}`;
   }
 
+  async getByCase(caseId: number, orgId: number) {
+    const docs = await this.prisma.outboundDocument.findMany({
+      where: {
+        relatedInboundCaseId: BigInt(caseId),
+        organizationId: BigInt(orgId),
+      },
+      select: {
+        id: true,
+        subject: true,
+        letterType: true,
+        status: true,
+        documentNo: true,
+        createdAt: true,
+        recipientName: true,
+        createdBy: { select: { id: true, fullName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return docs.map((d) => ({
+      id: Number(d.id),
+      subject: d.subject,
+      letterType: d.letterType,
+      status: d.status,
+      documentNo: d.documentNo,
+      createdAt: d.createdAt,
+      recipientName: d.recipientName,
+      createdBy: d.createdBy ? { id: Number(d.createdBy.id), fullName: d.createdBy.fullName } : null,
+    }));
+  }
+
   private serialize(doc: any): any {
     return {
       ...doc,
