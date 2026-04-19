@@ -500,17 +500,21 @@ export class CaseWorkflowService {
     }));
   }
 
-  async getTrackingData(caseId: number): Promise<any> {
+  async getTrackingData(caseId: number, callerOrgId?: number, callerRole?: string): Promise<any> {
     const c = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(caseId) },
       select: {
         id: true, title: true, registrationNo: true, status: true,
+        organizationId: true,
         urgencyLevel: true, directorNote: true, directorStampStatus: true,
         directorStampedAt: true, dueDate: true,
         directorStampedBy: { select: { id: true, fullName: true } },
       },
     });
     if (!c) throw new NotFoundException(`Case #${caseId} not found`);
+    if (callerOrgId && callerRole !== 'ADMIN' && c.organizationId !== BigInt(callerOrgId)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์ดูข้อมูลของหน่วยงานอื่น');
+    }
 
     const assignments = await this.prisma.caseAssignment.findMany({
       where: { inboundCaseId: BigInt(caseId) },

@@ -238,13 +238,14 @@ describe('CasesController', () => {
   // ─── getTracking() ───────────────────────────────────────────────────────
 
   describe('getTracking()', () => {
-    it('delegates to workflow.getTrackingData', async () => {
+    it('delegates to workflow.getTrackingData with org boundary args', async () => {
       const tracking = { case: { id: 1, status: 'assigned' }, assignments: [], summary: {} };
       mockWorkflow.getTrackingData.mockResolvedValue(tracking);
+      const user = { id: '5', organizationId: '10', roleCode: 'CLERK' };
 
-      const result = await controller.getTracking(1);
+      const result = await controller.getTracking(1, user);
 
-      expect(mockWorkflow.getTrackingData).toHaveBeenCalledWith(1);
+      expect(mockWorkflow.getTrackingData).toHaveBeenCalledWith(1, 10, 'CLERK');
       expect(result).toEqual(tracking);
     });
   });
@@ -399,6 +400,45 @@ describe('CasesController', () => {
       mockPredictive.submitFeedback.mockResolvedValue({ ok: true });
       controller.submitPredictionFeedback(1, 99, { accepted: true });
       expect(mockPredictive.submitFeedback).toHaveBeenCalledWith(BigInt(99), true);
+    });
+  });
+
+  // ─── findOne() ───────────────────────────────────────────────────────────
+
+  describe('findOne()', () => {
+    it('passes id, organizationId, and roleCode to svc.findById', async () => {
+      const caseResult = { id: 1, title: 'หนังสือทดสอบ' };
+      mockCasesService.findById.mockResolvedValue(caseResult);
+      const user = { id: '3', organizationId: '10', roleCode: 'CLERK' };
+
+      const result = await controller.findOne(1, user);
+
+      expect(mockCasesService.findById).toHaveBeenCalledWith(1, 10, 'CLERK');
+      expect(result).toEqual(caseResult);
+    });
+
+    it('ADMIN bypasses org check (roleCode forwarded so service can allow it)', async () => {
+      mockCasesService.findById.mockResolvedValue({ id: 99 });
+      const admin = { id: '1', organizationId: '1', roleCode: 'ADMIN' };
+
+      await controller.findOne(99, admin);
+
+      expect(mockCasesService.findById).toHaveBeenCalledWith(99, 1, 'ADMIN');
+    });
+  });
+
+  // ─── getOptions() ────────────────────────────────────────────────────────
+
+  describe('getOptions()', () => {
+    it('passes id, organizationId, and roleCode to svc.getOptions', async () => {
+      const opts = { caseId: 1, options: [] };
+      mockCasesService.getOptions.mockResolvedValue(opts);
+      const user = { id: '3', organizationId: '10', roleCode: 'DIRECTOR' };
+
+      const result = await controller.getOptions(1, user);
+
+      expect(mockCasesService.getOptions).toHaveBeenCalledWith(1, 10, 'DIRECTOR');
+      expect(result).toEqual(opts);
     });
   });
 });

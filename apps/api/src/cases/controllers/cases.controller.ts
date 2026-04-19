@@ -157,25 +157,25 @@ export class CasesController {
       body.noteText,
       signatureBuffer,
     );
-    return this.svc.findById(id);
+    return this.svc.findById(id, Number(user.organizationId), user.roleCode);
   }
 
   @Get(':id/tracking')
   @ApiOperation({ summary: 'สถานะรับทราบ/ดำเนินการ รายบุคคล' })
-  getTracking(@Param('id', ParseIntPipe) id: number) {
-    return this.workflow.getTrackingData(id);
+  getTracking(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.workflow.getTrackingData(id, Number(user.organizationId), user.roleCode);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get case by ID' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.findById(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.svc.findById(id, Number(user.organizationId), user.roleCode);
   }
 
   @Get(':id/options')
   @ApiOperation({ summary: 'Get AI-generated options for a case' })
-  getOptions(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.getOptions(id);
+  getOptions(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.svc.getOptions(id, Number(user.organizationId), user.roleCode);
   }
 
   @Get(':id/policy-alignment')

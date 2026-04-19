@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../../notifications/notification.service';
 import { PolicyRagService } from '../../rag/services/policy-rag.service';
@@ -106,7 +106,7 @@ export class CasesService {
     return { caseId: Number(inboundCase.id), status: 'created' };
   }
 
-  async findById(id: number) {
+  async findById(id: number, callerOrgId?: number, callerRole?: string) {
     const c = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(id) },
       include: {
@@ -118,6 +118,9 @@ export class CasesService {
       },
     });
     if (!c) throw new NotFoundException(`Case #${id} not found`);
+    if (callerOrgId && callerRole !== 'ADMIN' && c.organizationId !== BigInt(callerOrgId)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์ดูข้อมูลของหน่วยงานอื่น');
+    }
     const result = this.serialize(c);
 
     // Parse intakeId from description (pattern: "intake:{id}")
@@ -160,7 +163,16 @@ export class CasesService {
     return result;
   }
 
-  async getOptions(id: number) {
+  async getOptions(id: number, callerOrgId?: number, callerRole?: string) {
+    if (callerOrgId && callerRole !== 'ADMIN') {
+      const c = await this.prisma.inboundCase.findUnique({
+        where: { id: BigInt(id) },
+        select: { organizationId: true },
+      });
+      if (c && c.organizationId !== BigInt(callerOrgId)) {
+        throw new ForbiddenException('ไม่มีสิทธิ์ดูข้อมูลของหน่วยงานอื่น');
+      }
+    }
     const options = await this.prisma.caseOption.findMany({
       where: { inboundCaseId: BigInt(id) },
       include: { references: true },

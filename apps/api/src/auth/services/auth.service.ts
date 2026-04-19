@@ -146,7 +146,10 @@ export class AuthService {
 
   // ─── Register ───────────────────────────────────────────────────────────────
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, callerRole: string) {
+    if (dto.roleCode === 'ADMIN' && callerRole !== 'ADMIN') {
+      throw new ForbiddenException('เฉพาะ ADMIN เท่านั้นที่สร้างบัญชี ADMIN ได้');
+    }
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
