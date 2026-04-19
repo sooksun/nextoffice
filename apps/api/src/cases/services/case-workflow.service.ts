@@ -183,9 +183,22 @@ export class CaseWorkflowService {
 
     const primaryAssignment = assignments.find((a) => a.role === 'responsible') || assignments[0];
 
-    // Create assignments
+    // Create assignments (skip users that already have an active assignment on this case)
     const created = [];
     for (const a of assignments) {
+      const existing = await this.prisma.caseAssignment.findFirst({
+        where: {
+          inboundCaseId: BigInt(caseId),
+          assignedToUserId: BigInt(a.userId),
+          status: { notIn: ['completed'] },
+        },
+      });
+      if (existing) {
+        this.logger.log(`User ${a.userId} already has active assignment #${existing.id} on case ${caseId} — skipping duplicate`);
+        created.push(existing);
+        continue;
+      }
+
       const assignment = await this.prisma.caseAssignment.create({
         data: {
           inboundCaseId: BigInt(caseId),

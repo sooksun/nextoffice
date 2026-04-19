@@ -3,6 +3,9 @@ import { toThaiNumerals } from "@/lib/thai-date";
 import StatusBadge from "@/components/StatusBadge";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import AcknowledgeButton from "@/components/actions/AcknowledgeButton";
+import CompleteButton from "@/components/actions/CompleteButton";
+import CreateResponseDocButton from "@/components/actions/CreateResponseDocButton";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +69,13 @@ const STATUS_LABEL: Record<string, string> = {
   archived: "เก็บถาวร",
 };
 
+interface Assignment {
+  id: number;
+  role: string;
+  status: string;
+  assignedTo: { id: number; fullName: string };
+}
+
 async function getCase(id: string) {
   try {
     return await apiFetch<InboundCase>(`/cases/${id}`);
@@ -78,6 +88,14 @@ async function getOptions(id: string): Promise<CaseOption[]> {
   try {
     const res = await apiFetch<CaseOptionsResponse>(`/cases/${id}/options`);
     return res.options ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function getAssignments(id: string): Promise<Assignment[]> {
+  try {
+    return await apiFetch<Assignment[]>(`/cases/${id}/assignments`);
   } catch {
     return [];
   }
@@ -96,7 +114,7 @@ const sectionHead = "text-xs font-bold text-on-surface-variant uppercase trackin
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [c, options] = await Promise.all([getCase(id), getOptions(id)]);
+  const [c, options, assignments] = await Promise.all([getCase(id), getOptions(id), getAssignments(id)]);
 
   if (!c) {
     return (
@@ -110,6 +128,21 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="max-w-3xl mx-auto py-6 px-4">
       <Link href="/cases" className="text-primary hover:text-secondary text-sm font-bold">← กลับ</Link>
+
+      {/* Action buttons */}
+      {(assignments.length > 0 || ["assigned", "in_progress"].includes(c.status)) && (
+        <div className="flex flex-wrap gap-3 mt-4 mb-2 p-4 bg-surface-bright rounded-2xl border border-outline-variant/40">
+          <AcknowledgeButton caseId={c.id} assignments={assignments} />
+          <CompleteButton caseId={c.id} assignments={assignments} />
+          {["assigned", "in_progress"].includes(c.status) && (
+            <CreateResponseDocButton
+              caseId={c.id}
+              caseTitle={c.title}
+              directorNote={c.directorNote}
+            />
+          )}
+        </div>
+      )}
 
       {/* Header */}
       <div className="mt-4 mb-6">

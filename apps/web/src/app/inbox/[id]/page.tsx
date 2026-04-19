@@ -10,6 +10,7 @@ import AssignButton from "@/components/actions/AssignButton";
 import AcknowledgeButton from "@/components/actions/AcknowledgeButton";
 import CompleteButton from "@/components/actions/CompleteButton";
 import EndorsementPanel from "@/components/actions/EndorsementPanel";
+import CreateResponseDocButton from "@/components/actions/CreateResponseDocButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { UrgencyBadge, CaseStatusBadge } from "@/components/status-badges";
 
@@ -197,6 +198,13 @@ export default async function InboxDetailPage({
         />
         <AcknowledgeButton caseId={caseData.id} assignments={assignments} />
         <CompleteButton caseId={caseData.id} assignments={assignments} />
+        {["assigned", "in_progress"].includes(caseData.status) && (
+          <CreateResponseDocButton
+            caseId={caseData.id}
+            caseTitle={caseData.title}
+            directorNote={caseData.directorNote}
+          />
+        )}
       </div>
 
       {/* Original file preview */}
