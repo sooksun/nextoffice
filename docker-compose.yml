@@ -116,8 +116,8 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        # NEXT_PUBLIC_API_URL ยังคง bake ตอน build เพราะใช้ฝั่ง browser
-        - NEXT_PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:9911}
+        # /api/proxy = same-origin Next.js proxy route → ไม่มี CSP ปัญหา HTTP/HTTPS
+        - NEXT_PUBLIC_API_URL=/api/proxy
         # NEXT_PUBLIC_GOOGLE_CLIENT_ID ถูกลบออกจาก build args แล้ว
         # ใช้ GOOGLE_CLIENT_ID runtime env แทน (อ่านใน Server Component login/layout.tsx)
     restart: unless-stopped
