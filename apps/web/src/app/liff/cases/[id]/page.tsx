@@ -357,29 +357,54 @@ export default function LiffCaseDetailPage() {
         <div className="mb-4 rounded-lg bg-white p-3 shadow-sm">
           <p className="mb-2 text-xs font-semibold text-slate-700">การมอบหมาย ({assignments.length})</p>
           <div className="space-y-2">
-            {assignments.map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs text-slate-800">
-                    {(a as any).assignedTo?.fullName ?? `ผู้ใช้ #${a.assignedToUserId}`}
-                  </p>
-                  {a.assignedRole && (
-                    <p className="text-[11px] text-slate-500">{a.assignedRole}</p>
-                  )}
+            {assignments.map((a) => {
+              const isMe = Number(a.assignedToUserId) === Number(user?.id);
+              const canAck = isMe && a.status === "pending";
+              const canDone = isMe && (a.status === "accepted" || a.status === "in_progress");
+              return (
+                <div key={a.id} className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs text-slate-800">
+                      {(a as any).assignedTo?.fullName ?? `ผู้ใช้ #${a.assignedToUserId}`}
+                    </p>
+                    {a.assignedRole && (
+                      <p className="text-[11px] text-slate-500">{a.assignedRole}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        a.status === "completed"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : a.status === "accepted" || a.status === "in_progress"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {ASSIGN_STATUS_LABEL[a.status] ?? a.status}
+                    </span>
+                    {canAck && (
+                      <button
+                        onClick={() => updateAssignment("accepted", "รับทราบเรียบร้อย")}
+                        disabled={acting}
+                        className="rounded bg-indigo-600 px-2 py-0.5 text-[11px] font-semibold text-white active:scale-[0.97] disabled:opacity-50"
+                      >
+                        รับทราบ
+                      </button>
+                    )}
+                    {canDone && (
+                      <button
+                        onClick={() => updateAssignment("completed", "บันทึกว่าดำเนินการเสร็จแล้ว")}
+                        disabled={acting}
+                        className="rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white active:scale-[0.97] disabled:opacity-50"
+                      >
+                        เสร็จแล้ว
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <span
-                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                    a.status === "completed"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : a.status === "accepted" || a.status === "in_progress"
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-amber-100 text-amber-700"
-                  }`}
-                >
-                  {ASSIGN_STATUS_LABEL[a.status] ?? a.status}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
