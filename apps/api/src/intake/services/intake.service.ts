@@ -26,7 +26,6 @@ export class IntakeService {
     organizationId?: number,
     sourceChannel = 'liff_upload',
   ) {
-    const mimeType = file.mimetype || this.storage.computeSha256(file.buffer);
     const sha256 = this.storage.computeSha256(file.buffer);
     const originalFileNameDecoded = (() => {
       try { return Buffer.from(file.originalname, 'latin1').toString('utf8'); } catch { return file.originalname; }

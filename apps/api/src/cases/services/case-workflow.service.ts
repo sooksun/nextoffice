@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleCalendarService } from '../../calendar/services/google-calendar.service';
@@ -183,66 +183,70 @@ export class CaseWorkflowService {
 
     const primaryAssignment = assignments.find((a) => a.role === 'responsible') || assignments[0];
 
-    // Create assignments (skip users that already have an active assignment on this case)
+    // Create assignments — use transaction per user to prevent duplicate race conditions
     const created = [];
     for (const a of assignments) {
-      const existing = await this.prisma.caseAssignment.findFirst({
-        where: {
-          inboundCaseId: BigInt(caseId),
-          assignedToUserId: BigInt(a.userId),
-          status: { notIn: ['completed'] },
-        },
+      let isNew = false;
+      const assignment = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.caseAssignment.findFirst({
+          where: {
+            inboundCaseId: BigInt(caseId),
+            assignedToUserId: BigInt(a.userId),
+            status: { notIn: ['completed'] },
+          },
+        });
+        if (existing) {
+          this.logger.log(`User ${a.userId} already has active assignment on case ${caseId} — skipping`);
+          return existing;
+        }
+        isNew = true;
+        return tx.caseAssignment.create({
+          data: {
+            inboundCaseId: BigInt(caseId),
+            assignedToUserId: BigInt(a.userId),
+            assignedByUserId: BigInt(assignedByUserId),
+            role: a.role || 'responsible',
+            dueDate: a.dueDate ? new Date(a.dueDate) : c.dueDate,
+            note: a.note,
+          },
+        });
       });
-      if (existing) {
-        this.logger.log(`User ${a.userId} already has active assignment #${existing.id} on case ${caseId} — skipping duplicate`);
-        created.push(existing);
-        continue;
-      }
 
-      const assignment = await this.prisma.caseAssignment.create({
-        data: {
-          inboundCaseId: BigInt(caseId),
-          assignedToUserId: BigInt(a.userId),
-          assignedByUserId: BigInt(assignedByUserId),
-          role: a.role || 'responsible',
-          dueDate: a.dueDate ? new Date(a.dueDate) : c.dueDate,
-          note: a.note,
-        },
-      });
-
-      // สร้าง reminder event รายบุคคลสำหรับครูที่รับมอบหมาย
-      const assignmentDue = a.dueDate ? new Date(a.dueDate) : c.dueDate;
-      if (assignmentDue) {
-        try {
-          const user = await this.prisma.user.findUnique({
-            where: { id: BigInt(a.userId) },
-            select: { googleEmail: true, email: true, fullName: true },
-          });
-          const userEmail = user?.googleEmail || user?.email;
-          if (userEmail) {
-            const intakeId = this.parseIntakeId(c.description);
-            const reminderId = await this.calendar.createAssignmentReminderEvent({
-              summary: `งาน: ${c.title}`,
-              description: this.buildCalendarDescription({
-                caseId,
-                registrationNo: c.registrationNo,
-                directorNote,
-                note: a.note,
-                intakeId,
-              }),
-              dueDate: assignmentDue,
-              attendeeEmail: userEmail,
-              assignmentId: Number(assignment.id),
+      // Only create a calendar reminder for newly created assignments
+      if (isNew) {
+        const assignmentDue = a.dueDate ? new Date(a.dueDate) : c.dueDate;
+        if (assignmentDue) {
+          try {
+            const user = await this.prisma.user.findUnique({
+              where: { id: BigInt(a.userId) },
+              select: { googleEmail: true, email: true, fullName: true },
             });
-            if (reminderId) {
-              await this.prisma.caseAssignment.update({
-                where: { id: assignment.id },
-                data: { googleCalendarEventId: reminderId },
+            const userEmail = user?.googleEmail || user?.email;
+            if (userEmail) {
+              const intakeId = this.parseIntakeId(c.description);
+              const reminderId = await this.calendar.createAssignmentReminderEvent({
+                summary: `งาน: ${c.title}`,
+                description: this.buildCalendarDescription({
+                  caseId,
+                  registrationNo: c.registrationNo,
+                  directorNote,
+                  note: a.note,
+                  intakeId,
+                }),
+                dueDate: assignmentDue,
+                attendeeEmail: userEmail,
+                assignmentId: Number(assignment.id),
               });
+              if (reminderId) {
+                await this.prisma.caseAssignment.update({
+                  where: { id: assignment.id },
+                  data: { googleCalendarEventId: reminderId },
+                });
+              }
             }
+          } catch (calErr) {
+            this.logger.warn(`Assignment reminder creation failed (non-blocking): ${calErr.message}`);
           }
-        } catch (calErr) {
-          this.logger.warn(`Assignment reminder creation failed (non-blocking): ${calErr.message}`);
         }
       }
 
@@ -250,16 +254,14 @@ export class CaseWorkflowService {
     }
 
     // Update case
-    const updateData: any = {
-      status: 'assigned',
-      assignedToUserId: BigInt(primaryAssignment.userId),
-    };
-    if (directorNote) updateData.directorNote = directorNote;
-    if (selectedOptionId) updateData.selectedOptionId = BigInt(selectedOptionId);
-
     const updated = await this.prisma.inboundCase.update({
       where: { id: BigInt(caseId) },
-      data: updateData,
+      data: {
+        status: 'assigned',
+        assignedToUserId: BigInt(primaryAssignment.userId),
+        ...(directorNote ? { directorNote } : {}),
+        ...(selectedOptionId ? { selectedOptionId: BigInt(selectedOptionId) } : {}),
+      },
     });
 
     // Create endorsement record for this role step
@@ -356,8 +358,11 @@ export class CaseWorkflowService {
     };
   }
 
-  async updateStatus(caseId: number, newStatus: string, userId?: number): Promise<any> {
+  async updateStatus(caseId: number, newStatus: string, userId?: number, callerOrgId?: number): Promise<any> {
     const c = await this.findCaseOrThrow(caseId);
+    if (callerOrgId && c.organizationId !== BigInt(callerOrgId)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เปลี่ยนสถานะหนังสือของหน่วยงานอื่น');
+    }
     this.assertTransition(c.status, newStatus);
 
     const updated = await this.prisma.inboundCase.update({
@@ -401,18 +406,29 @@ export class CaseWorkflowService {
     assignmentId: number,
     newStatus: string,
     userId: number,
+    callerOrgId?: number,
   ): Promise<any> {
     const assignment = await this.prisma.caseAssignment.findUnique({
       where: { id: BigInt(assignmentId) },
     });
     if (!assignment) throw new NotFoundException(`Assignment #${assignmentId} not found`);
 
-    const data: any = { status: newStatus };
-    if (newStatus === 'completed') data.completedAt = new Date();
+    if (callerOrgId) {
+      const parentCase = await this.prisma.inboundCase.findUnique({
+        where: { id: assignment.inboundCaseId },
+        select: { organizationId: true },
+      });
+      if (parentCase && parentCase.organizationId !== BigInt(callerOrgId)) {
+        throw new ForbiddenException('ไม่มีสิทธิ์อัปเดตงานของหน่วยงานอื่น');
+      }
+    }
 
     const updated = await this.prisma.caseAssignment.update({
       where: { id: BigInt(assignmentId) },
-      data,
+      data: {
+        status: newStatus,
+        ...(newStatus === 'completed' ? { completedAt: new Date() } : {}),
+      },
     });
 
     await this.logActivity(Number(assignment.inboundCaseId), userId, 'update_status', {

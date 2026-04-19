@@ -69,3 +69,47 @@ export function parseCeDate(s: string | null | undefined): Date | null {
   const d = new Date(s + "T00:00:00");
   return isNaN(d.getTime()) ? null : d;
 }
+
+// ─── Thai date picker struct ───────────────────────────────────────────────
+
+export interface ThaiDate {
+  day: number;    // 1–31
+  month: number;  // 1–12
+  yearBE: number; // พ.ศ. e.g. 2568
+  hour: number;   // 0–23
+  minute: number; // 0–59
+}
+
+/** Parse an ISO string (or null/undefined) into a ThaiDate struct */
+export function isoToThaiDate(iso: string | null | undefined): ThaiDate {
+  const d = iso ? new Date(iso) : new Date();
+  return {
+    day: d.getDate(),
+    month: d.getMonth() + 1,
+    yearBE: d.getFullYear() + BE_OFFSET,
+    hour: d.getHours(),
+    minute: d.getMinutes(),
+  };
+}
+
+/** Convert a ThaiDate struct back to an ISO 8601 string */
+export function thaiDateToIso(td: ThaiDate): string {
+  return new Date(td.yearBE - BE_OFFSET, td.month - 1, td.day, td.hour, td.minute, 0).toISOString();
+}
+
+/** Format as "D เดือน พ.ศ." with optional " เวลา HH:MM น." — Arabic numerals */
+export function formatThaiDateLabel(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const yearBE = d.getFullYear() + BE_OFFSET;
+    const month = MONTHS_LONG[d.getMonth() + 1];
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const time = d.getHours() !== 0 || d.getMinutes() !== 0 ? ` เวลา ${h}:${m} น.` : "";
+    return `${d.getDate()} ${month} ${yearBE}${time}`;
+  } catch {
+    return iso;
+  }
+}

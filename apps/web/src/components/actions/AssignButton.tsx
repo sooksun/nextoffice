@@ -4,7 +4,10 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError, toastWarning } from "@/lib/toast";
+import { ThaiDate, isoToThaiDate, thaiDateToIso, formatThaiDateLabel } from "@/lib/thai-date";
 import { UserPlus, X, Calendar, CalendarOff, CalendarCheck, Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+
+const MAX_DIRECTOR_NOTE_CHARS = 300;
 
 interface Props {
   caseId: number;
@@ -21,55 +24,6 @@ interface StaffMember {
 }
 
 type DueDateMode = "none" | "from_doc" | "custom";
-
-// ---- Thai Buddhist Era helpers ----
-
-const THAI_MONTHS = [
-  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
-  "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
-  "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
-];
-
-interface ThaiDate {
-  day: number;      // 1–31
-  month: number;    // 1–12
-  yearBE: number;   // พ.ศ. e.g. 2568
-  hour: number;     // 0–23
-  minute: number;   // 0–59
-}
-
-function isoToThaiDate(iso: string | null | undefined): ThaiDate {
-  const d = iso ? new Date(iso) : new Date();
-  return {
-    day: d.getDate(),
-    month: d.getMonth() + 1,
-    yearBE: d.getFullYear() + 543,
-    hour: d.getHours(),
-    minute: d.getMinutes(),
-  };
-}
-
-function thaiDateToIso(td: ThaiDate): string {
-  const yearCE = td.yearBE - 543;
-  const d = new Date(yearCE, td.month - 1, td.day, td.hour, td.minute, 0);
-  return d.toISOString();
-}
-
-function formatThaiDateDisplay(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    const yearBE = d.getFullYear() + 543;
-    const day = d.getDate();
-    const month = THAI_MONTHS[d.getMonth()];
-    const h = String(d.getHours()).padStart(2, "0");
-    const m = String(d.getMinutes()).padStart(2, "0");
-    const timeStr = (d.getHours() !== 0 || d.getMinutes() !== 0) ? ` เวลา ${h}:${m} น.` : "";
-    return `${day} ${month} ${yearBE}${timeStr}`;
-  } catch {
-    return iso;
-  }
-}
 
 // ---- Thai Date Picker component ----
 
@@ -165,7 +119,7 @@ function ThaiDateTimePicker({
       {/* Preview */}
       <p className="text-xs text-primary font-medium flex items-center gap-1">
         <Calendar size={11} />
-        {formatThaiDateDisplay(thaiDateToIso(value))}
+        {formatThaiDateLabel(thaiDateToIso(value))}
       </p>
     </div>
   );
@@ -244,11 +198,10 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
       setSelected(new Set());
     }
     setDueDateMode(caseDueDate ? "from_doc" : "none");
-    setCustomThaiDate(isoToThaiDate(caseDueDate ?? undefined));
+    setCustomThaiDate(isoToThaiDate(caseDueDate));
     setAiRecommendation(null);
     setAiRagHits(0);
     setAiExpanded(true);
-    loadStaff();
   };
 
   const handleAiRecommend = async () => {
@@ -274,7 +227,7 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
     // ดึงเฉพาะส่วน "คำแนะนำการมอบหมาย" มาใส่ directorNote
     const match = aiRecommendation.match(/(?:3\.|คำแนะนำการมอบหมาย)[^\n]*\n([\s\S]+?)(?:\n\n|$)/i);
     const extracted = match ? match[1].trim() : aiRecommendation;
-    setDirectorNote(extracted.substring(0, 300));
+    setDirectorNote(extracted.substring(0, MAX_DIRECTOR_NOTE_CHARS));
   };
 
   const toggleUser = (id: number) => {
@@ -332,7 +285,7 @@ export default function AssignButton({ caseId, status, caseDueDate, nextActions 
       value: "from_doc",
       label: "ใช้วันที่จากหนังสือ",
       icon: <CalendarCheck size={15} />,
-      desc: caseDueDate ? formatThaiDateDisplay(caseDueDate) : "ไม่พบวันที่ในหนังสือ",
+      desc: caseDueDate ? formatThaiDateLabel(caseDueDate) : "ไม่พบวันที่ในหนังสือ",
       disabled: !caseDueDate,
     },
     {

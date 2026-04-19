@@ -12,8 +12,16 @@ const BACKEND = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL 
 
 const PASSTHROUGH_HEADERS = ["authorization", "content-type", "accept", "x-requested-with"];
 
+// Block system/diagnostic routes that don't require proxying and shouldn't be exposed
+const BLOCKED_SEGMENTS = new Set(["health", "metrics", "swagger", "swagger-ui", "api-json", "favicon"]);
+
 async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
   const targetPath = path.join("/");
+
+  if (BLOCKED_SEGMENTS.has(path[0])) {
+    return NextResponse.json({ error: "proxy_forbidden" }, { status: 403 });
+  }
+
   const search = req.nextUrl.search;
   const url = `${BACKEND}/${targetPath}${search}`;
 

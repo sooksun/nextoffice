@@ -247,7 +247,7 @@ export class CasesController {
     @CurrentUser() user: any,
     @Body() body: { status: string },
   ) {
-    return this.workflow.updateStatus(id, body.status, Number(user.id));
+    return this.workflow.updateStatus(id, body.status, Number(user.id), Number(user.organizationId));
   }
 
   @Get(':id/assignments')
@@ -263,7 +263,7 @@ export class CasesController {
     @CurrentUser() user: any,
     @Body() body: { status: string },
   ) {
-    return this.workflow.updateAssignmentStatus(assignmentId, body.status, Number(user.id));
+    return this.workflow.updateAssignmentStatus(assignmentId, body.status, Number(user.id), Number(user.organizationId));
   }
 
   @Get(':id/activities')
