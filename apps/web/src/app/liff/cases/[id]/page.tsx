@@ -277,39 +277,46 @@ export default function LiffCaseDetailPage() {
       {/* Workflow timeline */}
       {steps.length > 0 && (
         <div className="mb-4 rounded-lg bg-white p-3 shadow-sm">
-          <p className="mb-2 text-xs font-semibold text-slate-700">ขั้นตอนดำเนินการ</p>
-          <ol className="flex items-center gap-0">
+          <p className="mb-3 text-xs font-semibold text-slate-700">ขั้นตอนดำเนินการ</p>
+          <div className="relative flex items-start justify-between px-3">
+            {/* base line */}
+            <div className="absolute left-3 right-3 top-3 h-0.5 bg-slate-200" />
+            {/* progress line */}
+            {steps.some((s) => s.done) && (
+              <div
+                className="absolute left-3 top-3 h-0.5 bg-emerald-400 transition-all"
+                style={{
+                  width: `${(steps.filter((s) => s.done).length / steps.length) * (100 - (100 / steps.length))}%`,
+                }}
+              />
+            )}
             {steps.map((step, i) => (
-              <li key={i} className="flex flex-1 flex-col items-center">
-                <div className="flex w-full items-center">
-                  {i > 0 && (
-                    <div className={`h-0.5 flex-1 ${steps[i - 1].done ? "bg-emerald-400" : "bg-slate-200"}`} />
-                  )}
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                      step.done
-                        ? "bg-emerald-500 text-white"
-                        : step.active
-                          ? "bg-amber-400 text-white"
-                          : "bg-slate-200 text-slate-500"
-                    }`}
-                  >
-                    {step.done ? "✓" : i + 1}
-                  </span>
-                  {i < steps.length - 1 && (
-                    <div className={`h-0.5 flex-1 ${step.done ? "bg-emerald-400" : "bg-slate-200"}`} />
-                  )}
-                </div>
+              <div key={i} className="relative flex flex-col items-center" style={{ width: `${100 / steps.length}%` }}>
                 <span
-                  className={`mt-1 text-center text-[10px] leading-tight ${
-                    step.done ? "text-emerald-600" : step.active ? "font-semibold text-amber-700" : "text-slate-400"
+                  className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ring-2 ring-white ${
+                    step.done
+                      ? "bg-emerald-500 text-white"
+                      : step.active
+                        ? "bg-amber-400 text-white"
+                        : "bg-slate-200 text-slate-500"
+                  }`}
+                >
+                  {step.done ? "✓" : i + 1}
+                </span>
+                <span
+                  className={`mt-1.5 text-center text-[10px] leading-tight ${
+                    step.done
+                      ? "text-emerald-600"
+                      : step.active
+                        ? "font-semibold text-amber-700"
+                        : "text-slate-400"
                   }`}
                 >
                   {step.label}
                 </span>
-              </li>
+              </div>
             ))}
-          </ol>
+          </div>
         </div>
       )}
 

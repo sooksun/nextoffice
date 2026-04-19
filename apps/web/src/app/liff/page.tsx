@@ -114,8 +114,8 @@ export default function LiffDashboardPage() {
                 anchor="tasks"
               />
               <TaskStatCard
-                label="ค้างดำเนินการ"
-                count={myTasks.filter((t) => ["pending", "accepted", "in_progress"].includes(t.assignmentStatus)).length}
+                label="รอรับทราบ"
+                count={myTasks.filter((t) => t.assignmentStatus === "pending").length}
                 color="bg-amber-50 border-amber-200 text-amber-700"
                 href="/liff"
                 anchor="tasks"
