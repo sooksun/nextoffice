@@ -272,6 +272,16 @@ export class CasesController {
     return this.workflow.getActivities(id);
   }
 
+  @Post(':id/progress-report')
+  @ApiOperation({ summary: 'รายงานความคืบหน้างาน (auto-update assignment status → in_progress)' })
+  addProgressReport(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Body() body: { reportText: string },
+  ) {
+    return this.workflow.addProgressReport(id, Number(user.id), body.reportText);
+  }
+
   @Post(':id/assign-recommend')
   @ApiOperation({ summary: 'AI แนะนำการมอบหมายงาน + คำสั่งผู้บริหาร (RAG + Gemini)' })
   recommendAssignment(@Param('id', ParseIntPipe) id: number) {

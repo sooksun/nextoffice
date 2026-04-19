@@ -62,6 +62,7 @@ const ACTION_LABEL: Record<string, string> = {
   endorsement_updated: "แก้ไขบันทึกเสนอ",
   assignment_accepted: "รับทราบงาน",
   assignment_completed: "ดำเนินการเสร็จ",
+  progress_report: "รายงานความคืบหน้า",
   rejected: "ตีกลับ",
   hold: "พักเรื่อง",
 };
@@ -155,6 +156,8 @@ export default function LiffCaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportText, setReportText] = useState("");
 
   const fetchAll = async () => {
     const [d, a, act] = await Promise.all([
@@ -187,9 +190,11 @@ export default function LiffCaseDetailPage() {
 
   const canRegister = isClerk && data?.status === "new";
   const canSign = isDirector && data?.status === "registered";
+  const canAssign = isClerk && data?.status && ["registered", "assigned", "in_progress"].includes(data.status);
   const canAcknowledge = !!myAssignment && myAssignment.status === "pending";
   const canComplete =
     !!myAssignment && (myAssignment.status === "accepted" || myAssignment.status === "in_progress");
+  const canReport = !!myAssignment && myAssignment.status !== "completed";
 
   const steps = data ? buildWorkflowSteps(data.status, data.directorStampStatus, myAssignment) : [];
 
@@ -224,6 +229,25 @@ export default function LiffCaseDetailPage() {
     }
   };
 
+  const submitReport = async () => {
+    if (!reportText.trim()) return toast.error("กรุณาระบุรายงาน");
+    setActing(true);
+    try {
+      await apiFetch(`/cases/${caseId}/progress-report`, {
+        method: "POST",
+        body: JSON.stringify({ reportText: reportText.trim() }),
+      });
+      toast.success("บันทึกรายงานแล้ว");
+      setReportOpen(false);
+      setReportText("");
+      await fetchAll();
+    } catch (e: any) {
+      toast.error(e.message ?? "ไม่สำเร็จ");
+    } finally {
+      setActing(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-center text-sm text-slate-500">กำลังโหลด…</div>;
   if (!data) return <div className="p-6 text-center text-sm text-slate-500">ไม่พบข้อมูล</div>;
 
@@ -234,7 +258,7 @@ export default function LiffCaseDetailPage() {
     data.sourceDocument?.documentCode ?? data.intake?.documentNo ?? senderFallback.documentCode;
   const documentDate = data.intake?.documentDate ?? null;
 
-  const hasAnyAction = canRegister || canSign || canAcknowledge || canComplete;
+  const hasAnyAction = canRegister || canSign || canAcknowledge || canComplete || canAssign || canReport;
 
   return (
     <div className="mx-auto max-w-md px-4 py-4 pb-28">
@@ -497,6 +521,67 @@ export default function LiffCaseDetailPage() {
                 ✓ ดำเนินการเสร็จแล้ว
               </button>
             )}
+            {canReport && !canAcknowledge && (
+              <button
+                onClick={() => setReportOpen(true)}
+                disabled={acting}
+                className="w-full rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-700 active:scale-[0.98] disabled:opacity-50"
+              >
+                📝 รายงานความคืบหน้า
+              </button>
+            )}
+            {canAssign && (
+              <Link
+                href={`/liff/cases/${caseId}/assign`}
+                className="block w-full rounded-lg border border-indigo-300 bg-white py-2.5 text-center text-sm font-semibold text-indigo-700 active:scale-[0.98]"
+              >
+                👥 มอบหมายงาน
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Progress report modal */}
+      {reportOpen && (
+        <div
+          className="fixed inset-0 z-20 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+          onClick={() => !acting && setReportOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="mb-2 text-sm font-semibold">รายงานความคืบหน้า</h3>
+            <p className="mb-3 text-[11px] text-slate-500">
+              บันทึกสิ่งที่ดำเนินการไปแล้ว ระบบจะอัปเดตสถานะงานเป็น "กำลังดำเนินการ" อัตโนมัติ
+            </p>
+            <textarea
+              value={reportText}
+              onChange={(e) => setReportText(e.target.value)}
+              rows={5}
+              placeholder="เช่น ติดต่อผู้เกี่ยวข้องแล้ว รอเอกสารประกอบเพิ่ม..."
+              className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setReportOpen(false);
+                  setReportText("");
+                }}
+                disabled={acting}
+                className="flex-1 rounded-lg border border-slate-300 py-2.5 text-sm font-semibold text-slate-700 active:scale-[0.98] disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={submitReport}
+                disabled={acting || !reportText.trim()}
+                className="flex-1 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-50"
+              >
+                {acting ? "กำลังบันทึก…" : "บันทึก"}
+              </button>
+            </div>
           </div>
         </div>
       )}

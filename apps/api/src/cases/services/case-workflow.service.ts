@@ -421,6 +421,41 @@ export class CaseWorkflowService {
     };
   }
 
+  async addProgressReport(caseId: number, userId: number, reportText: string): Promise<any> {
+    const trimmed = (reportText ?? '').trim();
+    if (!trimmed) throw new NotFoundException('กรุณาระบุข้อความรายงาน');
+
+    const assignment = await this.prisma.caseAssignment.findFirst({
+      where: { inboundCaseId: BigInt(caseId), assignedToUserId: BigInt(userId) },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!assignment) throw new NotFoundException('ไม่พบงานที่คุณได้รับมอบหมายในเรื่องนี้');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: BigInt(userId) },
+      select: { fullName: true },
+    });
+
+    if (assignment.status === 'pending' || assignment.status === 'accepted') {
+      await this.prisma.caseAssignment.update({
+        where: { id: assignment.id },
+        data: { status: 'in_progress' },
+      });
+    }
+
+    await this.logActivity(caseId, userId, 'progress_report', {
+      reportText: trimmed,
+      reportedBy: user?.fullName,
+      assignmentId: Number(assignment.id),
+    });
+
+    return {
+      success: true,
+      assignmentId: Number(assignment.id),
+      assignmentStatus: assignment.status === 'pending' || assignment.status === 'accepted' ? 'in_progress' : assignment.status,
+    };
+  }
+
   async getActivities(caseId: number): Promise<any[]> {
     const activities = await this.prisma.caseActivity.findMany({
       where: { inboundCaseId: BigInt(caseId) },
