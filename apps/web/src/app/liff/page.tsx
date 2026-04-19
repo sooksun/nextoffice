@@ -102,34 +102,32 @@ export default function LiffDashboardPage() {
           <AttendanceCard today={today} />
 
           {/* Task stats */}
-          {myTasks.length > 0 && (
-            <section className="mb-6">
-              <h2 className="mb-2 text-xs font-semibold text-slate-600">สถิติงานของฉัน</h2>
-              <div className="grid grid-cols-3 gap-2">
-                <TaskStatCard
-                  label="ทั้งหมด"
-                  count={myTasks.length}
-                  color="bg-indigo-50 border-indigo-200 text-indigo-700"
-                  href="/liff"
-                  anchor="tasks"
-                />
-                <TaskStatCard
-                  label="ค้างดำเนินการ"
-                  count={myTasks.filter((t) => ["pending", "accepted", "in_progress"].includes(t.status)).length}
-                  color="bg-amber-50 border-amber-200 text-amber-700"
-                  href="/liff"
-                  anchor="tasks"
-                />
-                <TaskStatCard
-                  label="เสร็จแล้ว"
-                  count={myTasks.filter((t) => t.status === "completed").length}
-                  color="bg-emerald-50 border-emerald-200 text-emerald-700"
-                  href="/liff"
-                  anchor="tasks"
-                />
-              </div>
-            </section>
-          )}
+          <section className="mb-6">
+            <h2 className="mb-2 text-xs font-semibold text-slate-600">สถิติงานของฉัน</h2>
+            <div className="grid grid-cols-3 gap-2">
+              <TaskStatCard
+                label="ทั้งหมด"
+                count={myTasks.length}
+                color="bg-indigo-50 border-indigo-200 text-indigo-700"
+                href="/liff"
+                anchor="tasks"
+              />
+              <TaskStatCard
+                label="ค้างดำเนินการ"
+                count={myTasks.filter((t) => ["pending", "accepted", "in_progress"].includes(t.status)).length}
+                color="bg-amber-50 border-amber-200 text-amber-700"
+                href="/liff"
+                anchor="tasks"
+              />
+              <TaskStatCard
+                label="เสร็จแล้ว"
+                count={myTasks.filter((t) => t.status === "completed").length}
+                color="bg-emerald-50 border-emerald-200 text-emerald-700"
+                href="/liff"
+                anchor="tasks"
+              />
+            </div>
+          </section>
 
           {/* Quick links */}
           <div className="mb-6 grid grid-cols-2 gap-2">
