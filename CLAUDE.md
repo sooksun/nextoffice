@@ -65,14 +65,33 @@ Key infrastructure modules:
 Core feature modules:
 - **IntakeModule** — LINE Bot webhook → document intake pipeline
 - **DocumentsModule** — document CRUD, file storage via MinIO
-- **CasesModule** — inbound case management
+- **CasesModule** — inbound case management; `CasesService` + `CaseWorkflowService`
 - **RagModule** — RAG pipeline: `RetrievalService` → `ReasoningService` (Gemini API). Vector store via Qdrant
 - **AiModule** — Gemini API wrapper, OCR, classification
+- **GeminiModule** — low-level Gemini wrapper (`GeminiApiService`); provides `generateText()` + `generateFromParts()` for vision. Separate from AiModule
 - **StampsModule** — PDF stamp generation (`pdf-lib`)
 - **VaultModule** — file vault backed by MinIO
 - **KnowledgeModule / KnowledgeImportModule** — knowledge base + import pipeline
 - **NotificationsModule** — push notifications
 - **AttendanceModule** — attendance + geofence + face recognition
+- **LineModule** — LINE Bot + LIFF: webhook, messaging, pairing, workflow, inquiry, attendance, signature, session (10 services)
+- **HorizonModule** — best-practice horizon knowledge base (separate from policy RAG)
+- **TemplatesModule** — Word (.docx) template generation via `docx` library (6 document types)
+- **ArchiveModule** — document archival
+- **TrackingModule** — document tracking
+- **DispatchModule** — document dispatch
+- **LoansModule** — document loans
+- **HandoverModule** — staff handover records
+- **SearchModule** — quick/advanced full-text search
+- **ChatModule** — AI chat interface
+- **ProjectsModule** — project topics + documents + reports
+- **CircularModule / PresentationModule / DownloadModule** — circular docs, presentations, downloadable files
+- **NewsModule / TenderModule / WebboardModule** — news posts, tenders, forum threads
+- **MessagesModule** — private messaging
+- **DigitalSignatureModule** — digital signature capture + verification
+- **EmailModule** — email integration
+- **CalendarModule / AcademicYearsModule** — scheduling and school year management
+- **OrganizationsModule** — organization hierarchy management
 
 ### Document Intake Flow (LINE Bot → AI → Case)
 
@@ -102,6 +121,36 @@ API calls: `apiFetch<T>(path, init?)` from `lib/api.ts` — never call the backe
 
 `INTERNAL_API_URL` (Docker internal) is used server-side; `NEXT_PUBLIC_API_URL` is used client-side.
 
+#### Next.js API Routes (`apps/web/src/app/api/`)
+
+- `api/proxy/[...path]/route.ts` — Server-side proxy to backend; use when CSP blocks direct client → API calls (HTTP-in-HTTPS)
+- `api/files/intake/[id]/route.ts` — Serve LINE-uploaded intake files with JWT auth
+- `api/files/outbound/[id]/route.ts` — Serve outbound document files
+- `api/files/signature/[id]/route.ts` — Serve staff signature images
+- `api/staff-config/[id]/signature/route.ts` — Staff signature upload/download
+
+#### LINE LIFF Mini-App (`apps/web/src/app/liff/`)
+
+Standalone LINE LIFF context — no AppShell, uses LIFF SDK auth instead of JWT cookie. Key pages:
+- `liff/` — dashboard with task stats + quick links
+- `liff/cases/` — case list + detail with options + assignment approval (Director flow)
+- `liff/outbound/` — outbound document approval workflow
+- `liff/attendance/` + `liff/checkin/` — GPS + camera + face recognition check-in
+- `liff/leave/` + `liff/travel/` — leave and travel request submission
+- `liff/face-register/` — InsightFace registration flow
+- `liff/signature/` + `liff/sign/` — digital signature pad + capture
+- `liff/news/` + `liff/calendar/` — news feed and calendar view
+- `liff/registry/` + `liff/search/` — document registry lookup + search
+
+#### Main App Pages (selected)
+
+- `director/` — Director dashboard, case routing, assignment management
+- `cases/[id]/` — Case detail with inline รับทราบ + assignment de-dup UI
+- `track/` — Public document tracking
+- `leave/` — Leave management
+- `outbound/[id]/` — Outbound document with Word download (`OutboundPdfButton`)
+- `intakes/` — LINE intake document list (director view with file proxy)
+
 ### External Services (Docker Compose)
 
 | Service | Purpose | Port |
@@ -129,6 +178,10 @@ export class ResourceController {
 - Client pages: `"use client"` at top, call `apiFetch` in `useEffect` or server actions
 - Server components: call `apiFetch` directly (it uses cookie token server-side)
 - Use `react-toastify` (via `lib/toast.tsx`) for user feedback
+- Thai date formatting: use `lib/thai-date.ts`
+
+### LIFF page pattern
+LIFF pages do not use AppShell. Auth is via LIFF SDK token, not JWT cookie. When a LIFF action must call the backend, send the LIFF `idToken` in the Authorization header or use the LINE pairing flow to resolve a local JWT.
 
 ### Adding a new API module
 1. Create `src/<feature>/` with `module.ts`, `controllers/`, `services/`, `dto/`
@@ -224,6 +277,12 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 **Caveat ที่ 2 — Next.js static optimization:** Server Component ที่อ่าน `process.env` ถูก pre-render ตอน `next build` → ค่าถูก bake เข้า static HTML → runtime env ไม่มีผล วิธีแก้: ใส่ `export const dynamic = "force-dynamic";` ใน `login/layout.tsx` เพื่อบังคับ render ทุก request
 
 ---
+
+### Technical Decisions (session 2026-04-20)
+- **Assignment de-dup UI** — Director's case page prevents duplicate assignments; shows existing assignee before re-assigning
+- **รับทราบ (acknowledge)** — Inline optimistic-update button on cases page + visibility refetch; also works from LIFF case detail
+- **Intake file proxy** — Director viewing LINE-uploaded intake files was returning 404; fixed by routing through `api/files/intake/[id]` with JWT header
+- **API proxy for CSP** — Direct client → HTTP API calls blocked by browser CSP (HTTPS page → HTTP backend); solved with Next.js `/api/proxy/[...path]` server-side route
 
 ### Technical Decisions (session 2026-04-15)
 - **Document templates format** — เปลี่ยนจาก `@napi-rs/canvas` (PDF) มาใช้ `docx` library (v9.6.1) generate Word (.docx) ไฟล์: `apps/api/src/templates/templates.service.ts` — ทั้ง 6 ประเภท return `Buffer` ของ `.docx`
