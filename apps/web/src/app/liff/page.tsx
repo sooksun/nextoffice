@@ -6,12 +6,13 @@ import { apiFetch } from "@/lib/api";
 import { useLiff } from "./LiffBoot";
 
 interface MyTask {
-  id: number;
+  assignmentId: number;
   caseId: number;
-  caseTitle: string;
+  title: string;
   urgencyLevel: string | null;
   dueDate: string | null;
-  status: string;
+  caseStatus: string;
+  assignmentStatus: string;
   registrationNo: string | null;
 }
 
@@ -56,11 +57,11 @@ export default function LiffDashboardPage() {
 
     (async () => {
       try {
-        const [tasks, attendance] = await Promise.all([
-          apiFetch<MyTask[]>("/cases/my-tasks").catch(() => []),
+        const [tasksRes, attendance] = await Promise.all([
+          apiFetch<{ tasks: MyTask[]; summary: any }>("/cases/my-tasks").catch(() => ({ tasks: [], summary: null })),
           apiFetch<TodayAttendance>("/attendance/today").catch(() => null),
         ]);
-        setMyTasks(Array.isArray(tasks) ? tasks : []);
+        setMyTasks(Array.isArray((tasksRes as any).tasks) ? (tasksRes as any).tasks : []);
         setToday(attendance);
 
         if (["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(u?.roleCode)) {
@@ -114,14 +115,14 @@ export default function LiffDashboardPage() {
               />
               <TaskStatCard
                 label="ค้างดำเนินการ"
-                count={myTasks.filter((t) => ["pending", "accepted", "in_progress"].includes(t.status)).length}
+                count={myTasks.filter((t) => ["pending", "accepted", "in_progress"].includes(t.assignmentStatus)).length}
                 color="bg-amber-50 border-amber-200 text-amber-700"
                 href="/liff"
                 anchor="tasks"
               />
               <TaskStatCard
-                label="เสร็จแล้ว"
-                count={myTasks.filter((t) => t.status === "completed").length}
+                label="รับทราบแล้ว"
+                count={myTasks.filter((t) => ["accepted", "in_progress"].includes(t.assignmentStatus)).length}
                 color="bg-emerald-50 border-emerald-200 text-emerald-700"
                 href="/liff"
                 anchor="tasks"
@@ -221,13 +222,13 @@ export default function LiffDashboardPage() {
             ) : (
               myTasks.map((t) => (
                 <CaseCard
-                  key={t.id}
+                  key={t.assignmentId}
                   href={`/liff/cases/${t.caseId}`}
-                  title={t.caseTitle}
+                  title={t.title}
                   subtitle={t.registrationNo ?? ""}
                   urgency={t.urgencyLevel}
                   date={t.dueDate}
-                  action="ดูรายละเอียด"
+                  action={t.assignmentStatus === "pending" ? "รับทราบ" : "ดูรายละเอียด"}
                 />
               ))
             )}

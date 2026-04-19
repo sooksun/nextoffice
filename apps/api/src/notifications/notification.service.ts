@@ -478,12 +478,15 @@ export class NotificationService {
       `ลงนามโดย: ${directorName}`,
     );
 
-    // Notify all assignees with Flex (director command + action buttons)
+    // Notify all assignees with Flex — build per-assignee card so รับทราบ uses assignmentId
     const notified = new Set<string>();
     for (const a of c.assignments) {
       const lineId = a.assignedTo?.lineUser?.lineUserId;
       if (lineId && !notified.has(lineId)) {
-        await this.messaging.push(lineId, [assigneeFlexMessage]);
+        const assignmentId = Number(a.id);
+        const card = JSON.parse(JSON.stringify(assigneeFlexMessage));
+        card.contents.footer.contents[0].action.text = `รับทราบ #${assignmentId}`;
+        await this.messaging.push(lineId, [card]);
         notified.add(lineId);
       }
     }
