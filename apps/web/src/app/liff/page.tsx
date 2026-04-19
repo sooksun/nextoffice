@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { toast } from "react-toastify";
 import { useLiff } from "./LiffBoot";
 
 interface MyTask {
@@ -49,6 +50,12 @@ export default function LiffDashboardPage() {
   const [pendingOutbound, setPendingOutbound] = useState<PendingOutbound[]>([]);
   const [today, setToday] = useState<TodayAttendance | null>(null);
   const [loading, setLoading] = useState(true);
+  const [acknowledging, setAcknowledging] = useState<Set<number>>(new Set());
+
+  const loadTasks = async () => {
+    const res = await apiFetch<{ tasks: MyTask[]; summary: any }>("/cases/my-tasks").catch(() => ({ tasks: [], summary: null }));
+    setMyTasks(Array.isArray((res as any).tasks) ? (res as any).tasks : []);
+  };
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -80,6 +87,37 @@ export default function LiffDashboardPage() {
       }
     })();
   }, [status]);
+
+  useEffect(() => {
+    if (status !== "ready") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadTasks().catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [status]);
+
+  const handleAcknowledge = async (assignmentId: number) => {
+    setAcknowledging((prev) => new Set(prev).add(assignmentId));
+    setMyTasks((prev) =>
+      prev.map((t) => (t.assignmentId === assignmentId ? { ...t, assignmentStatus: "accepted" } : t)),
+    );
+    try {
+      await apiFetch(`/cases/assignments/${assignmentId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "accepted" }),
+      });
+      toast.success("รับทราบเรียบร้อย");
+    } catch {
+      setMyTasks((prev) =>
+        prev.map((t) => (t.assignmentId === assignmentId ? { ...t, assignmentStatus: "pending" } : t)),
+      );
+      toast.error("ไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setAcknowledging((prev) => { const n = new Set(prev); n.delete(assignmentId); return n; });
+      loadTasks().catch(() => {});
+    }
+  };
 
   const isDirector = user && ["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(user.roleCode);
 
@@ -226,17 +264,44 @@ export default function LiffDashboardPage() {
             {myTasks.length === 0 ? (
               <Empty>ไม่มีงานค้าง 🎉</Empty>
             ) : (
-              myTasks.map((t) => (
-                <CaseCard
-                  key={t.assignmentId}
-                  href={`/liff/cases/${t.caseId}`}
-                  title={t.title}
-                  subtitle={t.registrationNo ?? ""}
-                  urgency={t.urgencyLevel}
-                  date={t.dueDate}
-                  action={t.assignmentStatus === "pending" ? "รับทราบ" : "ดูรายละเอียด"}
-                />
-              ))
+              myTasks.map((t) =>
+                t.assignmentStatus === "pending" ? (
+                  <div key={t.assignmentId} className="flex items-stretch gap-1.5">
+                    <Link
+                      href={`/liff/cases/${t.caseId}`}
+                      className="flex-1 rounded-lg border border-amber-200 bg-amber-50 p-3 shadow-sm active:scale-[0.99]"
+                    >
+                      <div className="mb-1 flex items-start justify-between gap-2">
+                        <p className="line-clamp-2 flex-1 text-sm font-medium text-slate-800">{t.title}</p>
+                        {t.urgencyLevel && <UrgencyBadge level={t.urgencyLevel} />}
+                      </div>
+                      {t.registrationNo && <p className="text-xs text-slate-500">{t.registrationNo}</p>}
+                      {t.dueDate && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          {new Date(t.dueDate).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                        </p>
+                      )}
+                    </Link>
+                    <button
+                      onClick={() => handleAcknowledge(t.assignmentId)}
+                      disabled={acknowledging.has(t.assignmentId)}
+                      className="w-16 shrink-0 rounded-lg bg-indigo-600 text-xs font-semibold text-white active:scale-[0.97] disabled:opacity-50"
+                    >
+                      {acknowledging.has(t.assignmentId) ? "…" : "รับทราบ"}
+                    </button>
+                  </div>
+                ) : (
+                  <CaseCard
+                    key={t.assignmentId}
+                    href={`/liff/cases/${t.caseId}`}
+                    title={t.title}
+                    subtitle={t.registrationNo ?? ""}
+                    urgency={t.urgencyLevel}
+                    date={t.dueDate}
+                    action="ดูรายละเอียด"
+                  />
+                ),
+              )
             )}
           </Section>
         </>
