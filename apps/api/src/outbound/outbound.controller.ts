@@ -18,28 +18,7 @@ export class OutboundController {
     }
   }
 
-  @Get(':organizationId/documents')
-  @ApiOperation({ summary: 'List outbound documents for an organization' })
-  @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'letterType', required: false })
-  listDocuments(
-    @CurrentUser() user: any,
-    @Param('organizationId', ParseIntPipe) organizationId: number,
-    @Query('status') status?: string,
-    @Query('letterType') letterType?: string,
-  ) {
-    this.assertSameOrg(user, organizationId);
-    return this.svc.findAll(organizationId, status, letterType, user?.roleCode);
-  }
-
-  @Get('by-case/:caseId')
-  @ApiOperation({ summary: 'List outbound documents linked to an inbound case' })
-  getByCase(
-    @CurrentUser() user: any,
-    @Param('caseId', ParseIntPipe) caseId: number,
-  ) {
-    return this.svc.getByCase(caseId, Number(user?.organizationId));
-  }
+  // ── Static-prefix routes MUST come before parametric (:id) routes ──────────
 
   @Get('my/documents')
   @ApiOperation({ summary: 'List outbound documents for the current user organization (no orgId required)' })
@@ -65,6 +44,31 @@ export class OutboundController {
       'outbound',
       academicYearId ? parseInt(academicYearId, 10) : undefined,
     );
+  }
+
+  @Get('by-case/:caseId')
+  @ApiOperation({ summary: 'List outbound documents linked to an inbound case' })
+  getByCase(
+    @CurrentUser() user: any,
+    @Param('caseId', ParseIntPipe) caseId: number,
+  ) {
+    return this.svc.getByCase(caseId, Number(user?.organizationId));
+  }
+
+  // ── Parametric routes ────────────────────────────────────────────────────────
+
+  @Get(':organizationId/documents')
+  @ApiOperation({ summary: 'List outbound documents for an organization' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'letterType', required: false })
+  listDocuments(
+    @CurrentUser() user: any,
+    @Param('organizationId', ParseIntPipe) organizationId: number,
+    @Query('status') status?: string,
+    @Query('letterType') letterType?: string,
+  ) {
+    this.assertSameOrg(user, organizationId);
+    return this.svc.findAll(organizationId, status, letterType, user?.roleCode);
   }
 
   @Get('documents/pending-approval')
