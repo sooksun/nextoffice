@@ -1,29 +1,17 @@
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { CalendarDays, Plus } from "lucide-react";
-import { formatThaiDateShort } from "@/lib/thai-date";
+import LeaveList, { type LeaveRequest } from "./LeaveList";
 
 export const dynamic = "force-dynamic";
 
-const TYPE_LABEL: Record<string, string> = {
-  sick: "ลาป่วย", personal: "ลากิจ", vacation: "ลาพักผ่อน",
-  maternity: "ลาคลอด", ordination: "ลาบวช", training: "ลาศึกษาต่อ",
-};
-const STATUS_LABEL: Record<string, string> = {
-  draft: "ร่าง", pending: "รออนุมัติ", approved: "อนุมัติ", rejected: "ไม่อนุมัติ", cancelled: "ยกเลิก",
-};
-const STATUS_COLOR: Record<string, string> = {
-  draft: "bg-surface-mid text-on-surface-variant", pending: "bg-amber-500/20 text-amber-800 dark:text-amber-300",
-  approved: "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300", rejected: "bg-red-500/20 text-red-800 dark:text-red-300",
-  cancelled: "bg-surface-mid text-on-surface-variant",
-};
-
-interface LeaveRequest {
-  id: number; leaveType: string; startDate: string; endDate: string;
-  totalDays: number; status: string; reason: string; createdAt: string;
-  approvedBy?: { fullName: string } | null;
+interface Balance {
+  leaveType: string;
+  label: string;
+  totalAllowed: number;
+  totalUsed: number;
+  remaining: number;
 }
-interface Balance { leaveType: string; label: string; totalAllowed: number; totalUsed: number; remaining: number; }
 
 async function getMyRequests(): Promise<LeaveRequest[]> {
   try { return await apiFetch<LeaveRequest[]>("/attendance/leave/my-requests"); } catch { return []; }
@@ -62,40 +50,8 @@ export default async function LeavePage() {
         </div>
       )}
 
-      {/* Leave Requests Table */}
-      <div className="rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-low border-b border-outline-variant/10">
-            <tr>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-outline">ประเภท</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-outline">วันที่</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-outline">จำนวนวัน</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-outline">สถานะ</th>
-              <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-outline">เหตุผล</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-outline-variant/10">
-            {requests.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-on-surface-variant">ยังไม่มีใบลา</td></tr>
-            )}
-            {requests.map((r) => (
-              <tr key={r.id} className="hover:bg-surface-low transition-colors">
-                <td className="px-4 py-3 font-medium">{TYPE_LABEL[r.leaveType] ?? r.leaveType}</td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant">
-                  {formatThaiDateShort(r.startDate)} - {formatThaiDateShort(r.endDate)}
-                </td>
-                <td className="px-4 py-3 text-xs">{Number(r.totalDays)} วัน</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[r.status] ?? "bg-surface-mid"}`}>
-                    {STATUS_LABEL[r.status] ?? r.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant max-w-xs truncate">{r.reason || "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Leave Requests Table (client component — handles edit/delete/print) */}
+      <LeaveList initialRows={requests} />
 
       {/* Quick Links */}
       <div className="flex gap-3 mt-4">

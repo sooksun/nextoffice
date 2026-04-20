@@ -51,6 +51,16 @@ export class LeaveController {
     return this.leaveSvc.getById(id);
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'แก้ไขใบลา (draft เท่านั้น)' })
+  updateLeave(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Body() body: any,
+  ) {
+    return this.leaveSvc.update(id, Number(user.id), body);
+  }
+
   @Patch(':id/submit')
   @ApiOperation({ summary: 'ส่งใบลาเพื่อขออนุมัติ' })
   submitLeave(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {

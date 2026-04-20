@@ -133,6 +133,41 @@ export class LeaveService {
     return this.serialize(updated);
   }
 
+  // ─── Update (draft only) ────────────────────────────
+
+  async update(requestId: number, userId: number, data: {
+    leaveType?: string;
+    startDate?: string;
+    endDate?: string;
+    totalDays?: number;
+    reason?: string;
+    contactPhone?: string;
+    contactAddress?: string;
+    positionTitle?: string;
+  }) {
+    const req = await this.prisma.leaveRequest.findUnique({
+      where: { id: BigInt(requestId) },
+    });
+    if (!req) throw new NotFoundException('ไม่พบคำขอลา');
+    if (Number(req.userId) !== userId) throw new ForbiddenException('ไม่ใช่คำขอของคุณ');
+    if (req.status !== 'draft') throw new BadRequestException('แก้ไขได้เฉพาะใบลาที่ยังเป็นร่าง (draft) เท่านั้น');
+
+    const updated = await this.prisma.leaveRequest.update({
+      where: { id: BigInt(requestId) },
+      data: {
+        ...(data.leaveType && { leaveType: data.leaveType }),
+        ...(data.startDate && { startDate: new Date(data.startDate) }),
+        ...(data.endDate && { endDate: new Date(data.endDate) }),
+        ...(data.totalDays !== undefined && { totalDays: data.totalDays }),
+        ...(data.reason !== undefined && { reason: data.reason }),
+        ...(data.contactPhone !== undefined && { contactPhone: data.contactPhone }),
+        ...(data.contactAddress !== undefined && { contactAddress: data.contactAddress }),
+        ...(data.positionTitle !== undefined && { positionTitle: data.positionTitle }),
+      },
+    });
+    return this.serialize(updated);
+  }
+
   // ─── Cancel ─────────────────────────────────────────
 
   async cancel(requestId: number, userId: number) {
@@ -181,7 +216,12 @@ export class LeaveService {
     const req = await this.prisma.leaveRequest.findUnique({
       where: { id: BigInt(requestId) },
       include: {
-        user: { select: { id: true, fullName: true, roleCode: true, positionTitle: true } },
+        user: {
+          select: {
+            id: true, fullName: true, roleCode: true, positionTitle: true,
+            organization: { select: { name: true } },
+          },
+        },
         approvedBy: { select: { id: true, fullName: true } },
       },
     });
