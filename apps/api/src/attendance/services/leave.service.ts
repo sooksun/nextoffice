@@ -40,6 +40,8 @@ export class LeaveService {
     totalDays: number;
     reason?: string;
     contactPhone?: string;
+    contactAddress?: string;
+    positionTitle?: string;
   }) {
     const req = await this.prisma.leaveRequest.create({
       data: {
@@ -51,6 +53,8 @@ export class LeaveService {
         totalDays: data.totalDays,
         reason: data.reason,
         contactPhone: data.contactPhone,
+        contactAddress: data.contactAddress,
+        positionTitle: data.positionTitle,
         status: 'draft',
       },
     });

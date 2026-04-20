@@ -1494,6 +1494,8 @@ model LeaveRequest {
   totalDays             Decimal   @map("total_days") @db.Decimal(5, 1)
   reason                String?   @db.Text
   contactPhone          String?   @map("contact_phone") @db.VarChar(20)
+  contactAddress        String?   @map("contact_address") @db.VarChar(500)
+  positionTitle         String?   @map("position_title") @db.VarChar(255)
   attachmentPath        String?   @map("attachment_path") @db.VarChar(500)
   status                String    @db.VarChar(30) @default("draft")
   // status: draft | pending | approved | rejected | cancelled
