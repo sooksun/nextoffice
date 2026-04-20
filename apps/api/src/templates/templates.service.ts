@@ -67,6 +67,11 @@ const NO_BORDERS = {
   right: { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' },
 };
 
+// ─── Thai numerals helper ─────────────────────────────────────────────────────
+function toThaiNumerals(text: string): string {
+  return text.replace(/[0-9]/g, (d) => '๐๑๒๓๔๕๖๗๘๙'[+d]);
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 @Injectable()
 export class TemplatesService {
@@ -74,10 +79,10 @@ export class TemplatesService {
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
-  /** TextRun ภาษาไทย */
+  /** TextRun ภาษาไทย — แปลงตัวเลขอาราบิคเป็นเลขไทยทั้งหมด */
   private t(text: string, size = FS_BODY, bold = false, color?: string): TextRun {
     return new TextRun({
-      text,
+      text: toThaiNumerals(text),
       font: THAI_FONT,
       size,
       bold,
