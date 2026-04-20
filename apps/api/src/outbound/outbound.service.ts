@@ -194,6 +194,23 @@ export class OutboundService {
     return { id: Number(doc.id) };
   }
 
+  async submitForApproval(id: number, userOrgId?: number) {
+    if (userOrgId !== undefined) {
+      await this.assertDocBelongsToOrg(id, userOrgId);
+    }
+    const doc = await this.prisma.outboundDocument.findUnique({ where: { id: BigInt(id) } });
+    if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
+    if (doc.status !== 'draft') {
+      throw new BadRequestException(`ไม่สามารถเสนอขออนุมัติ: สถานะปัจจุบัน "${doc.status}" ต้องเป็น "draft"`);
+    }
+    await this.prisma.outboundDocument.update({
+      where: { id: BigInt(id) },
+      data: { status: 'pending_approval' },
+    });
+    this.invalidateOutboundCache(id);
+    return { id, status: 'pending_approval' };
+  }
+
   async approve(id: number, approvedByUserId: number, userOrgId?: number) {
     // Generate document number: <orgCode>/<sequence>/<buddhistYear>
     const doc = await this.prisma.outboundDocument.findUnique({
@@ -204,6 +221,10 @@ export class OutboundService {
 
     if (userOrgId !== undefined && Number(doc.organizationId) !== Number(userOrgId)) {
       throw new ForbiddenException('ไม่สามารถอนุมัติเอกสารขององค์กรอื่น');
+    }
+
+    if (!['draft', 'pending_approval'].includes(doc.status)) {
+      throw new BadRequestException(`ไม่สามารถอนุมัติ: สถานะปัจจุบัน "${doc.status}"`);
     }
 
     // Idempotency: re-use existing documentNo if already assigned (user clicks approve again)

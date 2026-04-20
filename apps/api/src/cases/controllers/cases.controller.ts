@@ -160,6 +160,17 @@ export class CasesController {
     return this.svc.findById(id, Number(user.organizationId), user.roleCode);
   }
 
+  @Post(':id/archive')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: 'จัดเก็บเรื่องที่ดำเนินการเสร็จแล้ว (completed → archived)' })
+  archiveCase(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    return this.workflow.archiveCase(id, Number(user.id), Number(user.organizationId));
+  }
+
   @Get(':id/tracking')
   @ApiOperation({ summary: 'สถานะรับทราบ/ดำเนินการ รายบุคคล' })
   getTracking(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {

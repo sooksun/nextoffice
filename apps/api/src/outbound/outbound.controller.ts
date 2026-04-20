@@ -148,8 +148,17 @@ export class OutboundController {
     });
   }
 
+  @Post('documents/:id/submit')
+  @ApiOperation({ summary: 'Submit draft for approval (draft → pending_approval)' })
+  submitForApproval(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.submitForApproval(id, Number(user?.organizationId));
+  }
+
   @Post('documents/:id/approve')
-  @ApiOperation({ summary: 'Approve document and assign document number' })
+  @ApiOperation({ summary: 'Approve document and assign document number (pending_approval | draft → approved)' })
   approve(
     @CurrentUser() user: any,
     @Param('id', ParseIntPipe) id: number,

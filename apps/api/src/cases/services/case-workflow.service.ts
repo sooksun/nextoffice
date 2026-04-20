@@ -402,6 +402,25 @@ export class CaseWorkflowService {
     return this.serialize(updated);
   }
 
+  async archiveCase(caseId: number, userId?: number, callerOrgId?: number): Promise<any> {
+    const c = await this.findCaseOrThrow(caseId);
+    if (callerOrgId && c.organizationId !== BigInt(callerOrgId)) {
+      throw new ForbiddenException('ไม่มีสิทธิ์จัดเก็บหนังสือของหน่วยงานอื่น');
+    }
+    this.assertTransition(c.status, 'archived');
+
+    const updated = await this.prisma.inboundCase.update({
+      where: { id: BigInt(caseId) },
+      data: { status: 'archived' },
+    });
+
+    await this.logActivity(caseId, userId, 'archive', { from: c.status, to: 'archived' });
+    this.logger.log(`Case #${caseId} archived`);
+    this.invalidateCaseCache(caseId);
+
+    return this.serialize(updated);
+  }
+
   async updateAssignmentStatus(
     assignmentId: number,
     newStatus: string,
