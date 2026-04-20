@@ -84,7 +84,7 @@ export default async function LeavePage() {
                 <td className="px-4 py-3 text-xs text-on-surface-variant">
                   {formatThaiDateShort(r.startDate)} - {formatThaiDateShort(r.endDate)}
                 </td>
-                <td className="px-4 py-3 text-xs">{r.totalDays} วัน</td>
+                <td className="px-4 py-3 text-xs">{Number(r.totalDays)} วัน</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex px-2 py-0.5 rounded-lg text-xs font-semibold ${STATUS_COLOR[r.status] ?? "bg-surface-mid"}`}>
                     {STATUS_LABEL[r.status] ?? r.status}

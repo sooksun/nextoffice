@@ -316,7 +316,8 @@ export class LeaveService {
     if (obj === null || obj === undefined) return obj;
     if (typeof obj === 'bigint') return Number(obj);
     if (obj instanceof Date) return obj.toISOString();
-    if (typeof obj === 'object' && obj.constructor?.name === 'Decimal') return Number(obj);
+    // Prisma Decimal (decimal.js) — use toNumber() which is Decimal-specific
+    if (typeof obj === 'object' && typeof obj.toNumber === 'function') return obj.toNumber();
     if (Array.isArray(obj)) return obj.map((v) => this.serialize(v));
     if (typeof obj === 'object') {
       const out: any = {};
