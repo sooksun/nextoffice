@@ -59,6 +59,16 @@ export class FaceClientService {
     }
   }
 
+  async deleteFace(userId: number): Promise<boolean> {
+    try {
+      const res = await axios.delete(`${this.baseUrl}/faces/${userId}`, { timeout: 5000 });
+      return res.data?.deleted === true;
+    } catch (err) {
+      this.logger.warn(`Face delete failed for user ${userId}: ${err.message}`);
+      return false;
+    }
+  }
+
   async checkHealth(): Promise<boolean> {
     try {
       const res = await axios.get(`${this.baseUrl}/health`, { timeout: 5000 });

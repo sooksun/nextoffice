@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.register import router as register_router
 from app.routes.verify import router as verify_router
+from app.routes.delete import router as delete_router
 from app.routes.health import router as health_router
 
 logging.basicConfig(
@@ -25,13 +26,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
+import os
+
+_allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(register_router)
 app.include_router(verify_router)
+app.include_router(delete_router)
 app.include_router(health_router)

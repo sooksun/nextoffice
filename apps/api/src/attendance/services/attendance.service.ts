@@ -15,17 +15,29 @@ export class AttendanceService {
 
   // ─── Face Registration ──────────────────────────────
 
+  /** Bangkok UTC+7 — handles server ≠ school timezone mismatch */
+  private nowBangkok(): Date {
+    return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+  }
+
   async registerFace(userId: number, orgId: number, imageBase64: string) {
     const result = await this.faceClient.registerFace(userId, imageBase64);
     if (!result.success) {
       throw new BadRequestException(result.message);
     }
 
-    // Revoke any existing active registration
-    await this.prisma.faceRegistration.updateMany({
+    // Revoke existing registration AND delete the old embedding file from face service
+    const activeRegs = await this.prisma.faceRegistration.findMany({
       where: { userId: BigInt(userId), status: 'active' },
-      data: { status: 'revoked', revokedAt: new Date() },
     });
+    if (activeRegs.length > 0) {
+      await this.prisma.faceRegistration.updateMany({
+        where: { userId: BigInt(userId), status: 'active' },
+        data: { status: 'revoked', revokedAt: new Date() },
+      });
+      // Best-effort: delete old embedding from disk (re-register overwrites it anyway, but clean up)
+      await this.faceClient.deleteFace(userId).catch(() => {});
+    }
 
     const reg = await this.prisma.faceRegistration.create({
       data: {
@@ -84,7 +96,7 @@ export class AttendanceService {
     // Check geofence
     const org = await this.prisma.organization.findUnique({
       where: { id: BigInt(orgId) },
-      select: { refLatitude: true, refLongitude: true, geofenceRadius: true },
+      select: { refLatitude: true, refLongitude: true, geofenceRadius: true, lateCheckInHour: true, lateCheckInMinute: true },
     });
 
     let geofenceValid = true;
@@ -99,15 +111,17 @@ export class AttendanceService {
       distance = check.distance;
     }
 
-    // Determine if late (after 08:30)
-    const now = new Date();
-    const isLate = now.getHours() > 8 || (now.getHours() === 8 && now.getMinutes() > 30);
+    // Determine if late — use Bangkok time, threshold from org settings (default 08:30)
+    const now = this.nowBangkok();
+    const lateH = org?.lateCheckInHour ?? 8;
+    const lateM = org?.lateCheckInMinute ?? 30;
+    const isLate = now.getHours() > lateH || (now.getHours() === lateH && now.getMinutes() > lateM);
 
     const record = existing
       ? await this.prisma.attendanceRecord.update({
           where: { id: existing.id },
           data: {
-            checkInAt: now,
+            checkInAt: new Date(),
             checkInLatitude: latitude,
             checkInLongitude: longitude,
             faceMatchScore: faceResult.similarity,
@@ -171,11 +185,28 @@ export class AttendanceService {
       throw new BadRequestException(`ยืนยันใบหน้าไม่สำเร็จ: ${faceResult.message}`);
     }
 
-    const now = new Date();
+    // Check geofence on check-out too
+    const org = await this.prisma.organization.findUnique({
+      where: { id: BigInt(orgId) },
+      select: { refLatitude: true, refLongitude: true, geofenceRadius: true },
+    });
+
+    let geofenceValid = true;
+    let distance = 0;
+    if (org?.refLatitude && org?.refLongitude) {
+      const check = this.geofence.isWithinGeofence(
+        latitude, longitude,
+        org.refLatitude, org.refLongitude,
+        org.geofenceRadius,
+      );
+      geofenceValid = check.valid;
+      distance = check.distance;
+    }
+
     const record = await this.prisma.attendanceRecord.update({
       where: { id: existing.id },
       data: {
-        checkOutAt: now,
+        checkOutAt: new Date(),
         checkOutLatitude: latitude,
         checkOutLongitude: longitude,
         status: 'checked_out',
@@ -187,7 +218,11 @@ export class AttendanceService {
       checkInAt: record.checkInAt,
       checkOutAt: record.checkOutAt,
       status: record.status,
-      message: 'ลงเวลาออกสำเร็จ',
+      geofenceValid,
+      distance,
+      message: geofenceValid
+        ? 'ลงเวลาออกสำเร็จ'
+        : `ลงเวลาออกสำเร็จ แต่ตำแหน่งอยู่นอกเขตโรงเรียน (${distance}m)`,
     });
   }
 

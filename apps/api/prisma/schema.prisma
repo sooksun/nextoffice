@@ -29,6 +29,8 @@ model Organization {
   refLatitude           Float?   @map("ref_latitude")
   refLongitude          Float?   @map("ref_longitude")
   geofenceRadius        Int      @map("geofence_radius") @default(200) // meters
+  lateCheckInHour       Int      @map("late_check_in_hour") @default(8)   // เวลาสาย (ชั่วโมง)
+  lateCheckInMinute     Int      @map("late_check_in_minute") @default(30) // เวลาสาย (นาที)
   isActive              Boolean  @map("is_active") @default(true)
   smtpHost              String?  @map("smtp_host") @db.VarChar(255)
   smtpPort              Int?     @map("smtp_port") @default(587)
