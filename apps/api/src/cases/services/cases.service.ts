@@ -107,8 +107,12 @@ export class CasesService {
   }
 
   async findById(id: number, callerOrgId?: number, callerRole?: string) {
-    const c = await this.prisma.inboundCase.findUnique({
-      where: { id: BigInt(id) },
+    const where: any = { id: BigInt(id) };
+    if (callerRole !== 'ADMIN' && callerOrgId) {
+      where.organizationId = BigInt(callerOrgId);
+    }
+    const c = await this.prisma.inboundCase.findFirst({
+      where,
       include: {
         organization: true,
         sourceDocument: true,
@@ -118,9 +122,6 @@ export class CasesService {
       },
     });
     if (!c) throw new NotFoundException(`Case #${id} not found`);
-    if (callerOrgId && callerRole !== 'ADMIN' && c.organizationId !== BigInt(callerOrgId)) {
-      throw new ForbiddenException('ไม่มีสิทธิ์ดูข้อมูลของหน่วยงานอื่น');
-    }
     const result = this.serialize(c);
 
     // Parse intakeId from description (pattern: "intake:{id}")
@@ -164,14 +165,12 @@ export class CasesService {
   }
 
   async getOptions(id: number, callerOrgId?: number, callerRole?: string) {
-    if (callerOrgId && callerRole !== 'ADMIN') {
-      const c = await this.prisma.inboundCase.findUnique({
-        where: { id: BigInt(id) },
-        select: { organizationId: true },
+    if (callerRole !== 'ADMIN' && callerOrgId) {
+      const c = await this.prisma.inboundCase.findFirst({
+        where: { id: BigInt(id), organizationId: BigInt(callerOrgId) },
+        select: { id: true },
       });
-      if (c && c.organizationId !== BigInt(callerOrgId)) {
-        throw new ForbiddenException('ไม่มีสิทธิ์ดูข้อมูลของหน่วยงานอื่น');
-      }
+      if (!c) throw new NotFoundException(`Case #${id} not found`);
     }
     const options = await this.prisma.caseOption.findMany({
       where: { inboundCaseId: BigInt(id) },

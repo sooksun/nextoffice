@@ -146,9 +146,26 @@ export class AuthService {
 
   // ─── Register ───────────────────────────────────────────────────────────────
 
+  // Role rank — higher number = higher privilege
+  private static readonly ROLE_RANK: Record<string, number> = {
+    ADMIN: 99,
+    DIRECTOR: 4,
+    VICE_DIRECTOR: 3,
+    HEAD_TEACHER: 2,
+    CLERK: 2,
+    TEACHER: 1,
+  };
+
   async register(dto: RegisterDto, callerRole: string, callerOrgId?: number) {
+    // Only ADMIN can create ADMIN accounts
     if (dto.roleCode === 'ADMIN' && callerRole !== 'ADMIN') {
       throw new ForbiddenException('เฉพาะ ADMIN เท่านั้นที่สร้างบัญชี ADMIN ได้');
+    }
+    // Caller can only create roles strictly below their own rank
+    const callerRank = AuthService.ROLE_RANK[callerRole] ?? 0;
+    const targetRank = AuthService.ROLE_RANK[dto.roleCode] ?? 0;
+    if (callerRole !== 'ADMIN' && targetRank >= callerRank) {
+      throw new ForbiddenException(`${callerRole} ไม่สามารถสร้างบัญชีที่มีสิทธิ์เทียบเท่าหรือสูงกว่าตนเองได้`);
     }
     // Non-ADMIN callers can only create accounts in their own org
     if (callerRole !== 'ADMIN' && dto.organizationId && dto.organizationId !== callerOrgId) {
