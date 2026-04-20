@@ -270,6 +270,76 @@ export class LineMessagingService {
     ];
   }
 
+  buildAcknowledgedNotification(data: {
+    caseTitle: string;
+    registrationNo: string;
+    assignmentId: number;
+    acknowledgedAt: string;
+  }) {
+    return [
+      {
+        type: 'flex',
+        altText: `รับทราบงาน #${data.assignmentId} เรียบร้อยแล้ว`,
+        contents: {
+          type: 'bubble',
+          size: 'giga',
+          header: {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#1B5E20',
+            paddingAll: '16px',
+            contents: [
+              { type: 'text', text: '✓ รับทราบงานแล้ว', color: '#FFFFFF', size: 'xs', weight: 'bold' },
+              { type: 'text', text: data.caseTitle || '-', color: '#FFFFFF', size: 'md', weight: 'bold', wrap: true, maxLines: 3 },
+            ],
+          },
+          body: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'md',
+            paddingAll: '16px',
+            contents: [
+              this.flexRow('เลขรับ', data.registrationNo || '-'),
+              this.flexRow('รับทราบเมื่อ', data.acknowledgedAt),
+              this.flexRow('สถานะ', 'รอดำเนินการ'),
+            ],
+          },
+          footer: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            paddingAll: '16px',
+            contents: [
+              {
+                type: 'box',
+                layout: 'vertical',
+                backgroundColor: '#E8F5E9',
+                cornerRadius: '8px',
+                paddingAll: '10px',
+                contents: [
+                  {
+                    type: 'text',
+                    text: '✓ รับทราบแล้ว',
+                    color: '#1B5E20',
+                    size: 'sm',
+                    weight: 'bold',
+                    align: 'center',
+                  },
+                ],
+              },
+              {
+                type: 'button',
+                style: 'primary',
+                color: '#E65100',
+                action: { type: 'message', label: 'เสร็จแล้ว', text: `เสร็จแล้ว #${data.assignmentId}` },
+              },
+            ],
+          },
+        },
+      },
+    ];
+  }
+
   buildCompletionNotification(data: {
     caseTitle: string;
     completedByName: string;

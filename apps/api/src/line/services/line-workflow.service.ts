@@ -343,9 +343,25 @@ export class LineWorkflowService {
 
     try {
       await this.workflow.updateAssignmentStatus(assignmentId, 'accepted', Number(user.id));
-      await this.messaging.reply(replyToken, [
-        this.messaging.buildTextMessage(`รับทราบงาน #${assignmentId} เรียบร้อยแล้ว`),
-      ]);
+
+      const assignment = await this.prisma.caseAssignment.findUnique({
+        where: { id: BigInt(assignmentId) },
+        include: { inboundCase: { select: { title: true, registrationNo: true } } },
+      });
+
+      const acknowledgedAt = new Date().toLocaleTimeString('th-TH', {
+        hour: '2-digit', minute: '2-digit',
+      }) + ' น.';
+
+      await this.messaging.reply(
+        replyToken,
+        this.messaging.buildAcknowledgedNotification({
+          caseTitle: assignment?.inboundCase.title ?? '-',
+          registrationNo: assignment?.inboundCase.registrationNo ?? '-',
+          assignmentId,
+          acknowledgedAt,
+        }),
+      );
     } catch (err) {
       await this.messaging.reply(replyToken, [
         this.messaging.buildTextMessage(err.message || 'เกิดข้อผิดพลาด'),
