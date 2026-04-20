@@ -75,25 +75,28 @@ describe('CasesController', () => {
   // ─── listCases() ─────────────────────────────────────────────────────────
 
   describe('listCases()', () => {
-    it('converts string query params to numbers and passes them correctly', () => {
+    const adminUser = { id: '1', organizationId: '1', roleCode: 'ADMIN' };
+    const teacherUser = { id: '2', organizationId: '5', roleCode: 'TEACHER' };
+
+    it('ADMIN with orgId param: uses the given orgId', () => {
       mockCasesService.listCases.mockReturnValue([]);
-      controller.listCases('1', 'proposed', undefined, undefined, undefined, undefined, undefined, undefined, '20', '0');
+      controller.listCases(adminUser, '1', 'proposed', undefined, undefined, undefined, undefined, undefined, undefined, '20', '0');
       expect(mockCasesService.listCases).toHaveBeenCalledWith(
         expect.objectContaining({ organizationId: 1, status: 'proposed', take: 20, skip: 0 }),
       );
     });
 
-    it('passes undefined when optional query params are omitted', () => {
+    it('non-ADMIN: always uses own organizationId regardless of query param', () => {
       mockCasesService.listCases.mockReturnValue([]);
-      controller.listCases();
+      controller.listCases(teacherUser, '99');
       expect(mockCasesService.listCases).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: undefined, take: undefined }),
+        expect.objectContaining({ organizationId: 5 }),
       );
     });
 
     it('passes responseRequiredOnly=true when query param is "true"', () => {
       mockCasesService.listCases.mockReturnValue([]);
-      controller.listCases(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'true');
+      controller.listCases(teacherUser, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'true');
       expect(mockCasesService.listCases).toHaveBeenCalledWith(
         expect.objectContaining({ responseRequiredOnly: true }),
       );

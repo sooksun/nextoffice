@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, Optional, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';

@@ -1,6 +1,7 @@
-import { Controller, Get, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, ParseIntPipe, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ReportsService } from './reports.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -14,19 +15,32 @@ export class ReportsController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private assertOrgAccess(user: any, organizationId: number) {
+    if (user.roleCode === 'ADMIN') return;
+    if (Number(user.organizationId) !== organizationId) {
+      throw new ForbiddenException('ไม่สามารถเข้าถึงข้อมูลของหน่วยงานอื่น');
+    }
+  }
+
   @Get(':organizationId/summary')
   @ApiOperation({ summary: 'สรุปภาพรวม: จำนวนรับ/ส่ง, สถานะ, urgency, งานค้าง' })
   @ApiQuery({ name: 'academicYearId', required: false, type: Number })
   getSummary(
+    @CurrentUser() user: any,
     @Param('organizationId', ParseIntPipe) organizationId: number,
     @Query('academicYearId') academicYearId?: string,
   ) {
+    this.assertOrgAccess(user, organizationId);
     return this.svc.getSummary(organizationId, academicYearId ? Number(academicYearId) : undefined);
   }
 
   @Get(':organizationId/workload')
   @ApiOperation({ summary: 'ภาระงานรายบุคคล (งานที่ยังค้างอยู่ต่อคน)' })
-  getWorkload(@Param('organizationId', ParseIntPipe) organizationId: number) {
+  getWorkload(
+    @CurrentUser() user: any,
+    @Param('organizationId', ParseIntPipe) organizationId: number,
+  ) {
+    this.assertOrgAccess(user, organizationId);
     return this.svc.getWorkloadByUser(organizationId);
   }
 
@@ -34,9 +48,11 @@ export class ReportsController {
   @ApiOperation({ summary: 'แนวโน้มรายเดือน: รับ/ส่ง/ด่วน' })
   @ApiQuery({ name: 'year', required: false, type: Number, description: 'ปีพ.ศ. เช่น 2568' })
   getMonthlyTrend(
+    @CurrentUser() user: any,
     @Param('organizationId', ParseIntPipe) organizationId: number,
     @Query('year') year?: string,
   ) {
+    this.assertOrgAccess(user, organizationId);
     const now = new Date();
     const buddhistYear = year ? Number(year) : now.getFullYear() + 543;
     return this.svc.getMonthlyTrend(organizationId, buddhistYear);
@@ -48,11 +64,13 @@ export class ReportsController {
   @ApiQuery({ name: 'userId', required: false, type: Number })
   @ApiQuery({ name: 'take', required: false, type: Number })
   async getAuditTrail(
+    @CurrentUser() user: any,
     @Param('organizationId', ParseIntPipe) organizationId: number,
     @Query('action') action?: string,
     @Query('userId') userId?: string,
     @Query('take') take?: string,
   ) {
+    this.assertOrgAccess(user, organizationId);
     const where: any = {
       inboundCase: { organizationId: BigInt(organizationId) },
     };
@@ -87,7 +105,11 @@ export class ReportsController {
 
   @Get(':organizationId/processing-times')
   @ApiOperation({ summary: 'V2: เวลาเฉลี่ยในแต่ละขั้นตอน' })
-  getProcessingTimes(@Param('organizationId', ParseIntPipe) organizationId: number) {
+  getProcessingTimes(
+    @CurrentUser() user: any,
+    @Param('organizationId', ParseIntPipe) organizationId: number,
+  ) {
+    this.assertOrgAccess(user, organizationId);
     return this.svc.getProcessingTimes(organizationId);
   }
 
@@ -95,7 +117,11 @@ export class ReportsController {
 
   @Get(':organizationId/bottlenecks')
   @ApiOperation({ summary: 'V2: จุดที่งานค้างนานที่สุด' })
-  getBottlenecks(@Param('organizationId', ParseIntPipe) organizationId: number) {
+  getBottlenecks(
+    @CurrentUser() user: any,
+    @Param('organizationId', ParseIntPipe) organizationId: number,
+  ) {
+    this.assertOrgAccess(user, organizationId);
     return this.svc.getBottlenecks(organizationId);
   }
 
@@ -103,7 +129,11 @@ export class ReportsController {
 
   @Get(':organizationId/kpi')
   @ApiOperation({ summary: 'V2: KPI Dashboard' })
-  getKpi(@Param('organizationId', ParseIntPipe) organizationId: number) {
+  getKpi(
+    @CurrentUser() user: any,
+    @Param('organizationId', ParseIntPipe) organizationId: number,
+  ) {
+    this.assertOrgAccess(user, organizationId);
     return this.svc.getKpi(organizationId);
   }
 
@@ -111,7 +141,14 @@ export class ReportsController {
 
   @Get('district/:parentOrgId/summary')
   @ApiOperation({ summary: 'V2 Phase 4: สรุปภาพรวมระดับเขต (รวมทุกโรงเรียน)' })
-  getDistrictSummary(@Param('parentOrgId', ParseIntPipe) parentOrgId: number) {
+  getDistrictSummary(
+    @CurrentUser() user: any,
+    @Param('parentOrgId', ParseIntPipe) parentOrgId: number,
+  ) {
+    // District summary: must belong to the district org OR be ADMIN
+    if (user.roleCode !== 'ADMIN' && Number(user.organizationId) !== parentOrgId) {
+      throw new ForbiddenException('ไม่สามารถเข้าถึงข้อมูลของเขตพื้นที่อื่น');
+    }
     return this.svc.getDistrictSummary(parentOrgId);
   }
 
@@ -120,8 +157,10 @@ export class ReportsController {
   @Get(':organizationId/executive-snapshot')
   @ApiOperation({ summary: 'V2: สรุปภาพรวมประจำวันสำหรับผู้บริหาร' })
   async getExecutiveSnapshot(
+    @CurrentUser() user: any,
     @Param('organizationId', ParseIntPipe) organizationId: number,
   ) {
+    this.assertOrgAccess(user, organizationId);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);

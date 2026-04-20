@@ -146,9 +146,13 @@ export class AuthService {
 
   // ─── Register ───────────────────────────────────────────────────────────────
 
-  async register(dto: RegisterDto, callerRole: string) {
+  async register(dto: RegisterDto, callerRole: string, callerOrgId?: number) {
     if (dto.roleCode === 'ADMIN' && callerRole !== 'ADMIN') {
       throw new ForbiddenException('เฉพาะ ADMIN เท่านั้นที่สร้างบัญชี ADMIN ได้');
+    }
+    // Non-ADMIN callers can only create accounts in their own org
+    if (callerRole !== 'ADMIN' && dto.organizationId && dto.organizationId !== callerOrgId) {
+      throw new ForbiddenException('ไม่สามารถสร้างบัญชีในหน่วยงานอื่น');
     }
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -159,14 +163,17 @@ export class AuthService {
 
     const passwordHash = await this.hashPassword(dto.password);
 
+    // Default to caller's org if not specified
+    const targetOrgId = dto.organizationId ?? callerOrgId;
+
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
         fullName: dto.fullName,
         roleCode: dto.roleCode,
-        organizationId: dto.organizationId
-          ? BigInt(dto.organizationId)
+        organizationId: targetOrgId
+          ? BigInt(targetOrgId)
           : undefined,
         positionTitle: dto.positionTitle,
         department: dto.department,

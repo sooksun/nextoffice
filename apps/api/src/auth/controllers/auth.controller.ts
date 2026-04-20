@@ -50,7 +50,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'สร้างบัญชีผู้ใช้ใหม่ (เฉพาะ ADMIN / DIRECTOR) — ADMIN เท่านั้นสร้าง ADMIN ได้' })
   async register(@Body() dto: RegisterDto, @CurrentUser() user: any) {
-    return this.authService.register(dto, user.roleCode);
+    return this.authService.register(dto, user.roleCode, Number(user.organizationId));
   }
 
   @Get('me')

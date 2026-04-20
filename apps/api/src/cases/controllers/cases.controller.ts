@@ -40,6 +40,7 @@ export class CasesController {
   @ApiQuery({ name: 'responseRequiredOnly', required: false, description: 'true = เฉพาะหนังสือที่ต้องการตอบสนอง' })
   @ApiQuery({ name: 'includeReplied', required: false, description: 'false = ตัดหนังสือที่ตอบไปแล้ว' })
   listCases(
+    @CurrentUser() user: any,
     @Query('organizationId') orgId?: string,
     @Query('status') status?: string,
     @Query('urgencyLevel') urgencyLevel?: string,
@@ -53,8 +54,12 @@ export class CasesController {
     @Query('responseRequiredOnly') responseRequiredOnly?: string,
     @Query('includeReplied') includeReplied?: string,
   ) {
+    // ADMIN can query any org; other roles are locked to their own org
+    const effectiveOrgId = user.roleCode === 'ADMIN' && orgId
+      ? Number(orgId)
+      : Number(user.organizationId);
     return this.svc.listCases({
-      organizationId: orgId ? Number(orgId) : undefined,
+      organizationId: effectiveOrgId,
       status,
       urgencyLevel,
       assignedToUserId: assignedToUserId ? Number(assignedToUserId) : undefined,
@@ -71,9 +76,15 @@ export class CasesController {
 
   @Get('overdue')
   @ApiOperation({ summary: 'งานค้าง (เกิน deadline)' })
-  @ApiQuery({ name: 'organizationId', required: false, type: Number })
-  getOverdue(@Query('organizationId') orgId?: string) {
-    return this.svc.getOverdue(orgId ? Number(orgId) : undefined);
+  @ApiQuery({ name: 'organizationId', required: false, type: Number, description: 'ADMIN เท่านั้นที่ระบุ org อื่นได้' })
+  getOverdue(
+    @CurrentUser() user: any,
+    @Query('organizationId') orgId?: string,
+  ) {
+    const effectiveOrgId = user.roleCode === 'ADMIN' && orgId
+      ? Number(orgId)
+      : Number(user.organizationId);
+    return this.svc.getOverdue(effectiveOrgId);
   }
 
   @Get('my-tasks')
