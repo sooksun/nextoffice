@@ -17,6 +17,7 @@ export interface StampZone {
 export interface StampZoneResult {
   zones: StampZone[];
   signaturePageIndex: number; // 0-based page index where signature was found
+  isImagePdf: boolean;        // true = scanned/image PDF (placements came from Vision, not grid)
 }
 
 /** Bounding rect for an extracted text item (PDF points, y from bottom). */
@@ -72,6 +73,17 @@ export class EmptySpaceService {
       const pageW = viewport.width;
       const pageH = viewport.height;
 
+      const textContent = await page.getTextContent();
+
+      // ── Image-PDF branch ────────────────────────────────────────────────
+      // pdfjs-dist returns empty items for scanned/rasterized PDFs → grid
+      // detection is useless. Use Vision directly for per-stamp Y targets.
+      if (textContent.items.length === 0) {
+        this.logger.log(`Image-based PDF detected (page ${signaturePageIndex + 1}) — using Vision placement`);
+        return this.findStampZonesForImagePdf(pdfBuffer, specs, pageW, pageH, signaturePageIndex);
+      }
+
+      // ── Text-PDF branch (existing grid-based logic) ────────────────────
       const CELL = this.CELL;
       const cols = Math.ceil(pageW / CELL);
       const rows = Math.ceil(pageH / CELL);
@@ -79,37 +91,22 @@ export class EmptySpaceService {
 
       this.markBorder(grid, cols, rows, 2);
 
-      // Extract text items → grid + text rects for recheck
-      const textContent = await page.getTextContent();
       const textRects: TextRect[] = [];
-
       for (const item of textContent.items as any[]) {
         if (!item.transform) continue;
         const ix = item.transform[4];
         const iy = item.transform[5];
         const iw = Math.max(item.width ?? 0, 6);
         const ih = Math.max(item.height ?? 12, 10);
-        // Grid marking: generous padding for Thai diacritics + line spacing
         this.markArea(grid, cols, rows, ix - 8, iy - 6, iw + 16, ih + 20);
-        // Store actual rect for text-item recheck (tighter, no padding)
         textRects.push({ x: ix, y: iy, w: iw, h: ih });
       }
 
-      // Detect complimentary close Y level (คำลงท้าย)
-      let closeY = this.detectComplimentaryCloseY(textContent.items as any[], pageH);
+      const closeY = this.detectComplimentaryCloseY(textContent.items as any[], pageH);
       if (closeY !== null) {
         this.logger.debug(`Complimentary close at Y=${closeY} on page ${signaturePageIndex + 1}`);
       }
 
-      // Image PDF (no extractable text) — ask Gemini Vision for signature position
-      if (closeY === null && textContent.items.length === 0) {
-        closeY = await this.detectCloseYFromVision(pdfBuffer, pageH);
-        if (closeY !== null) {
-          this.logger.debug(`Vision-detected closeY=${closeY} on page ${signaturePageIndex + 1}`);
-        }
-      }
-
-      // Find zones
       const zones: StampZone[] = [];
       for (const spec of specs) {
         let zone: StampZone;
@@ -122,10 +119,113 @@ export class EmptySpaceService {
         this.markArea(grid, cols, rows, zone.x - 4, zone.y - 4, zone.w + 8, zone.h + 8);
       }
 
-      return { zones, signaturePageIndex };
+      return { zones, signaturePageIndex, isImagePdf: false };
     } catch (e) {
       this.logger.warn(`Empty-space detection failed (${e.message}) — using fallback positions`);
-      return { zones: this.fallback(specs), signaturePageIndex: 0 };
+      return { zones: this.fallback(specs), signaturePageIndex: 0, isImagePdf: false };
+    }
+  }
+
+  // ─── Image-PDF placement (Vision-based) ──────────────────────────────────
+  //
+  // Scanned PDFs have no extractable text → grid is empty → old weighted-scan
+  // picked positions blindly and stamps overlapped ink. Instead we ask Gemini
+  // Vision for per-stamp Y targets based on actual pixel content.
+
+  private async findStampZonesForImagePdf(
+    pdfBuffer: Buffer, specs: StampSpec[],
+    pageW: number, pageH: number, signaturePageIndex: number,
+  ): Promise<StampZoneResult> {
+    const targets = await this.detectStampTargetsFromVision(pdfBuffer, pageH);
+
+    const zones: StampZone[] = specs.map((spec) => {
+      switch (spec.preference) {
+        case 'top-right':
+          return {
+            x: Math.max(8, pageW - spec.w - 8),
+            y: pageH - spec.h - 8,
+            w: spec.w, h: spec.h,
+          };
+        case 'top-left':
+          return { x: 8, y: pageH - spec.h - 8, w: spec.w, h: spec.h };
+        case 'lower-half-left': {
+          // Stamp 2 — TOP aligned to Vision's stamp2Y (pdf-lib coord from bottom)
+          const topY = targets?.stamp2Y ?? pageH * 0.25;
+          const y = Math.max(10, Math.min(topY - spec.h, pageH - spec.h - 10));
+          return { x: 10, y, w: spec.w, h: spec.h };
+        }
+        case 'lower-half-right': {
+          const topY = targets?.stamp3Y ?? pageH * 0.18;
+          const y = Math.max(10, Math.min(topY - spec.h, pageH - spec.h - 10));
+          return { x: Math.max(8, pageW - spec.w - 10), y, w: spec.w, h: spec.h };
+        }
+        case 'bottom-left':
+          return { x: 40, y: 80, w: spec.w, h: spec.h };
+        case 'bottom-right':
+          return { x: Math.max(8, pageW - spec.w - 40), y: 80, w: spec.w, h: spec.h };
+        default:
+          return { x: 40, y: 80, w: spec.w, h: spec.h };
+      }
+    });
+
+    if (targets) {
+      this.logger.debug(
+        `Image-PDF Vision placement — stamp2Y=${targets.stamp2Y.toFixed(0)}, stamp3Y=${targets.stamp3Y.toFixed(0)} (pageH=${pageH.toFixed(0)})`,
+      );
+    } else {
+      this.logger.warn('Vision placement unavailable — using safe defaults for image PDF');
+    }
+
+    return { zones, signaturePageIndex, isImagePdf: true };
+  }
+
+  /**
+   * Ask Gemini Vision for safe per-stamp Y targets on an image/scanned PDF.
+   * Returns TOP baselines (pdf-lib Y, from bottom) for stamp 2 (left) and
+   * stamp 3 (right) — each chosen to land on actual whitespace.
+   */
+  private async detectStampTargetsFromVision(
+    pdfBuffer: Buffer, pageH: number,
+  ): Promise<{ stamp2Y: number; stamp3Y: number } | null> {
+    if (!this.gemini.getApiKey()) return null;
+    try {
+      const base64 = pdfBuffer.toString('base64');
+      const prompt =
+        'นี่คือหนังสือราชการไทยที่สแกนเป็นรูปภาพ (image-based PDF). ' +
+        'เราจะประทับตรา 2 ตรา ลงบน "พื้นที่ว่างสีขาว" ของหน้านี้ — ' +
+        'ห้ามทับตัวอักษร ลายเซ็น ตราประทับเดิม ภาพครุฑ หรือคำขวัญท้ายหน้า\n\n' +
+        '- ตราที่ 2 (ขนาดประมาณ 220×120 จุด) วางชิดขอบซ้าย ระยะ 10 จุดจากซ้าย\n' +
+        '- ตราที่ 3 (ขนาดประมาณ 180×80 จุด) วางชิดขอบขวา ระยะ 10 จุดจากขวา\n\n' +
+        'สำหรับแต่ละตรา ให้ระบุตำแหน่ง "ขอบบนสุด" ของตรา เป็นสัดส่วนจากขอบบนของหน้า (0.0 = ติดบนสุด, 1.0 = ติดล่างสุด) ' +
+        'เลือกพื้นที่ว่างที่สูงพอ (อย่างน้อย 90 จุด) และไม่ทับเนื้อหาใด ๆ\n\n' +
+        'ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:\n' +
+        '{"stamp2TopFromTop": <0-1>, "stamp3TopFromTop": <0-1>}';
+
+      const raw = await this.gemini.generateFromParts({
+        parts: [
+          { inlineData: { mimeType: 'application/pdf', data: base64 } },
+          { text: prompt },
+        ],
+        maxOutputTokens: 128,
+        temperature: 0,
+      });
+
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) return null;
+      const parsed = JSON.parse(match[0]);
+      const f2 = parsed?.stamp2TopFromTop;
+      const f3 = parsed?.stamp3TopFromTop;
+      if (typeof f2 !== 'number' || f2 < 0.3 || f2 > 0.99) return null;
+      if (typeof f3 !== 'number' || f3 < 0.3 || f3 > 0.99) return null;
+
+      // Convert top-fraction → pdf-lib Y (distance from bottom)
+      return {
+        stamp2Y: pageH * (1 - f2),
+        stamp3Y: pageH * (1 - f3),
+      };
+    } catch (err) {
+      this.logger.warn(`Vision stamp-targets failed: ${(err as Error).message}`);
+      return null;
     }
   }
 

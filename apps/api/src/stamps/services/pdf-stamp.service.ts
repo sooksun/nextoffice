@@ -103,17 +103,20 @@ export class PdfStampService {
       { w: w3,  h: h3,  preference: 'lower-half-right' as const },
     ];
 
-    const { zones, signaturePageIndex } = await this.emptySpace.findStampZones(pdfBuffer, specs);
+    const { zones, signaturePageIndex, isImagePdf } = await this.emptySpace.findStampZones(pdfBuffer, specs);
 
     // Stamp 1 always on page 1; stamps 2 & 3 on the signature page
     const sigPage = pdfDoc.getPages()[signaturePageIndex] ?? page;
 
     // Stamp 1: y locked 8pt from top of page (scaled)
     if (zones[0]) zones[0] = { ...zones[0], y: pageH - s1H - Math.round(8 * ss) };
-    // Stamp 2: shift up 20pt from complimentary close baseline (scaled)
-    if (zones[1]) zones[1] = { ...zones[1], y: zones[1].y + Math.round(20 * ss) };
-    // Stamp 3: shift up 40pt relative to computed zone (scaled)
-    if (zones[2]) zones[2] = { ...zones[2], y: zones[2].y + Math.round(40 * ss) };
+
+    // For TEXT PDFs, shift stamps 2/3 up relative to complimentary-close baseline.
+    // For IMAGE PDFs, Vision already returned final per-stamp Y targets — skip tuning.
+    if (!isImagePdf) {
+      if (zones[1]) zones[1] = { ...zones[1], y: zones[1].y + Math.round(20 * ss) };
+      if (zones[2]) zones[2] = { ...zones[2], y: zones[2].y + Math.round(40 * ss) };
+    }
 
     // ── 3. Render PNGs at original A4 dimensions (crisp 3× canvas) ─────────
     const [png1, png2, png3] = await Promise.all([
