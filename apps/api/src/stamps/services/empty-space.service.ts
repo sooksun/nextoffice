@@ -126,36 +126,47 @@ export class EmptySpaceService {
     }
   }
 
-  // ─── Image-PDF placement (Vision-based) ──────────────────────────────────
+  // ─── Image-PDF placement (raster CV + Vision fallback) ──────────────────
   //
-  // Scanned PDFs have no extractable text → grid is empty → old weighted-scan
-  // picked positions blindly and stamps overlapped ink. Instead we ask Gemini
-  // Vision for per-stamp Y targets based on actual pixel content.
+  // Strategy for scanned/image PDFs (pdfjs-dist returns 0 text items):
+  //   1. CV raster (primary): render page → binarize → find "closing section
+  //      start" = first ink row after a blank gap in bottom 50%. This is the
+  //      Y of "ขอแสดงความนับถือ"-equivalent on the raster.
+  //   2. Vision (fallback): ask Gemini for closeY fraction if raster fails.
+  //   3. Safe default (0.25 × pageH from bottom) if both unavailable.
+  //
+  // Stamp 2 (left) and Stamp 3 (right) share the SAME Y — TOP baseline
+  // aligned to the detected closing-section start. X is fixed at left/right
+  // margins (10pt from page edges).
 
   private async findStampZonesForImagePdf(
     pdfBuffer: Buffer, specs: StampSpec[],
     pageW: number, pageH: number, signaturePageIndex: number,
   ): Promise<StampZoneResult> {
-    const targets = await this.detectStampTargetsFromVision(pdfBuffer, pageH);
+    // 1. Try raster CV first (fast, pixel-accurate, no API call)
+    let closingY = await this.findClosingSectionYFromRaster(pdfBuffer, signaturePageIndex, pageH);
+    let source: 'raster' | 'vision' | 'default' = closingY !== null ? 'raster' : 'default';
+
+    // 2. Fallback: Vision API
+    if (closingY === null) {
+      closingY = await this.detectCloseYFromVision(pdfBuffer, pageH);
+      if (closingY !== null) source = 'vision';
+    }
 
     const zones: StampZone[] = specs.map((spec) => {
       switch (spec.preference) {
         case 'top-right':
-          return {
-            x: Math.max(8, pageW - spec.w - 8),
-            y: pageH - spec.h - 8,
-            w: spec.w, h: spec.h,
-          };
+          return { x: Math.max(8, pageW - spec.w - 8), y: pageH - spec.h - 8, w: spec.w, h: spec.h };
         case 'top-left':
           return { x: 8, y: pageH - spec.h - 8, w: spec.w, h: spec.h };
         case 'lower-half-left': {
-          // Stamp 2 — TOP aligned to Vision's stamp2Y (pdf-lib coord from bottom)
-          const topY = targets?.stamp2Y ?? pageH * 0.25;
+          const topY = closingY ?? pageH * 0.25;
           const y = Math.max(10, Math.min(topY - spec.h, pageH - spec.h - 10));
           return { x: 10, y, w: spec.w, h: spec.h };
         }
         case 'lower-half-right': {
-          const topY = targets?.stamp3Y ?? pageH * 0.18;
+          // Same Y as stamp 2 per user spec — consistency is important for Thai letters
+          const topY = closingY ?? pageH * 0.25;
           const y = Math.max(10, Math.min(topY - spec.h, pageH - spec.h - 10));
           return { x: Math.max(8, pageW - spec.w - 10), y, w: spec.w, h: spec.h };
         }
@@ -168,63 +179,138 @@ export class EmptySpaceService {
       }
     });
 
-    if (targets) {
-      this.logger.debug(
-        `Image-PDF Vision placement — stamp2Y=${targets.stamp2Y.toFixed(0)}, stamp3Y=${targets.stamp3Y.toFixed(0)} (pageH=${pageH.toFixed(0)})`,
-      );
-    } else {
-      this.logger.warn('Vision placement unavailable — using safe defaults for image PDF');
-    }
+    this.logger.debug(
+      `Image-PDF placement [${source}] — closingY=${closingY?.toFixed(0) ?? 'n/a'} (pageH=${pageH.toFixed(0)})`,
+    );
 
     return { zones, signaturePageIndex, isImagePdf: true };
   }
 
   /**
-   * Ask Gemini Vision for safe per-stamp Y targets on an image/scanned PDF.
-   * Returns TOP baselines (pdf-lib Y, from bottom) for stamp 2 (left) and
-   * stamp 3 (right) — each chosen to land on actual whitespace.
+   * Primary CV method for image/scanned PDFs.
+   *
+   * Renders the signature page to a 1500px-wide raster using @napi-rs/canvas,
+   * builds a binary ink mask (gray < 200 = ink), then finds the FIRST ink row
+   * in the bottom 50% of the page that appears AFTER a significant blank gap.
+   *
+   * In Thai official letters this pattern reliably maps to the top of the
+   * closing section — the row containing "ขอแสดงความนับถือ" — which is the
+   * same baseline the text-PDF path uses as `closeY`.
+   *
+   * Returns pdf-lib Y (from bottom) or null if rendering / detection fails.
    */
-  private async detectStampTargetsFromVision(
-    pdfBuffer: Buffer, pageH: number,
-  ): Promise<{ stamp2Y: number; stamp3Y: number } | null> {
-    if (!this.gemini.getApiKey()) return null;
+  private async findClosingSectionYFromRaster(
+    pdfBuffer: Buffer, pageIndex: number, pageHPt: number,
+  ): Promise<number | null> {
     try {
-      const base64 = pdfBuffer.toString('base64');
-      const prompt =
-        'นี่คือหนังสือราชการไทยที่สแกนเป็นรูปภาพ (image-based PDF). ' +
-        'เราจะประทับตรา 2 ตรา ลงบน "พื้นที่ว่างสีขาว" ของหน้านี้ — ' +
-        'ห้ามทับตัวอักษร ลายเซ็น ตราประทับเดิม ภาพครุฑ หรือคำขวัญท้ายหน้า\n\n' +
-        '- ตราที่ 2 (ขนาดประมาณ 220×120 จุด) วางชิดขอบซ้าย ระยะ 10 จุดจากซ้าย\n' +
-        '- ตราที่ 3 (ขนาดประมาณ 180×80 จุด) วางชิดขอบขวา ระยะ 10 จุดจากขวา\n\n' +
-        'สำหรับแต่ละตรา ให้ระบุตำแหน่ง "ขอบบนสุด" ของตรา เป็นสัดส่วนจากขอบบนของหน้า (0.0 = ติดบนสุด, 1.0 = ติดล่างสุด) ' +
-        'เลือกพื้นที่ว่างที่สูงพอ (อย่างน้อย 90 จุด) และไม่ทับเนื้อหาใด ๆ\n\n' +
-        'ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:\n' +
-        '{"stamp2TopFromTop": <0-1>, "stamp3TopFromTop": <0-1>}';
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { createCanvas } = require('@napi-rs/canvas');
 
-      const raw = await this.gemini.generateFromParts({
-        parts: [
-          { inlineData: { mimeType: 'application/pdf', data: base64 } },
-          { text: prompt },
-        ],
-        maxOutputTokens: 128,
-        temperature: 0,
-      });
+      const doc = await pdfjsLib.getDocument({
+        data: new Uint8Array(pdfBuffer),
+        disableFontFace: true,
+        useSystemFonts: false,
+      }).promise;
 
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (!match) return null;
-      const parsed = JSON.parse(match[0]);
-      const f2 = parsed?.stamp2TopFromTop;
-      const f3 = parsed?.stamp3TopFromTop;
-      if (typeof f2 !== 'number' || f2 < 0.3 || f2 > 0.99) return null;
-      if (typeof f3 !== 'number' || f3 < 0.3 || f3 > 0.99) return null;
+      const page = await doc.getPage(pageIndex + 1);
+      const vp1 = page.getViewport({ scale: 1.0 });
 
-      // Convert top-fraction → pdf-lib Y (distance from bottom)
-      return {
-        stamp2Y: pageH * (1 - f2),
-        stamp3Y: pageH * (1 - f3),
+      // Normalize to fixed raster width so kernel / density thresholds stay constant
+      const TARGET_W = 1500;
+      const scale = TARGET_W / vp1.width;
+      const vp = page.getViewport({ scale });
+      const imgW = Math.floor(vp.width);
+      const imgH = Math.floor(vp.height);
+
+      const canvas = createCanvas(imgW, imgH);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, imgW, imgH);
+
+      // Custom canvasFactory so pdfjs doesn't attempt to require node-canvas
+      const canvasFactory = {
+        create(w: number, h: number) {
+          const c = createCanvas(w, h);
+          return { canvas: c, context: c.getContext('2d') };
+        },
+        reset(obj: any, w: number, h: number) {
+          obj.canvas.width = w;
+          obj.canvas.height = h;
+        },
+        destroy(obj: any) {
+          obj.canvas.width = 0;
+          obj.canvas.height = 0;
+          obj.canvas = null;
+          obj.context = null;
+        },
       };
+
+      await page.render({
+        canvasContext: ctx as any,
+        viewport: vp,
+        canvasFactory,
+      }).promise;
+
+      const imageData = ctx.getImageData(0, 0, imgW, imgH);
+
+      // ── Row-density histogram in bottom 50%, ignoring 5% edge margins ──
+      const rowStart = Math.floor(imgH * 0.50);
+      const rowEnd = Math.floor(imgH * 0.97);
+      const marginX = Math.floor(imgW * 0.05);
+      const usableW = imgW - 2 * marginX;
+      const INK_GRAY = 200;
+
+      const rowInk = new Int32Array(rowEnd - rowStart + 1);
+      for (let y = rowStart; y <= rowEnd; y++) {
+        let count = 0;
+        const rowBase = y * imgW;
+        for (let x = marginX; x < imgW - marginX; x++) {
+          const pi = (rowBase + x) * 4;
+          const gray = (imageData.data[pi] + imageData.data[pi + 1] + imageData.data[pi + 2]) / 3;
+          if (gray < INK_GRAY) count++;
+        }
+        rowInk[y - rowStart] = count;
+      }
+
+      // ── Find start of closing section = first ink row after a gap ──
+      // Body → gap (blank rows) → "ขอแสดงความนับถือ" (ink resumes)
+      const inkThresh = Math.max(3, Math.floor(usableW * 0.003));  // ≥0.3% of width = real content
+      const minGapRows = Math.max(6, Math.floor(imgH * 0.015));     // ≥1.5% page height = significant gap
+
+      let inGap = false;
+      let gapLen = 0;
+      let closingYImage: number | null = null;
+
+      for (let i = 0; i < rowInk.length; i++) {
+        const hasInk = rowInk[i] > inkThresh;
+        if (!hasInk) {
+          gapLen++;
+          if (gapLen >= minGapRows) inGap = true;
+        } else {
+          if (inGap) {
+            closingYImage = rowStart + i;
+            break;
+          }
+          gapLen = 0;
+        }
+      }
+
+      // Secondary fallback: if no gap-then-ink pattern, use first ink row in bottom 50%
+      if (closingYImage === null) {
+        for (let i = 0; i < rowInk.length; i++) {
+          if (rowInk[i] > inkThresh) { closingYImage = rowStart + i; break; }
+        }
+      }
+
+      if (closingYImage === null) return null;
+
+      const fromTop = closingYImage / imgH;
+      return pageHPt * (1 - fromTop);
     } catch (err) {
-      this.logger.warn(`Vision stamp-targets failed: ${(err as Error).message}`);
+      this.logger.warn(`Raster CV failed: ${(err as Error).message}`);
       return null;
     }
   }
