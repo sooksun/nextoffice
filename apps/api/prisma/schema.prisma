@@ -71,7 +71,6 @@ model Organization {
   dispatchEntries      DispatchEntry[]
   documentLoans        DocumentLoan[]
   circularDocuments    CircularDocument[]
-  presentationFiles    PresentationFile[]
   downloadFiles        DownloadFile[]
   newsPosts            NewsPost[]
   tenderPosts          TenderPost[]
@@ -728,8 +727,6 @@ model User {
   loansBorrowed             DocumentLoan[]       @relation("LoanBorrower")
   loansApproved             DocumentLoan[]       @relation("LoanApprovedBy")
   circularDocuments         CircularDocument[]   @relation("CircularCreatedBy")
-  presentationFilesSent     PresentationFile[]   @relation("PresentationSender")
-  presentationFilesReceived PresentationFile[]   @relation("PresentationReceiver")
   downloadFilesUploaded     DownloadFile[]       @relation("DownloadFileUploadedBy")
   newsPosts                 NewsPost[]           @relation("NewsPostAuthor")
   tenderPosts               TenderPost[]         @relation("TenderPostAuthor")
@@ -1765,35 +1762,6 @@ model CircularRecipient {
   @@map("circular_recipients")
 }
 
-// ─────────────────────────────────────────────
-// PHASE: แฟ้มนำเสนอ (Presentation Files)
-// ─────────────────────────────────────────────
-
-model PresentationFile {
-  id             BigInt    @id @default(autoincrement())
-  organizationId BigInt    @map("organization_id")
-  title          String    @db.VarChar(500)
-  description    String?   @db.Text
-  fileUrl        String?   @map("file_url") @db.VarChar(500)
-  senderUserId   BigInt    @map("sender_user_id")
-  receiverUserId BigInt?   @map("receiver_user_id")
-  status         String    @db.VarChar(30) @default("pending")
-  directorNote   String?   @map("director_note") @db.Text
-  submittedAt    DateTime  @map("submitted_at") @default(now())
-  reviewedAt     DateTime? @map("reviewed_at")
-  createdAt      DateTime  @map("created_at") @default(now())
-  updatedAt      DateTime  @map("updated_at") @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id])
-  sender       User         @relation("PresentationSender", fields: [senderUserId], references: [id])
-  receiver     User?        @relation("PresentationReceiver", fields: [receiverUserId], references: [id])
-
-  @@index([organizationId])
-  @@index([senderUserId])
-  @@index([receiverUserId])
-  @@index([status])
-  @@map("presentation_files")
-}
 
 // ─────────────────────────────────────────────
 // PHASE: ดาวน์โหลด (Download Files)

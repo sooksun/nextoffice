@@ -37,7 +37,6 @@ import { DispatchModule } from './dispatch/dispatch.module';
 import { LoansModule } from './loans/loans.module';
 import { HandoverModule } from './handover/handover.module';
 import { CircularModule } from './circular/circular.module';
-import { PresentationModule } from './presentation/presentation.module';
 import { DownloadModule } from './download/download.module';
 import { NewsModule } from './news/news.module';
 import { TenderModule } from './tender/tender.module';
@@ -88,7 +87,6 @@ import { AdminModule } from './admin/admin.module';
     LoansModule,
     HandoverModule,
     CircularModule,
-    PresentationModule,
     DownloadModule,
     NewsModule,
     TenderModule,

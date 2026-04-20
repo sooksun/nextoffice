@@ -17,7 +17,6 @@ const LABEL_MAP: Record<string, string> = {
   cases: "เอกสารค้างรับ",
   inbox: "เอกสารเข้า",
   outbound: "เอกสารส่ง",
-  presentation: "แฟ้มนำเสนอ",
   director: "ผู้อำนวยการ",
   signing: "รอลงนาม",
   saraban: "สารบรรณ",

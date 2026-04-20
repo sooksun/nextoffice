@@ -91,17 +91,6 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       {
-        href: "/presentation",
-        label: "แฟ้มนำเสนอ",
-        icon: FolderKanban,
-        children: [
-          { href: "/presentation", label: "รับแฟ้มนำเสนอ" },
-          { href: "/presentation/send", label: "ส่งแฟ้มนำเสนอ" },
-          { href: "/presentation/register-in", label: "ทะเบียนแฟ้มรับ" },
-          { href: "/presentation/register-out", label: "ทะเบียนแฟ้มส่ง" },
-        ],
-      },
-      {
         href: "/saraban/external",
         label: "สารบรรณหน่วยงาน",
         icon: ScrollText,

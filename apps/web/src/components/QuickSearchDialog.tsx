@@ -50,7 +50,6 @@ const STATIC_ENTRIES: StaticEntry[] = [
   { label: "คลังเอกสาร", href: "/documents", group: "เอกสาร", icon: Folder, keywords: ["documents"] },
   { label: "เอกสารค้างรับ", href: "/cases", group: "เอกสาร", icon: FileText },
   { label: "ส่งเอกสาร", href: "/outbound/new", group: "เอกสาร", icon: FileText },
-  { label: "แฟ้มนำเสนอ", href: "/presentation", group: "เอกสาร", icon: Folder },
   { label: "สารบรรณหน่วยงาน", href: "/saraban/external", group: "สารบรรณ", icon: FileText },
   { label: "ทะเบียนรับ", href: "/saraban/inbound", group: "สารบรรณ", icon: FileText },
   { label: "ทะเบียนส่ง", href: "/saraban/outbound", group: "สารบรรณ", icon: FileText },
