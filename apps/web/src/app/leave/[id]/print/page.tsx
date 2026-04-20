@@ -70,12 +70,12 @@ function CB({ checked }: { checked: boolean }) {
 // ─── table cell styles ───────────────────────────────────────
 
 const th: React.CSSProperties = {
-  border: "1px solid #000", padding: "4px 8px",
-  textAlign: "center", fontWeight: "bold", fontSize: "13pt",
+  border: "1px solid #000", padding: "2px 5px",
+  textAlign: "center", fontWeight: "bold", fontSize: "10pt",
   backgroundColor: "#f0f0f0",
 };
 const td: React.CSSProperties = {
-  border: "1px solid #000", padding: "4px 8px", fontSize: "13pt",
+  border: "1px solid #000", padding: "2px 5px", fontSize: "10pt",
 };
 
 // ─── page ───────────────────────────────────────────────────
@@ -114,17 +114,18 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
     background: "#fff",
     color: "#000",
     width: "210mm",
-    minHeight: "297mm",
-    padding: "14mm 14mm 12mm 20mm",
+    height: "297mm",
+    padding: "8mm 12mm 8mm 16mm",
     fontFamily: "'TH Sarabun New', 'Sarabun', 'Angsana New', sans-serif",
-    fontSize: "15pt",
-    lineHeight: 1.8,
+    fontSize: "12pt",
+    lineHeight: 1.35,
     boxSizing: "border-box",
+    overflow: "hidden",
   };
 
   const row: React.CSSProperties = {
     display: "flex", alignItems: "baseline",
-    gap: 8, marginBottom: 2,
+    gap: 6, marginBottom: 1,
   };
 
   return (
@@ -142,25 +143,18 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
       <div style={paper}>
 
         {/* Title */}
-        <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "18pt", marginBottom: 10 }}>
+        <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "15pt", marginBottom: 4 }}>
           แบบใบลาป่วย  ลาคลอดบุตร  ลากิจส่วนตัว
         </div>
 
         {/* Written at / date */}
-        <div style={{ textAlign: "right" }}>
-          เขียนที่  {orgName}
-        </div>
-        <div style={{ textAlign: "right", marginBottom: 12 }}>
-          วันที่  {writtenDateTH}
-        </div>
+        <div style={{ textAlign: "right" }}>เขียนที่  {orgName}</div>
+        <div style={{ textAlign: "right", marginBottom: 4 }}>วันที่  {writtenDateTH}</div>
 
         {/* Subject / To */}
-        <div style={row}>
-          <span style={{ minWidth: 60 }}>เรื่อง</span>
-          <span>ขอลา{typeLabel}</span>
-        </div>
-        <div style={{ ...row, marginBottom: 12 }}>
-          <span style={{ minWidth: 60 }}>เรียน</span>
+        <div style={row}><span style={{ minWidth: 50 }}>เรื่อง</span><span>ขอลา{typeLabel}</span></div>
+        <div style={{ ...row, marginBottom: 6 }}>
+          <span style={{ minWidth: 50 }}>เรียน</span>
           <span>ผู้อำนวยการ{orgName !== "-" ? " " + orgName : ""}</span>
         </div>
 
@@ -168,80 +162,68 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
         <div style={row}>
           <span style={{ whiteSpace: "nowrap" }}>ข้าพเจ้า</span>
           <span style={{ fontWeight: "600" }}>{fullName}</span>
-          <span style={{ whiteSpace: "nowrap", marginLeft: 12 }}>ตำแหน่ง</span>
+          <span style={{ whiteSpace: "nowrap", marginLeft: 8 }}>ตำแหน่ง</span>
           <span>{positionTitle}</span>
         </div>
-        <div style={{ ...row, marginBottom: 12 }}>
-          <span>สังกัด</span>
-          <span>{orgName}</span>
+        <div style={{ ...row, marginBottom: 4 }}>
+          <span>สังกัด</span><span>{orgName}</span>
         </div>
 
         {/* Leave type checkboxes */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 4 }}>
-          <span style={{ minWidth: 60 }}>ขอลา</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 2 }}>
+          <span style={{ minWidth: 50 }}>ขอลา</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             <div><CB checked={isSick} />ป่วย</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span><CB checked={isPersonal} />กิจส่วนตัว</span>
-              {isPersonal && leave.reason && (
-                <span>เนื่องจาก  {leave.reason}</span>
-              )}
+              {isPersonal && leave.reason && <span>เนื่องจาก  {leave.reason}</span>}
             </div>
             <div><CB checked={isMaternity} />คลอดบุตร</div>
           </div>
         </div>
 
-        {/* Reason (for sick) */}
+        {/* Reason (sick) */}
         {isSick && leave.reason && (
-          <div style={{ ...row, marginBottom: 4 }}>
-            <span>เนื่องจาก</span>
-            <span>{leave.reason}</span>
-          </div>
+          <div style={row}><span>เนื่องจาก</span><span>{leave.reason}</span></div>
         )}
 
         {/* Dates */}
-        <div style={{ ...row, marginBottom: 4 }}>
+        <div style={{ ...row, marginBottom: 2 }}>
           <span style={{ whiteSpace: "nowrap" }}>ตั้งแต่วันที่</span>
           <span style={{ fontWeight: "600" }}>{startDateTH}</span>
-          <span style={{ whiteSpace: "nowrap", marginLeft: 8 }}>ถึงวันที่</span>
+          <span style={{ whiteSpace: "nowrap", marginLeft: 6 }}>ถึงวันที่</span>
           <span style={{ fontWeight: "600" }}>{endDateTH}</span>
-          <span style={{ whiteSpace: "nowrap", marginLeft: 8 }}>มีกำหนด</span>
-          <span style={{ fontWeight: "700", fontSize: "16pt" }}>{days}</span>
+          <span style={{ whiteSpace: "nowrap", marginLeft: 6 }}>มีกำหนด</span>
+          <span style={{ fontWeight: "700" }}>{days}</span>
           <span>วัน</span>
         </div>
 
         {/* Previous leave */}
-        <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 6, marginBottom: 2 }}>
+        <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 4, marginBottom: 2 }}>
           <span>ข้าพเจ้าได้</span>
           <span><CB checked={isSick} />ลาป่วย</span>
           <span><CB checked={isPersonal} />กิจส่วนตัว</span>
           <span><CB checked={isMaternity} />คลอดบุตร</span>
-          <span>ครั้งสุดท้ายตั้งแต่วันที่  -  ถึงวันที่  -  มีกำหนด  -  วัน</span>
+          <span>ครั้งสุดท้ายตั้งแต่วันที่ — ถึงวันที่ — มีกำหนด — วัน</span>
         </div>
 
         {/* Contact */}
-        <div style={{ ...row, marginBottom: 4 }}>
+        <div style={{ ...row, marginBottom: 2 }}>
           <span style={{ whiteSpace: "nowrap" }}>ในระหว่างลาจะติดต่อข้าพเจ้าได้ที่</span>
           <span>{contactStr}</span>
         </div>
 
         {/* Closing */}
-        <div style={{ textAlign: "right", marginTop: 12, marginBottom: 24 }}>
-          ขอแสดงความนับถือ
-        </div>
-        <div style={{ textAlign: "right", marginBottom: 2 }}>
-          ลงชื่อ ................................
-        </div>
-        <div style={{ textAlign: "right" }}>
-          ({fullName})
-        </div>
+        <div style={{ textAlign: "right", marginTop: 6, marginBottom: 10 }}>ขอแสดงความนับถือ</div>
+        <div style={{ textAlign: "right", marginBottom: 1 }}>ลงชื่อ ................................</div>
+        <div style={{ textAlign: "right" }}>({fullName})</div>
 
         {/* ════ Bottom two-column ════ */}
-        <div style={{ marginTop: 24, display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <div style={{ marginTop: 12, display: "flex", gap: 16, alignItems: "flex-start" }}>
 
           {/* Left: statistics + auditor */}
           <div style={{ flex: 1 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
               <thead>
                 <tr>
                   <th style={th}>ประเภทการลา</th>
@@ -278,12 +260,12 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
               </tbody>
             </table>
 
-            <div style={{ fontSize: "13pt", lineHeight: 2.2 }}>
+            <div style={{ fontSize: "11pt", lineHeight: 1.7 }}>
               <div>ลงชื่อ ................................ ผู้ตรวจสอบ</div>
               <div>( ................................ )</div>
               <div>วันที่ ................................</div>
             </div>
-            <div style={{ fontSize: "13pt", lineHeight: 2.2, marginTop: 10 }}>
+            <div style={{ fontSize: "11pt", lineHeight: 1.7, marginTop: 6 }}>
               <div>ลงชื่อ ................................ ผู้อำนวยการกลุ่ม</div>
               <div>( ................................ )</div>
               <div>วันที่ ................................</div>
@@ -292,30 +274,30 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
 
           {/* Right: supervisor comment + order */}
           <div style={{ width: "44%", borderLeft: "1.5px solid #000", paddingLeft: 16 }}>
-            <div style={{ fontWeight: "bold", fontSize: "14pt", marginBottom: 8 }}>ความคิดเห็นผู้บังคับบัญชา</div>
-            <div style={{ fontSize: "13pt", lineHeight: 2.4 }}>
+            <div style={{ fontWeight: "bold", fontSize: "12pt", marginBottom: 4 }}>ความคิดเห็นผู้บังคับบัญชา</div>
+            <div style={{ fontSize: "11pt", lineHeight: 1.7 }}>
               <div>................................................................</div>
               <div>................................................................</div>
               <div>................................................................</div>
-              <div style={{ marginTop: 4 }}>ลงชื่อ ................................</div>
+              <div>ลงชื่อ ................................</div>
               <div>( ................................ )</div>
               <div>วันที่ ................................</div>
             </div>
 
             {/* Order box */}
             <div style={{
-              marginTop: 16, border: "1.5px solid #000",
-              padding: "10px 14px", fontSize: "13pt", lineHeight: 2.2,
+              marginTop: 8, border: "1.5px solid #000",
+              padding: "6px 10px", fontSize: "11pt", lineHeight: 1.7,
             }}>
-              <div style={{ fontWeight: "bold", fontSize: "14pt", marginBottom: 6 }}>คำสั่ง</div>
+              <div style={{ fontWeight: "bold", fontSize: "12pt", marginBottom: 2 }}>คำสั่ง</div>
               <div>
                 <CB checked={leave.status === "approved"} />อนุญาต
-                &nbsp;&nbsp;&nbsp;&nbsp;
+                &nbsp;&nbsp;&nbsp;
                 <CB checked={leave.status === "rejected"} />ไม่อนุญาต
               </div>
               <div>................................................................</div>
               <div>................................................................</div>
-              <div style={{ marginTop: 4 }}>ลงชื่อ ................................</div>
+              <div>ลงชื่อ ................................</div>
               <div>ตำแหน่ง ................................</div>
               <div>วันที่ ................................</div>
             </div>
