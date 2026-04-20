@@ -198,7 +198,7 @@ export class OutboundService {
     // Generate document number: <orgCode>/<sequence>/<buddhistYear>
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(id) },
-      include: { organization: { select: { orgCode: true } } },
+      include: { organization: { select: { orgCode: true, name: true } } },
     });
     if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
 
@@ -206,17 +206,48 @@ export class OutboundService {
       throw new ForbiddenException('ไม่สามารถอนุมัติเอกสารขององค์กรอื่น');
     }
 
-    const documentNo = await this.generateDocumentNo(doc.organizationId, doc.organization?.orgCode);
+    // Idempotency: re-use existing documentNo if already assigned (user clicks approve again)
+    const documentNo = doc.documentNo ?? await this.generateDocumentNo(doc.organizationId, doc.organization?.orgCode);
+    const now = new Date();
     const updated = await this.prisma.outboundDocument.update({
       where: { id: BigInt(id) },
       data: {
         status: 'approved',
         documentNo,
         approvedByUserId: BigInt(approvedByUserId),
-        approvedAt: new Date(),
-        documentDate: new Date(),
+        approvedAt: now,
+        documentDate: doc.documentDate ?? now,
       },
     });
+
+    // ── Register in ทะเบียนส่ง immediately on approval ──
+    // "ได้เลขที่อัตโนมัติ" = ลงทะเบียนส่งด้วย
+    const existingReg = await this.prisma.documentRegistry.findFirst({
+      where: { outboundDocId: BigInt(id), registryType: 'outbound' },
+    });
+    if (!existingReg) {
+      const currentYear = await this.prisma.academicYear.findFirst({ where: { isCurrent: true } });
+      const regCount = await this.prisma.documentRegistry.count({
+        where: { organizationId: doc.organizationId, registryType: 'outbound' },
+      });
+      await this.prisma.documentRegistry.create({
+        data: {
+          organizationId: doc.organizationId,
+          registryType: 'outbound',
+          registryNo: String(regCount + 1).padStart(4, '0'),
+          documentNo,
+          documentDate: updated.documentDate,
+          fromOrg: doc.organization?.name,
+          toOrg: doc.recipientOrg,
+          subject: doc.subject,
+          urgencyLevel: doc.urgencyLevel,
+          outboundDocId: doc.id,
+          academicYearId: currentYear?.id ?? undefined,
+        },
+      });
+      this.logger.log(`DocumentRegistry created for outbound doc #${id} (documentNo=${documentNo})`);
+    }
+
     // Apply digital signature to PDF if available
     if (doc.storagePath && this.pdfSigning && this.fileStorage) {
       try {
@@ -247,39 +278,45 @@ export class OutboundService {
       data: updateData,
     });
 
-    // Auto-create a DocumentRegistry entry
+    // DocumentRegistry is created on approve() — just update sentAt on the existing entry.
+    // Safety net: if registry somehow missing (e.g. legacy doc approved before this fix),
+    // create it now using the same logic as approve().
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(id) },
       include: { organization: { select: { orgCode: true, name: true } } },
     });
     if (doc) {
-      const currentYear = await this.prisma.academicYear.findFirst({
-        where: { isCurrent: true },
+      const existingReg = await this.prisma.documentRegistry.findFirst({
+        where: { outboundDocId: BigInt(id), registryType: 'outbound' },
       });
-      const regCount = await this.prisma.documentRegistry.count({
-        where: { organizationId: doc.organizationId, registryType: 'outbound' },
-      });
-      await this.prisma.documentRegistry.create({
-        data: {
-          organizationId: doc.organizationId,
-          registryType: 'outbound',
-          registryNo: String(regCount + 1).padStart(4, '0'),
-          documentNo: doc.documentNo,
-          documentDate: doc.documentDate,
-          fromOrg: doc.organization?.name,
-          toOrg: doc.recipientOrg,
-          subject: doc.subject,
-          urgencyLevel: doc.urgencyLevel,
-          outboundDocId: doc.id,
-          academicYearId: currentYear?.id ?? undefined,
-        },
-      });
-    }
+      if (!existingReg && doc.documentNo) {
+        const currentYear = await this.prisma.academicYear.findFirst({ where: { isCurrent: true } });
+        const regCount = await this.prisma.documentRegistry.count({
+          where: { organizationId: doc.organizationId, registryType: 'outbound' },
+        });
+        await this.prisma.documentRegistry.create({
+          data: {
+            organizationId: doc.organizationId,
+            registryType: 'outbound',
+            registryNo: String(regCount + 1).padStart(4, '0'),
+            documentNo: doc.documentNo,
+            documentDate: doc.documentDate,
+            fromOrg: doc.organization?.name,
+            toOrg: doc.recipientOrg,
+            subject: doc.subject,
+            urgencyLevel: doc.urgencyLevel,
+            outboundDocId: doc.id,
+            academicYearId: currentYear?.id ?? undefined,
+          },
+        });
+        this.logger.log(`DocumentRegistry backfill-created for legacy outbound doc #${id}`);
+      }
 
-    // Dispatch email job if sentMethod is email
-    if (sentMethod === 'email' && doc?.recipientEmail) {
-      await this.outboundQueue.add('send-email', { outboundDocId: id });
-      this.logger.log(`Queued email send for outbound doc #${id}`);
+      // Dispatch email job if sentMethod is email
+      if (sentMethod === 'email' && doc.recipientEmail) {
+        await this.outboundQueue.add('send-email', { outboundDocId: id });
+        this.logger.log(`Queued email send for outbound doc #${id}`);
+      }
     }
 
     this.invalidateOutboundCache(id);
