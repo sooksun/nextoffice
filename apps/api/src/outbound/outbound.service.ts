@@ -346,11 +346,11 @@ export class OutboundService {
 
   private readonly LETTER_TYPE_PROMPTS: Record<string, string> = {
     external_letter: `สร้างหนังสือภายนอก (หนังสือราชการ) ตามระเบียบสารบรรณ
-ตอบเป็น JSON เท่านั้น:
+ตอบเป็น JSON เท่านั้น — ห้ามขึ้นต้น subject ด้วย "เรื่อง" และห้ามขึ้นต้น recipientName ด้วย "เรียน"/"ถึง" (ระบบจะเติม prefix เอง):
 {
-  "subject": "เรื่อง...",
+  "subject": "ชื่อเรื่อง (ข้อความล้วน)",
   "recipientOrg": "หน่วยงานผู้รับ",
-  "recipientName": "เรียน ตำแหน่งผู้รับ",
+  "recipientName": "ตำแหน่งผู้รับ (ข้อความล้วน)",
   "reference": "อ้างถึง (ถ้ามี ไม่มีให้เป็น null)",
   "attachments": "สิ่งที่ส่งมาด้วย (ถ้ามี ไม่มีให้เป็น null)",
   "bodyText": "เนื้อหาหนังสือ เริ่มจากย่อหน้าแรก ใช้ภาษาราชการ",
@@ -358,19 +358,19 @@ export class OutboundService {
 }`,
 
     internal_memo: `สร้างบันทึกข้อความ (หนังสือภายใน) ตามระเบียบสารบรรณ
-ตอบเป็น JSON เท่านั้น:
+ตอบเป็น JSON เท่านั้น — ห้ามขึ้นต้น subject ด้วย "เรื่อง" และห้ามขึ้นต้น recipientName ด้วย "เรียน"/"ถึง" (ระบบจะเติม prefix เอง):
 {
-  "subject": "เรื่อง...",
-  "recipientName": "ถึง ตำแหน่งผู้รับ (เช่น ผู้อำนวยการโรงเรียน...)",
+  "subject": "ชื่อเรื่อง (ข้อความล้วน)",
+  "recipientName": "ตำแหน่งผู้รับ (ข้อความล้วน เช่น ผู้อำนวยการโรงเรียน...)",
   "bodyText": "เนื้อหาบันทึก เริ่มจากย่อหน้าแรก ใช้ภาษาราชการ",
   "closing": "จึงเรียนมาเพื่อโปรดทราบ / จึงเรียนมาเพื่อโปรดพิจารณา"
 }`,
 
     stamp_letter: `สร้างหนังสือประทับตรา ตามระเบียบสารบรรณ (ใช้ประทับตราแทนลงนาม)
-ตอบเป็น JSON เท่านั้น:
+ตอบเป็น JSON เท่านั้น — ห้ามขึ้นต้น subject ด้วย "เรื่อง" และห้ามขึ้นต้น recipientOrg ด้วย "ถึง" (ระบบจะเติม prefix เอง):
 {
-  "subject": "เรื่อง...",
-  "recipientOrg": "ถึง หน่วยงานผู้รับ",
+  "subject": "ชื่อเรื่อง (ข้อความล้วน)",
+  "recipientOrg": "หน่วยงานผู้รับ (ข้อความล้วน)",
   "bodyText": "เนื้อหาหนังสือ สั้นกระชับ ใช้ภาษาราชการ"
 }`,
 
@@ -580,15 +580,22 @@ ${typePrompt}
       let parsed: any = {};
       try { parsed = JSON.parse(jsonMatch?.[0] ?? '{}'); } catch { parsed = { bodyText: rawText }; }
 
+      // Defensive: strip any prefix the AI might still include even with updated prompt.
+      // Templates always prepend "เรื่อง" / "เรียน" / "ถึง" labels, so stored data
+      // must be bare values to avoid the "เรื่อง เรื่อง ..." duplication bug.
+      const cleanSubject = this.stripFieldPrefix(parsed.subject, 'เรื่อง');
+      const cleanRecipientName = this.stripFieldPrefix(parsed.recipientName, '(?:เรียน|ถึง)');
+      const cleanRecipientOrg = this.stripFieldPrefix(parsed.recipientOrg, 'ถึง');
+
       // Create OutboundDocument with draft status
       const doc = await this.prisma.outboundDocument.create({
         data: {
           organizationId: cas.organizationId,
           createdByUserId: undefined,
-          subject: parsed.subject ?? `[${draftType.toUpperCase()}] ${cas.title}`,
+          subject: cleanSubject ?? `[${draftType.toUpperCase()}] ${cas.title}`,
           bodyText: parsed.bodyText ?? rawText,
-          recipientOrg: parsed.recipientOrg ?? null,
-          recipientName: parsed.recipientName ?? null,
+          recipientOrg: cleanRecipientOrg,
+          recipientName: cleanRecipientName,
           letterType,
           status: 'draft',
           relatedInboundCaseId: cas.id,
@@ -624,6 +631,11 @@ ${typePrompt}
         organization: { select: { name: true, address: true, phone: true, orgCode: true } },
         approvedBy: { select: { fullName: true, positionTitle: true } },
         createdBy: { select: { fullName: true, positionTitle: true } },
+        relatedInboundCase: {
+          select: {
+            assignedTo: { select: { fullName: true, positionTitle: true } },
+          },
+        },
       },
     });
     if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
@@ -633,7 +645,12 @@ ${typePrompt}
     }
 
     const org = doc.organization;
-    const signer = doc.approvedBy ?? doc.createdBy;
+    // For internal_memo (หนังสือภายใน): signer = ผู้ได้รับมอบหมายจาก InboundCase.
+    // ผู้ได้รับมอบหมายเป็นผู้ลงนาม ไม่ใช่ ผอ. ที่สั่งมอบหมาย
+    const assignee = doc.relatedInboundCase?.assignedTo;
+    const signer = doc.letterType === 'internal_memo'
+      ? (assignee ?? doc.approvedBy ?? doc.createdBy)
+      : (doc.approvedBy ?? doc.createdBy);
     const now = new Date();
     const buddhistYear = now.getFullYear() + 543;
     const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -641,14 +658,20 @@ ${typePrompt}
 
     let pdfBuffer: Buffer;
 
+    // Defensive strip for legacy drafts created before prompt fix — templates
+    // always prepend labels so we must pass bare values.
+    const subj = this.stripFieldPrefix(doc.subject, 'เรื่อง') ?? '';
+    const rcptName = this.stripFieldPrefix(doc.recipientName, '(?:เรียน|ถึง)') ?? undefined;
+    const rcptOrg = this.stripFieldPrefix(doc.recipientOrg, 'ถึง') ?? undefined;
+
     switch (doc.letterType) {
       case 'internal_memo':
         pdfBuffer = await this.templates.generateMemo({
           department: org?.name,
           documentNo: doc.documentNo ?? undefined,
           date: dateStr,
-          subject: doc.subject,
-          recipient: doc.recipientName ?? undefined,
+          subject: subj,
+          recipient: rcptName,
           body: doc.bodyText ?? undefined,
           signerName: signer?.fullName ?? undefined,
           signerPosition: signer?.positionTitle ?? undefined,
@@ -658,7 +681,7 @@ ${typePrompt}
       case 'stamp_letter':
         pdfBuffer = await this.templates.generateStampLetter({
           documentNo: doc.documentNo ?? undefined,
-          recipient: doc.recipientOrg ?? doc.recipientName ?? undefined,
+          recipient: rcptOrg ?? rcptName,
           body: doc.bodyText ?? undefined,
           orgName: org?.name ?? '',
           date: dateStr,
@@ -668,7 +691,7 @@ ${typePrompt}
       case 'order':
         pdfBuffer = await this.templates.generateDirective({
           orgName: org?.name ?? '',
-          subject: doc.subject,
+          subject: subj,
           body: doc.bodyText ?? undefined,
           date: dateStr,
           signerName: signer?.fullName ?? undefined,
@@ -680,7 +703,7 @@ ${typePrompt}
       case 'announcement':
         pdfBuffer = await this.templates.generatePublicRelation({
           orgName: org?.name ?? '',
-          subject: doc.subject,
+          subject: subj,
           body: doc.bodyText ?? undefined,
           date: dateStr,
           signerName: signer?.fullName ?? undefined,
@@ -693,7 +716,7 @@ ${typePrompt}
       case 'directive':
         pdfBuffer = await this.templates.generateDirective({
           orgName: org?.name ?? '',
-          subject: doc.subject,
+          subject: subj,
           body: doc.bodyText ?? undefined,
           date: dateStr,
           signerName: signer?.fullName ?? undefined,
@@ -708,8 +731,8 @@ ${typePrompt}
           orgName: org?.name ?? '',
           orgAddress: org?.address ?? undefined,
           date: dateStr,
-          recipient: doc.recipientName ?? undefined,
-          subject: doc.subject,
+          recipient: rcptName,
+          subject: subj,
           body: doc.bodyText ?? undefined,
           closing: 'ขอแสดงความนับถือ',
           signerName: signer?.fullName ?? undefined,
@@ -820,5 +843,21 @@ ${typePrompt}
         academicYearId: r.academicYearId ? Number(r.academicYearId) : null,
       })),
     };
+  }
+
+  /**
+   * Strip a leading Thai form-field prefix (e.g. "เรื่อง", "เรียน", "ถึง")
+   * plus optional separators from an AI-generated value. Returns null for
+   * empty input. Case-insensitive, tolerant of spaces, colons, and "：" (Thai colon).
+   *
+   * Why: Word templates always render the label themselves, so stored data
+   * must be bare. Without this, AI output like "เรื่อง ตอบรับ..." becomes
+   * "เรื่อง  เรื่อง ตอบรับ..." in the document.
+   */
+  private stripFieldPrefix(text: string | null | undefined, prefixRegexSource: string): string | null {
+    if (!text) return null;
+    const re = new RegExp(`^\\s*${prefixRegexSource}[\\s:：]+`, 'i');
+    const cleaned = String(text).replace(re, '').trim();
+    return cleaned || null;
   }
 }
