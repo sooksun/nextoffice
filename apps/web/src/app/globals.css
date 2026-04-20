@@ -638,6 +638,7 @@ html, body { transition: background-color 180ms ease, color 180ms ease; }
 .side-menu__link {
   display: flex;
   align-items: center;
+  text-align: left;
   gap: 0.75rem;
   padding: 0.625rem 0.875rem;
   border-radius: 0.875rem;
@@ -682,6 +683,7 @@ html, body { transition: background-color 180ms ease, color 180ms ease; }
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  text-align: left;
   transition: opacity 150ms ease;
 }
 
@@ -715,6 +717,7 @@ html, body { transition: background-color 180ms ease, color 180ms ease; }
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-align: left;
   color: rgb(var(--sm-fg) / 0.45);
   transition: opacity 150ms ease;
 }
