@@ -21,6 +21,11 @@ export class PresentationController {
     });
   }
 
+  @Get('users')
+  listUsers(@CurrentUser() user: any) {
+    return this.svc.listOrgUsers(BigInt(user.organizationId));
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.svc.findOne(BigInt(id), BigInt(user.organizationId));

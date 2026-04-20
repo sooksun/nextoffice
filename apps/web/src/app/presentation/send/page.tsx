@@ -1,11 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { Send, ArrowLeft } from "lucide-react";
 import { toastSuccess, toastError } from "@/lib/toast";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+const ROLE_LABEL: Record<string, string> = {
+  DIRECTOR: "ผู้อำนวยการ",
+  VICE_DIRECTOR: "รองผู้อำนวยการ",
+  ADMIN: "ผู้ดูแลระบบ",
+  CLERK: "เจ้าหน้าที่ธุรการ",
+  HEAD_TEACHER: "หัวหน้างาน",
+  TEACHER: "ครู",
+};
+
+interface OrgUser {
+  id: number;
+  fullName: string;
+  roleCode: string;
+}
 
 export default function PresentationSendPage() {
   const router = useRouter();
@@ -15,7 +30,12 @@ export default function PresentationSendPage() {
     fileUrl: "",
     receiverUserId: "",
   });
+  const [users, setUsers] = useState<OrgUser[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch<OrgUser[]>("/presentation/users").then(setUsers).catch(() => {});
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,6 +106,22 @@ export default function PresentationSendPage() {
                 value={form.fileUrl}
                 onChange={(e) => setForm({ ...form, fileUrl: e.target.value })}
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-on-surface-variant mb-1.5 block">ผู้รับ</label>
+              <select
+                className="input-select w-full"
+                value={form.receiverUserId}
+                onChange={(e) => setForm({ ...form, receiverUserId: e.target.value })}
+              >
+                <option value="">อัตโนมัติ (ส่งถึง Director)</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName}{u.roleCode ? ` — ${ROLE_LABEL[u.roleCode] ?? u.roleCode}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-on-surface-variant mt-1">ถ้าไม่ระบุ ระบบจะส่งถึง ผู้อำนวยการ/รองผู้อำนวยการ อัตโนมัติ</p>
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Link href="/presentation" className="btn-ghost">ยกเลิก</Link>

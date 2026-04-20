@@ -51,17 +51,36 @@ export class PresentationService {
     return this.serialize(f);
   }
 
+  async listOrgUsers(orgId: bigint) {
+    const users = await this.prisma.user.findMany({
+      where: { organizationId: orgId, isActive: true },
+      select: { id: true, fullName: true, roleCode: true },
+      orderBy: { fullName: 'asc' },
+    });
+    return users.map((u) => ({ ...u, id: Number(u.id) }));
+  }
+
   async create(orgId: bigint, userId: bigint, body: {
     title: string;
     description?: string;
     fileUrl?: string;
     receiverUserId?: number;
   }) {
+    let receiverUserId: bigint | null = body.receiverUserId ? BigInt(body.receiverUserId) : null;
+
+    if (!receiverUserId) {
+      const director = await this.prisma.user.findFirst({
+        where: { organizationId: orgId, roleCode: { in: ['DIRECTOR', 'VICE_DIRECTOR'] }, isActive: true },
+        orderBy: [{ roleCode: 'asc' }],
+      });
+      if (director) receiverUserId = director.id;
+    }
+
     const f = await this.prisma.presentationFile.create({
       data: {
         organizationId: orgId,
         senderUserId: userId,
-        receiverUserId: body.receiverUserId ? BigInt(body.receiverUserId) : null,
+        receiverUserId,
         title: body.title,
         description: body.description,
         fileUrl: body.fileUrl,
