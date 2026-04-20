@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Send, AlertCircle, CalendarDays } from "lucide-react";
+import { ArrowLeft, Send, AlertCircle, CalendarDays, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getUser } from "@/lib/auth";
@@ -23,6 +23,14 @@ const LEAVE_TYPES = [
   { value: "ordination",label: "ลาบวช" },
   { value: "training",  label: "ลาศึกษาต่อ/อบรม" },
 ];
+
+interface LeaveBalance {
+  leaveType: string;
+  label: string;
+  totalAllowed: number;
+  totalUsed: number;
+  remaining: number;
+}
 
 /** พ.ศ. date string for display */
 function formatBE(iso: string): string {
@@ -52,6 +60,10 @@ export default function NewLeavePage() {
   const [userName, setUserName]     = useState("");
   const [orgName, setOrgName]       = useState("");
 
+  // leave balance from DB
+  const [balances, setBalances]         = useState<LeaveBalance[]>([]);
+  const [balanceLoading, setBalanceLoading] = useState(true);
+
   // form state
   const [leaveType, setLeaveType]     = useState("sick");
   const [startDate, setStartDate]     = useState("");
@@ -69,6 +81,11 @@ export default function NewLeavePage() {
       setUserName(u.fullName ?? "");
       setOrgName(u.organizationName ?? "");
     }
+    // fetch leave balance from DB
+    apiFetch<LeaveBalance[]>("/attendance/leave/balance")
+      .then(setBalances)
+      .catch(() => setBalances([]))
+      .finally(() => setBalanceLoading(false));
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -188,18 +205,79 @@ export default function NewLeavePage() {
               </Field>
             </div>
 
-            {/* ── สรุปจำนวนวัน ─────────────────────────── */}
-            {startDate && endDate && (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
-                <span className="text-on-surface-variant">ลาตั้งแต่ </span>
-                <span className="font-semibold text-primary">{formatBE(startDate)}</span>
-                <span className="text-on-surface-variant"> ถึง </span>
-                <span className="font-semibold text-primary">{formatBE(endDate)}</span>
-                <span className="text-on-surface-variant"> มีกำหนด </span>
-                <span className="font-black text-primary text-base">{totalDays}</span>
-                <span className="text-on-surface-variant"> วัน</span>
+            {/* ── สรุปวันลาคงเหลือ (จาก DB) ──────────── */}
+            <div className="rounded-lg border border-outline-variant/50 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 bg-surface-low border-b border-outline-variant/40">
+                <span className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">สรุปวันลาคงเหลือ (ปีปัจจุบัน)</span>
+                {balanceLoading && <Loader2 size={14} className="animate-spin text-primary" />}
               </div>
-            )}
+
+              {!balanceLoading && balances.length === 0 && (
+                <p className="px-4 py-3 text-sm text-on-surface-variant">ไม่พบข้อมูลวันลา</p>
+              )}
+
+              {balances.length > 0 && (
+                <div className="divide-y divide-outline-variant/30">
+                  {balances.map((b) => {
+                    const isSelected = b.leaveType === leaveType;
+                    const pct = b.totalAllowed > 0 ? Math.round((b.remaining / b.totalAllowed) * 100) : 0;
+                    const barColor = pct > 50 ? "bg-success" : pct > 20 ? "bg-warning" : "bg-error";
+                    return (
+                      <div
+                        key={b.leaveType}
+                        className={`px-4 py-3 ${isSelected ? "bg-primary/5" : ""}`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-sm font-semibold ${isSelected ? "text-primary" : "text-on-surface"}`}>
+                            {isSelected && <span className="mr-1">▶</span>}
+                            {b.label}
+                          </span>
+                          <span className="text-sm text-on-surface-variant">
+                            <span className={`font-black ${b.remaining <= 0 ? "text-error" : isSelected ? "text-primary" : "text-on-surface"}`}>
+                              {b.remaining}
+                            </span>
+                            <span className="text-xs"> / {b.totalAllowed} วัน</span>
+                            {b.totalUsed > 0 && (
+                              <span className="text-xs text-on-surface-variant ml-1">(ใช้ไป {b.totalUsed} วัน)</span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-outline-variant/30">
+                          <div
+                            className={`h-full rounded-full transition-all ${barColor}`}
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── วันที่เลือก ── */}
+              {startDate && endDate && (
+                <div className="border-t border-outline-variant/40 bg-primary/5 px-4 py-3 text-sm">
+                  <span className="text-on-surface-variant">ลาตั้งแต่ </span>
+                  <span className="font-semibold text-primary">{formatBE(startDate)}</span>
+                  <span className="text-on-surface-variant"> ถึง </span>
+                  <span className="font-semibold text-primary">{formatBE(endDate)}</span>
+                  <span className="text-on-surface-variant"> มีกำหนด </span>
+                  <span className="font-black text-primary text-base">{totalDays}</span>
+                  <span className="text-on-surface-variant"> วัน</span>
+                  {(() => {
+                    const b = balances.find((x) => x.leaveType === leaveType);
+                    if (b && b.remaining < totalDays) {
+                      return (
+                        <span className="ml-2 text-xs text-error font-semibold">
+                          (วันลาคงเหลือไม่พอ)
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
+            </div>
 
             {/* ── เหตุผล ──────────────────────────────── */}
             <Field>
