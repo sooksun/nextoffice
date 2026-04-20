@@ -130,8 +130,8 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      {/* ── Screen toolbar ── */}
-      <div className="no-print flex items-center gap-3 px-4 py-3 bg-surface-low border-b border-outline-variant/30">
+      {/* ── Screen toolbar (hidden when printing) ── */}
+      <div className="print:hidden flex items-center gap-3 px-4 py-3 bg-surface-low border-b border-outline-variant/30">
         <PrintButton />
         <a href="/leave" className="btn-ghost text-sm">← กลับ</a>
         <span className="ml-auto text-xs text-on-surface-variant">
@@ -140,7 +140,7 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
       </div>
 
       {/* ── Paper ── */}
-      <div style={paper}>
+      <div id="leave-paper" style={paper}>
 
         {/* Title */}
         <div style={{ textAlign: "center", fontWeight: "bold", fontSize: "15pt", marginBottom: 4 }}>
@@ -307,9 +307,29 @@ export default async function PrintLeavePage({ params }: { params: Promise<{ id:
 
       <style>{`
         @media print {
-          @page { size: A4 portrait; margin: 0; }
-          body { margin: 0; background: #fff; }
-          .no-print { display: none !important; }
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          /* hide everything except the paper div */
+          body > * { display: none !important; }
+          body > div:has(#leave-paper) { display: block !important; }
+          #leave-paper {
+            display: block !important;
+            margin: 0 !important;
+            padding: 8mm 12mm 8mm 16mm !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
         }
       `}</style>
     </>
