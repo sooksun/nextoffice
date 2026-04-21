@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { IntakeModule } from '../intake/intake.module';
 import { AttendanceController } from './controllers/attendance.controller';
 import { LeaveController } from './controllers/leave.controller';
 import { AttendanceService } from './services/attendance.service';
@@ -8,9 +9,10 @@ import { TravelService } from './services/travel.service';
 import { FaceClientService } from './services/face-client.service';
 import { GeofenceService } from './services/geofence.service';
 import { ReviewService } from './services/review.service';
+import { AdminEnrollmentService } from './services/admin-enrollment.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, IntakeModule],
   controllers: [AttendanceController, LeaveController],
   providers: [
     AttendanceService,
@@ -19,6 +21,7 @@ import { ReviewService } from './services/review.service';
     FaceClientService,
     GeofenceService,
     ReviewService,
+    AdminEnrollmentService,
   ],
   exports: [AttendanceService, LeaveService, TravelService],
 })

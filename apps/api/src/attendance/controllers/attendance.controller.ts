@@ -1,8 +1,10 @@
-import { Controller, Post, Get, Put, Param, Query, Body, HttpCode, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Param, Query, Body, HttpCode, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsArray, IsBoolean, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsArray } from 'class-validator';
 import { AttendanceService } from '../services/attendance.service';
 import { ReviewService } from '../services/review.service';
+import { AdminEnrollmentService } from '../services/admin-enrollment.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -80,6 +82,11 @@ class ReviewReassignDto {
   note?: string;
 }
 
+class AdminUploadFrameDto {
+  @IsString() @IsNotEmpty()
+  imageBase64: string;
+}
+
 @ApiTags('attendance')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -88,6 +95,7 @@ export class AttendanceController {
   constructor(
     private readonly svc: AttendanceService,
     private readonly reviewSvc: ReviewService,
+    private readonly adminEnrollSvc: AdminEnrollmentService,
   ) {}
 
   // ── V1 Legacy ─────────────────────────────────────────────────────────────
@@ -245,5 +253,92 @@ export class AttendanceController {
     @Body() body: ReviewReassignDto,
   ) {
     return this.reviewSvc.reassign(Number(id), Number(user.id), Number(user.organizationId), body.finalPersonId, body.note);
+  }
+
+  // ── Admin: Enrollment Management ──────────────────────────────────────────
+
+  @Get('admin/enrollments')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR')
+  @ApiOperation({ summary: '[Admin] รายชื่อบุคลากรทั้งหมด + สถานะ enrollment' })
+  listEnrollments(
+    @CurrentUser() user: any,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminEnrollSvc.listEnrollments(
+      Number(user.organizationId),
+      search,
+      status,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 30,
+    );
+  }
+
+  @Get('admin/enrollments/:userId')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: '[Admin] ดู face profile + templates ของบุคคล' })
+  getUserEnrollment(@Param('userId') userId: string, @CurrentUser() user: any) {
+    return this.adminEnrollSvc.getUserEnrollment(Number(userId), Number(user.organizationId));
+  }
+
+  @Post('admin/enrollments/:userId/upload-frame')
+  @HttpCode(200)
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: '[Admin] เพิ่มรูปใบหน้าให้บุคคล' })
+  adminUploadFrame(
+    @Param('userId') userId: string,
+    @CurrentUser() user: any,
+    @Body() body: AdminUploadFrameDto,
+  ) {
+    return this.adminEnrollSvc.adminUploadFrame(Number(userId), Number(user.organizationId), body.imageBase64);
+  }
+
+  @Post('admin/enrollments/:userId/activate')
+  @HttpCode(200)
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: '[Admin] ยืนยัน enrollment ของบุคคล' })
+  activateProfile(@Param('userId') userId: string, @CurrentUser() user: any) {
+    return this.adminEnrollSvc.activateProfile(Number(userId), Number(user.organizationId));
+  }
+
+  @Post('admin/enrollments/:userId/reset')
+  @HttpCode(200)
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR')
+  @ApiOperation({ summary: '[Admin] ล้าง face profile บุคคล (เริ่มใหม่)' })
+  resetProfile(@Param('userId') userId: string, @CurrentUser() user: any) {
+    return this.adminEnrollSvc.resetProfile(Number(userId), Number(user.organizationId));
+  }
+
+  @Delete('admin/enrollments/templates/:templateId')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: '[Admin] ลบรูปใบหน้า 1 รูป' })
+  deleteTemplate(@Param('templateId') templateId: string, @CurrentUser() user: any) {
+    return this.adminEnrollSvc.deleteTemplate(Number(templateId), Number(user.organizationId));
+  }
+
+  @Get('admin/enrollments/templates/:templateId/image')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: '[Admin] ดูภาพ face template' })
+  async getTemplateImage(
+    @Param('templateId') templateId: string,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const { buffer } = await this.adminEnrollSvc.getTemplateImageBuffer(
+      Number(templateId),
+      Number(user.organizationId),
+    );
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(buffer);
   }
 }

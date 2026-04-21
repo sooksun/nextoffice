@@ -116,6 +116,16 @@ export class FaceClientService {
     }
   }
 
+  async deactivateTemplate(pointId: string): Promise<boolean> {
+    try {
+      await axios.post(`${this.baseUrl}/enrollment/deactivate-template`, { point_id: pointId }, { timeout: 10000 });
+      return true;
+    } catch (err) {
+      this.logger.warn(`Deactivate template failed: ${err.message}`);
+      return false;
+    }
+  }
+
   async deactivatePersonTemplates(orgId: number, userId: number): Promise<boolean> {
     try {
       await axios.delete(`${this.baseUrl}/enrollment/persons/${orgId}/${userId}`, { timeout: 10000 });
