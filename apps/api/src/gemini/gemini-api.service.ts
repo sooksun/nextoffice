@@ -6,6 +6,9 @@ export type GeminiPart =
   | { text: string }
   | { inlineData: { mimeType: string; data: string } };
 
+const MAX_RETRIES = 4;
+const RETRY_DELAYS = [3000, 6000, 15000, 30000]; // ms
+
 @Injectable()
 export class GeminiApiService {
   private readonly logger = new Logger(GeminiApiService.name);
@@ -56,6 +59,24 @@ export class GeminiApiService {
     }
   }
 
+  /** Post to Gemini API with automatic retry on 429 (rate limit) */
+  private async postWithRetry(body: Record<string, unknown>, context: string): Promise<any> {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await axios.post(this.endpoint(), body, this.axiosOpts());
+        return res;
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 429 && attempt < MAX_RETRIES) {
+          const delay = RETRY_DELAYS[attempt] ?? 30000;
+          this.logger.warn(`${context}: 429 rate limited, retry ${attempt + 1}/${MAX_RETRIES} after ${delay}ms`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        throw err;
+      }
+    }
+  }
+
   async generateText(opts: {
     system?: string;
     user: string;
@@ -72,7 +93,7 @@ export class GeminiApiService {
     if (opts.system) {
       body.systemInstruction = { parts: [{ text: opts.system }] };
     }
-    const res = await axios.post(this.endpoint(), body, this.axiosOpts());
+    const res = await this.postWithRetry(body, 'generateText');
     return this.extractTextFromResponse(res.data);
   }
 
@@ -92,7 +113,7 @@ export class GeminiApiService {
     if (opts.system) {
       body.systemInstruction = { parts: [{ text: opts.system }] };
     }
-    const res = await axios.post(this.endpoint(), body, this.axiosOpts());
+    const res = await this.postWithRetry(body, 'generateFromParts');
     return this.extractTextFromResponse(res.data);
   }
 }
