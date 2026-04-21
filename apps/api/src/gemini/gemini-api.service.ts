@@ -82,9 +82,15 @@ export class GeminiApiService {
 
   extractTextFromResponse(data: unknown): string {
     const d = data as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
     };
-    return d?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const parts = d?.candidates?.[0]?.content?.parts ?? [];
+    // Thinking models (gemini-2.5-flash etc.) include a thought part first.
+    // Skip thought parts and join the remaining text parts.
+    const textParts = parts.filter((p) => !p.thought).map((p) => p.text ?? '');
+    if (textParts.length > 0) return textParts.join('');
+    // Fallback: return first part regardless (non-thinking models)
+    return parts[0]?.text ?? '';
   }
 
   private extractOpenRouterText(data: unknown): string {
