@@ -18,14 +18,20 @@ interface TodayStatus {
 }
 
 interface CheckResult {
-  id: number;
+  id?: number;
   checkInAt?: string;
   checkOutAt?: string;
-  status: string;
-  faceMatchScore: number | null;
-  geofenceValid: boolean;
-  distance: number | null;
+  status?: string;
+  faceMatchScore?: number | null;
+  geofenceValid?: boolean;
+  distance?: number | null;
   message: string;
+  // V2 fields
+  decision?: "accepted" | "review" | "rejected";
+  top1Score?: number | null;
+  qualityScore?: number | null;
+  reasonCodes?: string[];
+  success?: boolean;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -185,28 +191,71 @@ export default function LiffCheckinPage() {
     };
   }, [liffStatus, result, alreadyDone, loadingToday, requestCamera, requestGps]);
 
-  const handleSubmit = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    if (gps.status !== "ready") return;
-
+  const captureOneFrame = (): string | null => {
+    if (!videoRef.current || !canvasRef.current) return null;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) return null;
     ctx.drawImage(video, 0, 0);
-    const imageBase64 = canvas.toDataURL("image/jpeg", 0.85);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  };
+
+  const captureBurst = async (count = 3, delayMs = 450): Promise<string[]> => {
+    const frames: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const f = captureOneFrame();
+      if (f) frames.push(f);
+      if (i < count - 1) await new Promise((r) => setTimeout(r, delayMs));
+    }
+    return frames;
+  };
+
+  const handleSubmit = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    if (gps.status !== "ready") return;
 
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const endpoint = mode === "out" ? "/attendance/check-out" : "/attendance/check-in";
-      const res = await apiFetch<CheckResult>(endpoint, {
-        method: "POST",
-        body: JSON.stringify({ imageBase64, latitude: gps.lat, longitude: gps.lng }),
-      });
-      setResult(res);
+      if (mode === "out") {
+        // Check-out: use V1 (single frame)
+        const imageBase64 = captureOneFrame();
+        if (!imageBase64) return;
+        const res = await apiFetch<CheckResult>("/attendance/check-out", {
+          method: "POST",
+          body: JSON.stringify({ imageBase64, latitude: gps.lat, longitude: gps.lng }),
+        });
+        setResult(res);
+      } else {
+        // Check-in V2: burst 3 frames → decision engine
+        const frames = await captureBurst(3, 450);
+        if (frames.length === 0) {
+          setSubmitError("ไม่สามารถถ่ายภาพได้");
+          return;
+        }
+        const res = await apiFetch<CheckResult>("/attendance/check-in-v2", {
+          method: "POST",
+          body: JSON.stringify({ frames, latitude: gps.lat, longitude: gps.lng }),
+        });
+        if (res.decision === "rejected") {
+          const reasonMap: Record<string, string> = {
+            NO_FACE_DETECTED: "ไม่พบใบหน้า",
+            MULTIPLE_FACES: "มีหลายใบหน้าในภาพ",
+            LOW_QUALITY: "ภาพคุณภาพต่ำ — ลองในที่แสงสว่างกว่านี้",
+            LOW_TOP1_SCORE: "ยืนยันใบหน้าไม่ผ่าน",
+            LOW_LIVENESS: "ตรวจจับว่าอาจไม่ใช่ใบหน้าจริง",
+            NO_ACTIVE_TEMPLATE: "ยังไม่ได้ลงทะเบียนใบหน้า",
+            FACE_SERVICE_UNAVAILABLE: "ระบบตรวจใบหน้าไม่พร้อม",
+          };
+          const msg = (res.reasonCodes ?? []).map((c) => reasonMap[c] ?? c).join(", ");
+          setSubmitError(msg || "ยืนยันใบหน้าไม่สำเร็จ");
+          return;
+        }
+        setResult(res);
+      }
       streamRef.current?.getTracks().forEach((t) => t.stop());
     } catch (e: any) {
       setSubmitError(e.message ?? "ลงเวลาไม่สำเร็จ");
@@ -263,33 +312,48 @@ export default function LiffCheckinPage() {
         </div>
       )}
 
-      {/* Success result */}
+      {/* Success / Review result */}
       {result && (
         <div
           className={`rounded-lg p-6 ${
-            result.geofenceValid
-              ? "border border-emerald-200 bg-emerald-50"
-              : "border border-amber-200 bg-amber-50"
+            result.decision === "review"
+              ? "border border-amber-200 bg-amber-50"
+              : result.geofenceValid === false
+                ? "border border-amber-200 bg-amber-50"
+                : "border border-emerald-200 bg-emerald-50"
           }`}
         >
-          <div className="mb-2 text-2xl">{result.geofenceValid ? "✓" : "⚠"}</div>
+          <div className="mb-2 text-2xl">
+            {result.decision === "review" ? "⏳" : result.geofenceValid === false ? "⚠" : "✓"}
+          </div>
           <p className="mb-2 font-semibold text-slate-800">{result.message}</p>
+          {result.decision === "review" && (
+            <p className="mb-2 text-xs text-amber-700">
+              ระบบจะแจ้งผลเมื่อเจ้าหน้าที่ตรวจสอบแล้ว
+            </p>
+          )}
           <dl className="space-y-1 text-xs text-slate-600">
-            <div>
-              <dt className="inline font-medium">เวลา: </dt>
-              <dd className="inline">
-                {new Date(
-                  (result.checkOutAt ?? result.checkInAt) ?? "",
-                ).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-              </dd>
-            </div>
-            {result.faceMatchScore !== null && (
+            {(result.checkOutAt ?? result.checkInAt) && (
+              <div>
+                <dt className="inline font-medium">เวลา: </dt>
+                <dd className="inline">
+                  {new Date((result.checkOutAt ?? result.checkInAt) ?? "").toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                </dd>
+              </div>
+            )}
+            {result.top1Score != null && (
+              <div>
+                <dt className="inline font-medium">ความตรงใบหน้า: </dt>
+                <dd className="inline">{(result.top1Score * 100).toFixed(1)}%</dd>
+              </div>
+            )}
+            {result.faceMatchScore != null && (
               <div>
                 <dt className="inline font-medium">ความตรงใบหน้า: </dt>
                 <dd className="inline">{(result.faceMatchScore * 100).toFixed(1)}%</dd>
               </div>
             )}
-            {result.distance !== null && (
+            {result.distance != null && (
               <div>
                 <dt className="inline font-medium">ระยะจากที่ทำงาน: </dt>
                 <dd className="inline">{result.distance} ม.</dd>

@@ -7,6 +7,7 @@ import { LeaveService } from './services/leave.service';
 import { TravelService } from './services/travel.service';
 import { FaceClientService } from './services/face-client.service';
 import { GeofenceService } from './services/geofence.service';
+import { ReviewService } from './services/review.service';
 
 @Module({
   imports: [AuthModule],
@@ -17,6 +18,7 @@ import { GeofenceService } from './services/geofence.service';
     TravelService,
     FaceClientService,
     GeofenceService,
+    ReviewService,
   ],
   exports: [AttendanceService, LeaveService, TravelService],
 })

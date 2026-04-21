@@ -62,7 +62,11 @@ model Organization {
   destructionRequests  DestructionRequest[]
   projects             Project[]
   faceRegistrations    FaceRegistration[]
+  faceProfiles         FaceProfile[]
+  faceSchoolConfig     FaceSchoolConfig?
   attendanceRecords    AttendanceRecord[]
+  attendanceReviews    AttendanceReview[]
+  faceAuditLogs        FaceAuditLog[]
   leaveRequests        LeaveRequest[]
   travelRequests       TravelRequest[]
   approvalChains       ApprovalChainConfig[]
@@ -712,7 +716,9 @@ model User {
   destructionApproved   DestructionRequest[] @relation("DestructionApproved")
   projectsResponsible   Project[]          @relation("ProjectResponsible")
   faceRegistrations     FaceRegistration[]
+  faceProfile           FaceProfile?
   attendanceRecords     AttendanceRecord[]
+  attendanceReviewed    AttendanceReview[]  @relation("ReviewedBy")
   leaveRequestsMade     LeaveRequest[]     @relation("LeaveRequestUser")
   leaveRequestsApproved LeaveRequest[]     @relation("LeaveApprovedBy")
   leaveCurrentApprovals LeaveRequest[]     @relation("LeaveCurrentApprover")
@@ -1470,16 +1476,29 @@ model AttendanceRecord {
   faceMatchScore    Float?    @map("face_match_score")
   geofenceValid     Boolean   @map("geofence_valid") @default(true)
   status            String    @db.VarChar(30) @default("checked_in")
-  // status: checked_in | checked_out | absent | leave | travel | late
+  // status: checked_in | checked_out | absent | leave | travel | late | pending_review
   remark            String?   @db.Text
+  // Face decision fields (upgrade v2)
+  top1UserId        BigInt?   @map("top1_user_id")
+  top1Score         Float?    @map("top1_score")
+  top2UserId        BigInt?   @map("top2_user_id")
+  top2Score         Float?    @map("top2_score")
+  scoreMargin       Float?    @map("score_margin")
+  qualityScore      Float?    @map("quality_score")
+  livenessScore     Float?    @map("liveness_score")
+  decision          String?   @db.VarChar(20) @map("decision") // accepted | review | rejected
+  decisionReasons   String?   @db.VarChar(500) @map("decision_reasons")
+  captureImagePath  String?   @db.VarChar(500) @map("capture_image_path")
   createdAt         DateTime  @map("created_at") @default(now())
   updatedAt         DateTime  @map("updated_at") @updatedAt
 
   user         User         @relation(fields: [userId], references: [id])
   organization Organization @relation(fields: [organizationId], references: [id])
+  review       AttendanceReview?
 
   @@unique([userId, attendanceDate])
   @@index([organizationId, attendanceDate])
+  @@index([decision])
   @@map("attendance_records")
 }
 
@@ -1957,4 +1976,110 @@ model ChatFeedback {
   @@index([rating])
   @@index([createdAt])
   @@map("chat_feedback")
+}
+
+// ─────────────────────────────────────────────
+// Face Attendance v2: Multi-template enrollment
+// ─────────────────────────────────────────────
+
+model FaceSchoolConfig {
+  id                   BigInt   @id @default(autoincrement())
+  organizationId       BigInt   @unique @map("organization_id")
+  acceptThreshold      Float    @default(0.72)  @map("accept_threshold")
+  reviewThreshold      Float    @default(0.55)  @map("review_threshold")
+  minMargin            Float    @default(0.08)  @map("min_margin")
+  minQualityScore      Float    @default(0.4)   @map("min_quality_score")
+  minLivenessScore     Float    @default(0.0)   @map("min_liveness_score")
+  livenessMode         String   @default("off") @db.VarChar(20) @map("liveness_mode") // passive | challenge | off
+  minTemplatesRequired Int      @default(8)     @map("min_templates_required")
+  qdrantCollection     String   @default("face_embeddings_v1") @db.VarChar(100) @map("qdrant_collection")
+  reviewPolicy         String   @default("manual") @db.VarChar(20) @map("review_policy") // manual | auto-reject
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt      @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("face_school_configs")
+}
+
+model FaceProfile {
+  id              BigInt    @id @default(autoincrement())
+  userId          BigInt    @unique @map("user_id")
+  organizationId  BigInt    @map("organization_id")
+  profileStatus   String    @default("pending") @db.VarChar(20) @map("profile_status")
+  // profileStatus: pending | active | suspended | needs_refresh
+  enrolledAt      DateTime? @map("enrolled_at")
+  lastRefreshedAt DateTime? @map("last_refreshed_at")
+  templateCount   Int       @default(0) @map("template_count")
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  templates    FaceTemplate[]
+
+  @@index([organizationId])
+  @@index([profileStatus])
+  @@map("face_profiles")
+}
+
+model FaceTemplate {
+  id             BigInt   @id @default(autoincrement())
+  faceProfileId  BigInt   @map("face_profile_id")
+  organizationId BigInt   @map("organization_id")
+  qdrantPointId  String   @unique @db.VarChar(100) @map("qdrant_point_id")
+  imagePath      String   @db.VarChar(500) @map("image_path")
+  embeddingModel String   @default("buffalo_l") @db.VarChar(50) @map("embedding_model")
+  qualityScore   Float    @map("quality_score")
+  poseYaw        Float    @default(0) @map("pose_yaw")
+  posePitch      Float    @default(0) @map("pose_pitch")
+  poseRoll       Float    @default(0) @map("pose_roll")
+  lightScore     Float    @default(1.0) @map("light_score")
+  isActive       Boolean  @default(true) @map("is_active")
+  capturedAt     DateTime @map("captured_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  faceProfile FaceProfile @relation(fields: [faceProfileId], references: [id])
+
+  @@index([faceProfileId, isActive])
+  @@index([organizationId])
+  @@map("face_templates")
+}
+
+model AttendanceReview {
+  id             BigInt    @id @default(autoincrement())
+  attendanceId   BigInt    @unique @map("attendance_id")
+  organizationId BigInt    @map("organization_id")
+  reviewStatus   String    @default("pending") @db.VarChar(20) @map("review_status")
+  // reviewStatus: pending | confirmed | rejected | reassigned
+  reviewerId     BigInt?   @map("reviewer_id")
+  finalUserId    BigInt?   @map("final_user_id")
+  note           String?   @db.Text
+  reviewedAt     DateTime? @map("reviewed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  attendance   AttendanceRecord @relation(fields: [attendanceId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  reviewer     User?            @relation("ReviewedBy", fields: [reviewerId], references: [id])
+
+  @@index([organizationId, reviewStatus])
+  @@map("attendance_reviews")
+}
+
+model FaceAuditLog {
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt   @map("organization_id")
+  actorId        BigInt?  @map("actor_id")
+  action         String   @db.VarChar(50) // ENROLL_FRAME | ENROLL_FINALIZE | SCAN | REVIEW_CONFIRM | REVIEW_REJECT | REVIEW_REASSIGN | THRESHOLD_CHANGE | TEMPLATE_DELETE
+  entityType     String   @db.VarChar(50) @map("entity_type") // face_profile | face_template | attendance_review | face_school_config
+  entityId       BigInt?  @map("entity_id")
+  payloadJson    String?  @db.Text @map("payload_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([action])
+  @@map("face_audit_logs")
 }
