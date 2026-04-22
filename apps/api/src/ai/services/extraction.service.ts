@@ -84,14 +84,22 @@ export class ExtractionService {
         return this.fallbackExtraction(extractedText);
       }
 
+      // Normalize fullwidth brackets/punctuation that Gemini sometimes returns
+      const normalized = rawText
+        .replace(/｛/g, '{')
+        .replace(/｝/g, '}')
+        .replace(/：/g, ':')
+        .replace(/，/g, ',');
+
       // Extract JSON: find first '{' and last '}' — handles ```json fences, prose wrappers, etc.
-      const start = rawText.indexOf('{');
-      const end = rawText.lastIndexOf('}');
+      const start = normalized.indexOf('{');
+      const end = normalized.lastIndexOf('}');
       if (start === -1 || end === -1 || end <= start) {
-        this.logger.warn(`Extraction: no JSON found in response, raw="${rawText.substring(0, 200)}"`);
+        const codes = [...rawText.substring(0, 40)].map((c) => c.charCodeAt(0)).join(',');
+        this.logger.warn(`Extraction: no JSON found in response, raw="${rawText.substring(0, 200)}" charCodes=[${codes}]`);
         return this.fallbackExtraction(extractedText);
       }
-      const parsed = JSON.parse(rawText.substring(start, end + 1));
+      const parsed = JSON.parse(normalized.substring(start, end + 1));
 
       // Parse structured_summary ถ้ามี
       let structuredSummary: StructuredSummary | null = null;
