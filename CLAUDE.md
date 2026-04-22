@@ -452,3 +452,91 @@ ReasoningService              ← Gemini Flash, top 3 horizon + top 3 policy
 - `knowledge-worker.js` เพิ่ม `httpsPostWithRetry` แล้ว: retry สูงสุด 5 ครั้ง, delay 5s→10s→20s→40s→60s
 - ครอบทั้ง OCR call และ embedding batch call
 - ถ้า item ผิดพลาดด้วย 429 ให้กด **ลองใหม่** ในหน้า `/knowledge/import` — จะ retry อัตโนมัติ
+
+---
+
+### Metadata Extraction — Thinking Model Truncation (session 2026-04-22) — RESOLVED
+
+**สถานะ:** แก้แล้ว (commit `0b27b84`) — ExtractionService ดึง metadata ครบทุกฟิลด์
+
+#### อาการ
+หลัง upload หนังสือราชการผ่าน LINE:
+- Classification ผ่าน "หนังสือราชการ ความมั่นใจ 100%" ✓
+- แต่ **เลขที่หนังสือ / ลงวันที่ / หน่วยงาน / actions = ว่างหมด** (`—`)
+- ชื่อเรื่องมา (จาก regex fallback)
+- "สรุปโดย AI" แสดง OCR text ดิบ (ไม่ใช่ประโยคสรุป)
+
+#### สาเหตุจริง (ตามลำดับที่ค้นพบ)
+
+1. **Thinking model eats output budget** ← ตัวจริง
+   - `gemini-2.5-flash` เป็น thinking model — default `thinkingBudget = dynamic`
+   - `maxOutputTokens: 1650` ถูกใช้กับ internal reasoning ส่วนใหญ่ → เหลือ ~300 tokens สำหรับ JSON
+   - Response ถูกตัดกลางคัน: `raw="```json\n{\n  \"subject\": \"...\",\n  \"intent\": \"เพื่อแจ้งและประชาสัมพันธ์`
+   - `indexOf('{')` เจอ (start=8) แต่ `lastIndexOf('}')` ไม่เจอ (end=-1) → fallback ทำงาน
+   - Fallback extraction ไม่มีข้อมูล metadata → ว่างหมด
+
+2. **Fullwidth brackets** (ไม่ใช่สาเหตุเคสนี้ แต่เคยเจอ)
+   - Gemini บางครั้งส่ง `｛｝：，` (U+FF5B/FF5D/FF1A/FF0C) แทน ASCII
+   - `JSON.parse` fail — แก้ด้วย `.replace(/｛/g, '{')` ก่อน parse
+
+3. **Gemini ไม่ fill top-level fields**
+   - บาง response มี `structured_summary.sender` แต่ `issuing_authority = ""`
+   - Gemini ส่ง `document_no: 13` (number) แทน string `"ศธ ๐๕๐๔๕/..."`
+
+#### วิธีแก้ (4 ชั้นป้องกัน)
+
+**1. Disable thinking mode** (แก้สาเหตุหลัก) — `apps/api/src/gemini/gemini-api.service.ts`
+```typescript
+// Gemini direct API
+generationConfig: {
+  ...,
+  thinkingConfig: { thinkingBudget: 0 },  // ← สำคัญสุด
+}
+
+// OpenRouter
+body.reasoning = { max_tokens: 0 };
+```
+Service รับ `disableThinking?: boolean` — pass `true` จาก `ExtractionService` และ `ClassifierService` (งาน JSON structured)
+
+**2. Normalize fullwidth chars** — `extraction.service.ts`
+```typescript
+const normalized = rawText
+  .replace(/｛/g, '{').replace(/｝/g, '}')
+  .replace(/：/g, ':').replace(/，/g, ',');
+```
+
+**3. JSON boundary extraction** — ไม่ใช้ regex strip markdown fence
+```typescript
+const start = normalized.indexOf('{');
+const end = normalized.lastIndexOf('}');
+// ทนต่อ ```json prefix, prose wrappers, อะไรก็ได้
+```
+
+**4. Regex fallback เมื่อ Gemini ส่งฟิลด์ว่าง** — `regexFallback()` ใน `extraction.service.ts`
+- `docNo`: match `ที่ ศธ ๐๕๐๔๕/๑ ๔๗๓` / `ที่ กสศ.๐๖/๙๕๖๒`
+- `docDate`: parse `๑๓ มีนาคม ๒๕๖๙` (รองรับเลขไทย + แปลง พ.ศ.→ค.ศ.)
+- `authority`: match บรรทัด `สำนักงาน.../กระทรวง.../กรม.../โรงเรียน.../เทศบาล...`
+
+และ `documentNo: String(parsed.document_no ?? '').trim()` — cast number → string
+
+#### กฎทอง
+> **ทุกครั้งที่ใช้ `gemini-2.5-flash` (หรือ thinking model รุ่นใหม่กว่า) กับงาน JSON/structured output → ต้องส่ง `disableThinking: true` เสมอ**
+> ไม่งั้น tokens จะถูกกิน response ตัดกลางคัน แม้ `maxOutputTokens` ตั้งสูงแค่ไหนก็ไม่พอ
+
+#### Debug Tip
+ถ้า ExtractionService WARN `no JSON found` — เปิด log แบบ single-line:
+```
+WARN Extraction: no JSON found — start=X end=Y charCodes=[...] raw="..."
+```
+- `end=-1` = response ถูกตัด → thinking budget issue
+- `charCodes` มี 65403 (U+FF5B) = fullwidth bracket → normalize issue
+- `start=-1` = ไม่มี `{` เลย → Gemini ไม่ได้ส่ง JSON กลับมา (prompt issue)
+
+#### Files Changed (session 2026-04-22)
+| File | การแก้ไข |
+|---|---|
+| `apps/api/src/gemini/gemini-api.service.ts` | เพิ่ม `disableThinking?` ใน 4 methods + `thinkingConfig` / `reasoning.max_tokens` |
+| `apps/api/src/ai/services/extraction.service.ts` | normalize fullwidth + indexOf JSON boundary + regex fallback (`regexFallback()`) + `disableThinking: true` |
+| `apps/api/src/ai/services/classifier.service.ts` | `disableThinking: true` |
+| `apps/api/src/system-prompts/default-prompts.ts` | prompt `extract.metadata` v2-fieldfix — เจาะจง `document_no` / `document_date` / `issuing_authority` ชัดเจนขึ้น |
+| `apps/api/src/system-prompts/system-prompts.service.ts` | เพิ่ม `extract.metadata: '[v2-fieldfix]'` ใน `FORCE_UPDATE_MARKER` |
