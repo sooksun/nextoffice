@@ -146,7 +146,8 @@ export class ExtractionService {
       const end = normalized.lastIndexOf('}');
       if (start === -1 || end === -1 || end <= start) {
         const codes = [...rawText.substring(0, 40)].map((c) => c.charCodeAt(0)).join(',');
-        this.logger.warn(`Extraction: no JSON found in response, raw="${rawText.substring(0, 200)}" charCodes=[${codes}]`);
+        const rawPreview = rawText.substring(0, 200).replace(/\n/g, '\\n');
+        this.logger.warn(`Extraction: no JSON found — start=${start} end=${end} charCodes=[${codes}] raw="${rawPreview}"`);
         return this.fallbackExtraction(extractedText);
       }
       const parsed = JSON.parse(normalized.substring(start, end + 1));
