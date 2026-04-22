@@ -81,6 +81,7 @@ export class ClassifierService {
           user: prompt,
           maxOutputTokens: p.maxTokens,
           temperature: p.temperature,
+          disableThinking: true, // JSON task
         })) || '{}';
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch?.[0] || '{}');

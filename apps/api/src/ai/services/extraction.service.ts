@@ -123,6 +123,7 @@ export class ExtractionService {
           user: prompt,
           maxOutputTokens: p.maxTokens,
           temperature: p.temperature,
+          disableThinking: true, // JSON task — avoid thinking tokens eating output budget
         })) || '';
 
       this.logger.log(

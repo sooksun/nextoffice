@@ -136,6 +136,7 @@ export class GeminiApiService {
     user: string;
     maxOutputTokens?: number;
     temperature?: number;
+    disableThinking?: boolean;
   }): Promise<string> {
     if (this.isOpenRouter()) {
       return this.generateTextOpenRouter(opts);
@@ -148,6 +149,7 @@ export class GeminiApiService {
     parts: GeminiPart[];
     maxOutputTokens?: number;
     temperature?: number;
+    disableThinking?: boolean;
   }): Promise<string> {
     if (this.isOpenRouter()) {
       return this.generateFromPartsOpenRouter(opts);
@@ -157,18 +159,36 @@ export class GeminiApiService {
 
   // ─── Gemini Direct implementations ──────────────────────────────────────
 
+  /** Build generationConfig with optional thinkingConfig — Gemini 2.5-flash thinking
+   *  models consume output tokens for reasoning, causing JSON truncation. Disable
+   *  thinking (thinkingBudget=0) for structured/JSON tasks. */
+  private buildGenerationConfig(opts: {
+    maxOutputTokens?: number;
+    temperature?: number;
+    disableThinking?: boolean;
+    defaultMaxTokens: number;
+    defaultTemp: number;
+  }): Record<string, unknown> {
+    const cfg: Record<string, unknown> = {
+      maxOutputTokens: opts.maxOutputTokens ?? opts.defaultMaxTokens,
+      temperature: opts.temperature ?? opts.defaultTemp,
+    };
+    if (opts.disableThinking) {
+      cfg.thinkingConfig = { thinkingBudget: 0 };
+    }
+    return cfg;
+  }
+
   private async generateTextGemini(opts: {
     system?: string;
     user: string;
     maxOutputTokens?: number;
     temperature?: number;
+    disableThinking?: boolean;
   }): Promise<string> {
     const body: Record<string, unknown> = {
       contents: [{ role: 'user', parts: [{ text: opts.user }] }],
-      generationConfig: {
-        maxOutputTokens: opts.maxOutputTokens ?? 2048,
-        temperature: opts.temperature ?? 0.3,
-      },
+      generationConfig: this.buildGenerationConfig({ ...opts, defaultMaxTokens: 2048, defaultTemp: 0.3 }),
     };
     if (opts.system) {
       body.systemInstruction = { parts: [{ text: opts.system }] };
@@ -182,13 +202,11 @@ export class GeminiApiService {
     parts: GeminiPart[];
     maxOutputTokens?: number;
     temperature?: number;
+    disableThinking?: boolean;
   }): Promise<string> {
     const body: Record<string, unknown> = {
       contents: [{ role: 'user', parts: opts.parts }],
-      generationConfig: {
-        maxOutputTokens: opts.maxOutputTokens ?? 4096,
-        temperature: opts.temperature ?? 0.2,
-      },
+      generationConfig: this.buildGenerationConfig({ ...opts, defaultMaxTokens: 4096, defaultTemp: 0.2 }),
     };
     if (opts.system) {
       body.systemInstruction = { parts: [{ text: opts.system }] };
@@ -204,17 +222,21 @@ export class GeminiApiService {
     user: string;
     maxOutputTokens?: number;
     temperature?: number;
+    disableThinking?: boolean;
   }): Promise<string> {
     const messages: any[] = [];
     if (opts.system) messages.push({ role: 'system', content: opts.system });
     messages.push({ role: 'user', content: opts.user });
 
-    const body = {
+    const body: Record<string, unknown> = {
       model: this.openRouterModel(),
       messages,
       max_tokens: opts.maxOutputTokens ?? 2048,
       temperature: opts.temperature ?? 0.3,
     };
+    // OpenRouter: disable reasoning tokens for Gemini thinking models
+    if (opts.disableThinking) body.reasoning = { max_tokens: 0 };
+
     const res = await this.postWithRetry(
       this.openRouterEndpoint(), body, this.openRouterOpts(), 'generateText:openrouter',
     );
@@ -226,6 +248,7 @@ export class GeminiApiService {
     parts: GeminiPart[];
     maxOutputTokens?: number;
     temperature?: number;
+    disableThinking?: boolean;
   }): Promise<string> {
     // Convert Gemini parts to OpenAI multimodal format
     const content: any[] = [];
@@ -246,12 +269,14 @@ export class GeminiApiService {
     if (opts.system) messages.push({ role: 'system', content: opts.system });
     messages.push({ role: 'user', content });
 
-    const body = {
+    const body: Record<string, unknown> = {
       model: this.openRouterModel(),
       messages,
       max_tokens: opts.maxOutputTokens ?? 4096,
       temperature: opts.temperature ?? 0.2,
     };
+    if (opts.disableThinking) body.reasoning = { max_tokens: 0 };
+
     const res = await this.postWithRetry(
       this.openRouterEndpoint(), body, this.openRouterOpts(), 'generateFromParts:openrouter',
     );
