@@ -84,14 +84,14 @@ export class ExtractionService {
         return this.fallbackExtraction(extractedText);
       }
 
-      // Strip markdown fences if present (```json ... ```)
-      const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
-      const jsonMatch = stripped.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
+      // Extract JSON: find first '{' and last '}' — handles ```json fences, prose wrappers, etc.
+      const start = rawText.indexOf('{');
+      const end = rawText.lastIndexOf('}');
+      if (start === -1 || end === -1 || end <= start) {
         this.logger.warn(`Extraction: no JSON found in response, raw="${rawText.substring(0, 200)}"`);
         return this.fallbackExtraction(extractedText);
       }
-      const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(rawText.substring(start, end + 1));
 
       // Parse structured_summary ถ้ามี
       let structuredSummary: StructuredSummary | null = null;
