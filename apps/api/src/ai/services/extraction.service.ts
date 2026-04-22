@@ -73,9 +73,25 @@ export class ExtractionService {
           user: prompt,
           maxOutputTokens: p.maxTokens,
           temperature: p.temperature,
-        })) || '{}';
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(jsonMatch?.[0] || '{}');
+        })) || '';
+
+      this.logger.log(
+        `Extraction: model=${this.gemini.getModel()} text=${extractedText.length}ch raw=${rawText.length}ch preview="${rawText.substring(0, 120).replace(/\n/g, ' ')}"`,
+      );
+
+      if (!rawText) {
+        this.logger.warn(`Extraction: Gemini returned empty — using fallback`);
+        return this.fallbackExtraction(extractedText);
+      }
+
+      // Strip markdown fences if present (```json ... ```)
+      const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+      const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        this.logger.warn(`Extraction: no JSON found in response, raw="${rawText.substring(0, 200)}"`);
+        return this.fallbackExtraction(extractedText);
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
 
       // Parse structured_summary ถ้ามี
       let structuredSummary: StructuredSummary | null = null;
