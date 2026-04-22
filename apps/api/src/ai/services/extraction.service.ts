@@ -114,10 +114,19 @@ export class ExtractionService {
         };
       }
 
+      // issuing_authority: ถ้าฟิลด์หลักว่าง ให้ fallback ไปที่ structured_summary.sender
+      const issuingAuthority =
+        (parsed.issuing_authority as string)?.trim() ||
+        structuredSummary?.sender?.trim() ||
+        '';
+
+      // document_no: Gemini บางครั้งส่งเป็น number (เช่น 13) ให้แปลงเป็น string
+      const documentNo = String(parsed.document_no ?? '').trim();
+
       return {
-        issuingAuthority: parsed.issuing_authority || '',
+        issuingAuthority,
         recipient: parsed.recipient || '',
-        documentNo: parsed.document_no || '',
+        documentNo,
         documentDate: normalizeDateToCe(parsed.document_date),
         subjectText: parsed.subject || '',
         deadlineDate: normalizeDateToCe(parsed.deadline_date),

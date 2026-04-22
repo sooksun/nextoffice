@@ -35,6 +35,7 @@ export class SystemPromptsService implements OnModuleInit {
       // Marker คือ substring ที่ต้องมีอยู่ใน prompt เวอร์ชันใหม่เท่านั้น
       const FORCE_UPDATE_MARKER: Record<string, string> = {
         'classify.llm': '[v2-lenient]',
+        'extract.metadata': '[v2-fieldfix]',
       };
 
       for (const d of DEFAULT_PROMPTS) {
