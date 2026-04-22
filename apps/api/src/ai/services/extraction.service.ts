@@ -50,6 +50,56 @@ function normalizeDateToCe(raw: string | null | undefined): string {
   return '';
 }
 
+// ── Thai digit/month helpers ─────────────────────────────────────────────
+const THAI_DIGITS = '๐๑๒๓๔๕๖๗๘๙';
+function thaiToArabic(s: string): string {
+  return s.replace(/[๐-๙]/g, (d) => String(THAI_DIGITS.indexOf(d)));
+}
+const THAI_MONTHS: Record<string, number> = {
+  มกราคม: 1, กุมภาพันธ์: 2, มีนาคม: 3, เมษายน: 4,
+  พฤษภาคม: 5, มิถุนายน: 6, กรกฎาคม: 7, สิงหาคม: 8,
+  กันยายน: 9, ตุลาคม: 10, พฤศจิกายน: 11, ธันวาคม: 12,
+};
+
+/** Regex-based extraction from OCR text — ใช้เป็น fallback เมื่อ Gemini คืนฟิลด์ว่าง */
+function regexFallback(text: string): { docNo: string; docDate: string; authority: string } {
+  // Document number: "ที่ ศธ 0504/..." / "ที่ กสศ.06/..." / "ที่ ศธ ๐๕๐๔๕/๑ ๔๗๓"
+  const docNoMatch = text.match(
+    /ที่\s+((?:[ก-ฮa-zA-Z]{1,6}\.?\s*){1,3}[๐-๙\d][ก-ฮ๐-๙\d\w\s\/\.()-]{1,40})/,
+  );
+  // Thai date: "๑๓ มีนาคม ๒๕๖๙" or "13 มีนาคม 2569"
+  const dateMatch = text.match(
+    /([๐-๙\d]{1,2})\s+(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s+([๐-๙\d]{4})/,
+  );
+  // Issuing authority: lines starting with สำนักงาน/กระทรวง/กรม/โรงเรียน/เทศบาล/องค์การ/สถาบัน/ศูนย์
+  const authMatch = text.match(
+    /((?:สำนักงาน(?:เขต|คณะ|ปลัด)?|กระทรวง|กรม(?:การ|พัฒนา|ควบคุม|สรรพ)?|โรงเรียน|เทศบาล|องค์การ|สถาบัน|ศูนย์|มหาวิทยาลัย)[^\n\r]{5,100})/,
+  );
+
+  let docNo = '';
+  if (docNoMatch) {
+    docNo = docNoMatch[1].replace(/\s+/g, ' ').replace(/[)(]/g, '').trim();
+  }
+
+  let docDate = '';
+  if (dateMatch) {
+    const day = parseInt(thaiToArabic(dateMatch[1]), 10);
+    const month = THAI_MONTHS[dateMatch[2]] || 0;
+    const yearRaw = parseInt(thaiToArabic(dateMatch[3]), 10);
+    const yearCE = yearRaw > 2500 ? yearRaw - 543 : yearRaw;
+    if (day && month && yearCE) {
+      docDate = `${yearCE}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  let authority = '';
+  if (authMatch) {
+    authority = authMatch[1].replace(/\s+/g, ' ').trim();
+  }
+
+  return { docNo, docDate, authority };
+}
+
 @Injectable()
 export class ExtractionService {
   private readonly logger = new Logger(ExtractionService.name);
@@ -114,20 +164,31 @@ export class ExtractionService {
         };
       }
 
-      // issuing_authority: ถ้าฟิลด์หลักว่าง ให้ fallback ไปที่ structured_summary.sender
+      // Regex fallback สำหรับฟิลด์ที่ Gemini ส่งค่าว่าง (ดึงจาก OCR text ต้นฉบับ)
+      const rx = regexFallback(extractedText);
+
+      // issuing_authority: Gemini → structuredSummary.sender → regex fallback
       const issuingAuthority =
         (parsed.issuing_authority as string)?.trim() ||
         structuredSummary?.sender?.trim() ||
+        rx.authority ||
         '';
 
-      // document_no: Gemini บางครั้งส่งเป็น number (เช่น 13) ให้แปลงเป็น string
-      const documentNo = String(parsed.document_no ?? '').trim();
+      // document_no: Gemini บางครั้งส่งเป็น number หรือว่าง — แปลงเป็น string + regex fallback
+      const documentNo = String(parsed.document_no ?? '').trim() || rx.docNo;
+
+      // document_date: Gemini → regex fallback จาก Thai date pattern
+      const documentDate = normalizeDateToCe(parsed.document_date) || rx.docDate;
+
+      this.logger.log(
+        `Extraction fields: authority="${issuingAuthority.substring(0, 40)}" date="${documentDate}" no="${documentNo}" geminiRaw={ia:"${(parsed.issuing_authority || '').substring(0, 20)}" dd:"${parsed.document_date || ''}" dn:"${parsed.document_no || ''}"}`,
+      );
 
       return {
         issuingAuthority,
         recipient: parsed.recipient || '',
         documentNo,
-        documentDate: normalizeDateToCe(parsed.document_date),
+        documentDate,
         subjectText: parsed.subject || '',
         deadlineDate: normalizeDateToCe(parsed.deadline_date),
         summary: parsed.summary || '',
