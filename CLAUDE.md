@@ -226,36 +226,53 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 ---
 
-## Known Security Issues (TODO — ยังไม่ได้แก้)
+## Security Hardening (session 2026-06-22) — RESOLVED
 
-### [HIGH] IDOR — Case endpoints ไม่มี org boundary check
-- **ไฟล์:** `apps/api/src/cases/services/cases.service.ts` → `findById()`, `getOptions()`
-- **ไฟล์:** `apps/api/src/cases/controllers/cases.controller.ts` → `GET /:id`, `PATCH /:id/status`, `PATCH /assignments/:id/status`
-- **ปัญหา:** `findById()` query ด้วย case ID อย่างเดียว — ไม่กรอง `organizationId` ทำให้ user ใน org A อ่าน/แก้ข้อมูลของ org B ได้
-- **วิธีแก้:** ส่ง `userOrgId` จาก `@CurrentUser()` เข้า service และเพิ่ม `where: { id, organizationId }` ใน query ทุก method ที่รับ case ID จากภายนอก
+ตรวจ codebase ทั้งระบบ (security + performance) แล้วแก้กลุ่มมั่นใจสูง/เสี่ยงต่ำ. `tsc --noEmit` ผ่านทั้งหมด.
 
-### [HIGH] Privilege Escalation — DIRECTOR สร้าง ADMIN ได้
-- **ไฟล์:** `apps/api/src/auth/dto/register.dto.ts` → `roleCode` field
-- **ไฟล์:** `apps/api/src/auth/services/auth.service.ts` → `register()` method
-- **ปัญหา:** `RegisterDto` อนุญาต `roleCode = 'ADMIN'` และ `register()` service เขียนค่านี้ตรง ๆ ไปยัง DB โดยไม่ตรวจว่า caller มีสิทธิ์สร้าง ADMIN หรือเปล่า — DIRECTOR จึงสร้างบัญชี ADMIN ได้
-- **วิธีแก้:**
-  ```typescript
-  // auth.service.ts → register()
-  async register(dto: RegisterDto, callerRole: string) {
-    if (dto.roleCode === 'ADMIN' && callerRole !== 'ADMIN') {
-      throw new ForbiddenException('Only ADMIN can create ADMIN accounts');
-    }
-    // ...
-  }
-  // auth.controller.ts → register()
-  async register(@Body() dto: RegisterDto, @CurrentUser() caller: any) {
-    return this.authService.register(dto, caller.roleCode);
-  }
-  ```
+### ช่องโหว่เดิม 2 ข้อ — แก้ไปก่อนหน้าแล้ว (เอกสารเก่าระบุว่ายังไม่แก้ → ไม่จริง)
+- **[HIGH] IDOR — Cases**: `cases.service.ts` `findById()`/`getOptions()` รับ `callerOrgId` + filter `organizationId` แล้ว; controller ส่ง `user.organizationId`+`user.roleCode` จริง
+- **[HIGH] Privilege Escalation — register**: `auth.service.ts:159` มี `ForbiddenException` + ROLE_RANK + org check แล้ว
+
+### แก้เพิ่มใน session นี้
+**Auth/secrets**
+- `auth.service.ts` — JWT secret เปลี่ยน `config.get('JWT_SECRET','...dev-secret')` → `getOrThrow('JWT_SECRET')` (ทั้ง validate + sign) กัน fallback secret ที่ forge token ได้
+
+**Missing guards (เดิมเปิด public)**
+- `organizations.controller.ts` — class-level `@UseGuards(JwtAuthGuard)` (เดิม GET list/tree/:id เปิด public = leak ทุก org)
+- `line-reply.controller.ts` — `@UseGuards(JwtAuthGuard)` (เดิม `POST /line/push` ส่งข้อความหา LINE user ใครก็ได้)
+- `academic-years.controller.ts` — `JwtAuthGuard` + `@Roles('ADMIN')` บน create/set-current
+- `horizon-sources.controller.ts` — `JwtAuthGuard+RolesGuard @Roles('ADMIN')` (กัน SSRF source + pipeline abuse)
+- `horizon-intelligence.controller.ts` — `JwtAuthGuard` ทั้ง class + `@Roles('ADMIN')` บน `pipeline/run`
+
+**IDOR cross-tenant (pattern: controller ส่ง `user.organizationId` → service `findFirst({where:{id,organizationId}})`)**
+- `loans` (`returnDocument`), `dispatch` (`markDelivered`,`generateReceiptPdf`), `handover` (`findOne`,`approve`,`complete`,`generatePdf`)
+- `projects` (`findOne`,`update`,`addDocument`,`getDocuments` + บังคับ scope `findAll`/`create` ตาม org; ADMIN ข้ามได้)
+- `archive` — controller เดิมเชื่อ `:orgId` จาก URL + `userId` จาก body → ใส่ `assertOrg()` (ADMIN ข้ามได้) + ใช้ `user.id` เป็น actor; service scope `archiveDocument`/`approveDestruction`/`confirmDestruction`
+- `intake.updateAiResult`, `leave`/`travel` (`approve`,`reject`,`getById`), `stamps` (ย้าย org-check ก่อนเสิร์ฟไฟล์ stamped)
+
+**Performance**
+- DB index (apply ผ่าน `prisma db push`): `inbound_cases [organizationId,status]/[organizationId,receivedAt]/[organizationId,dueDate]`, `line_conversation_sessions [lineUserIdRef,status]/[documentIntakeId]`, `document_intakes [organizationId]`
+- `intake.listIntakes` — `omit` LongText (`extractedText`,`structuredSummaryJson`,`nextActionJson`) จาก list payload + cap `limit ≤ 100`
+- defensive `take` cap บน list ที่ไม่มี pagination: loans/dispatch/handover/projects (500)
+
+### ยังเป็นข้อเสนอ (ไม่แก้อัตโนมัติ — กระทบสถาปัตยกรรม/deployment ต้องตัดสินใจ)
+- JWT เก็บใน localStorage + non-httpOnly cookie (เสี่ยง XSS) → ควรย้ายเป็น httpOnly cookie ที่ backend set
+- `main.ts` Helmet ปิด CSP/HSTS ทั้งหมด → ควรเปิด CSP/HSTS (ระวัง LIFF iframe); NPM ทำ TLS อยู่แล้ว
+- `api/proxy/[...path]` ใช้ denylist → ควรเปลี่ยนเป็น allowlist
+- `?token=` query param ใน `api/files/*` → ควรเอาออก, ใช้ cookie อย่างเดียว
+- `docker-compose.yml` expose MinIO console/Qdrant → ควรถอด ports ออกให้อยู่ internal network
+- `reports.service` หลาย query ต่อ status/stage → รวมเป็น `groupBy` (index ใหม่ช่วยลดผลกระทบแล้ว)
 
 ---
 
 ## Known Deployment Pitfalls (อ่านก่อน deploy ทุกครั้ง)
+
+### [IMPORTANT] DB ใช้ `prisma db push` ไม่ใช่ migrations
+- migration history ค้างที่ `20260403145328_init` แต่ DB จริงมีครบ 89 models (เพิ่มผ่าน `db push` มาตลอด)
+- **ห้ามรัน `npx prisma migrate dev`** — มันเจอ drift แล้วจะขอ **reset (ล้าง) DB**
+- เปลี่ยน schema → แก้ `schema.prisma` แล้ว `npx prisma db push` (จาก `apps/api`)
+- ดู impact ก่อน (read-only): `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
 
 ### [RESOLVED] Google Login หายหลัง rebuild web image
 

@@ -1,9 +1,15 @@
-import { Controller, Get, Post, Put, Param, Query, Body, ParseIntPipe, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Put, Param, Query, Body, ParseIntPipe, Logger, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { HorizonSourceService } from '../services/horizon-source.service';
 import { HorizonPipelineService } from '../services/horizon-pipeline.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
 
 @ApiTags('horizon-sources')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
 @Controller('horizon/sources')
 export class HorizonSourcesController {
   private readonly logger = new Logger(HorizonSourcesController.name);

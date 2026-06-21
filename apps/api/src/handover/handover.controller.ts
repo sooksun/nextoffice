@@ -37,8 +37,8 @@ export class HandoverController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get handover record detail with items' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.svc.findOne(id, Number(user.organizationId));
   }
 
   @Post()
@@ -60,19 +60,19 @@ export class HandoverController {
   @Roles('DIRECTOR', 'ADMIN')
   @ApiOperation({ summary: 'Approve handover (DIRECTOR/ADMIN only)' })
   approve(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
-    return this.svc.approve(id, Number(user.id));
+    return this.svc.approve(id, Number(user.id), Number(user.organizationId));
   }
 
   @Post(':id/complete')
   @ApiOperation({ summary: 'Mark handover as completed' })
-  complete(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.complete(id);
+  complete(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.svc.complete(id, Number(user.organizationId));
   }
 
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Generate handover register PDF' })
-  async pdf(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const buffer = await this.svc.generatePdf(id);
+  async pdf(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any, @Res() res: Response) {
+    const buffer = await this.svc.generatePdf(id, Number(user.organizationId));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="handover-${id}.pdf"`);
     res.setHeader('Content-Length', buffer.length);

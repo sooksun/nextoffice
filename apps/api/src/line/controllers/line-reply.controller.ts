@@ -1,8 +1,11 @@
-import { Controller, Post, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { LineMessagingService } from '../services/line-messaging.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 
 @ApiTags('line')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('line')
 export class LineReplyController {
   constructor(private readonly messaging: LineMessagingService) {}

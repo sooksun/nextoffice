@@ -17,6 +17,7 @@ export class LoansService {
         approvedBy: { select: { fullName: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return items.map((l) => ({
@@ -104,8 +105,10 @@ export class LoansService {
     return { id: Number(loan.id), loanNo: loan.loanNo };
   }
 
-  async returnDocument(id: number) {
-    const loan = await this.prisma.documentLoan.findUnique({ where: { id: BigInt(id) } });
+  async returnDocument(id: number, organizationId: number) {
+    const loan = await this.prisma.documentLoan.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
+    });
     if (!loan) throw new NotFoundException(`Loan #${id} not found`);
     if (loan.status === 'returned') throw new BadRequestException('คืนแล้ว');
 

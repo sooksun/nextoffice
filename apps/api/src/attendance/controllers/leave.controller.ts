@@ -47,8 +47,8 @@ export class LeaveController {
 
   @Get(':id')
   @ApiOperation({ summary: 'รายละเอียดใบลา' })
-  getLeave(@Param('id', ParseIntPipe) id: number) {
-    return this.leaveSvc.getById(id);
+  getLeave(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.leaveSvc.getById(id, Number(user.organizationId));
   }
 
   @Patch(':id')
@@ -76,7 +76,7 @@ export class LeaveController {
     @CurrentUser() user: any,
     @Body() body: { note?: string },
   ) {
-    return this.leaveSvc.approve(id, Number(user.id), body.note);
+    return this.leaveSvc.approve(id, Number(user.id), Number(user.organizationId), body.note);
   }
 
   @Patch(':id/reject')
@@ -88,7 +88,7 @@ export class LeaveController {
     @CurrentUser() user: any,
     @Body() body: { reason: string },
   ) {
-    return this.leaveSvc.reject(id, Number(user.id), body.reason);
+    return this.leaveSvc.reject(id, Number(user.id), Number(user.organizationId), body.reason);
   }
 
   @Patch(':id/cancel')
@@ -121,8 +121,8 @@ export class LeaveController {
 
   @Get('travel/:id')
   @ApiOperation({ summary: 'รายละเอียดคำขอไปราชการ' })
-  getTravel(@Param('id', ParseIntPipe) id: number) {
-    return this.travelSvc.getById(id);
+  getTravel(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.travelSvc.getById(id, Number(user.organizationId));
   }
 
   @Patch('travel/:id/submit')
@@ -136,7 +136,7 @@ export class LeaveController {
   @Roles('ADMIN', 'DIRECTOR', 'VICE_DIRECTOR')
   @ApiOperation({ summary: 'อนุมัติไปราชการ' })
   approveTravel(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
-    return this.travelSvc.approve(id, Number(user.id));
+    return this.travelSvc.approve(id, Number(user.id), Number(user.organizationId));
   }
 
   @Patch('travel/:id/reject')
@@ -148,7 +148,7 @@ export class LeaveController {
     @CurrentUser() user: any,
     @Body() body: { reason: string },
   ) {
-    return this.travelSvc.reject(id, Number(user.id), body.reason);
+    return this.travelSvc.reject(id, Number(user.id), Number(user.organizationId), body.reason);
   }
 
   @Patch('travel/:id/cancel')

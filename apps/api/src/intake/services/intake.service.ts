@@ -438,7 +438,7 @@ export class IntakeService {
     organizationId?: number;
   }) {
     const page = Number(filters.page) || 1;
-    const limit = Number(filters.limit) || 20;
+    const limit = Math.min(Number(filters.limit) || 20, 100);
     const where: any = {};
     if (filters.organizationId) where.organizationId = BigInt(filters.organizationId);
     if (filters.status) where.aiStatus = filters.status;
@@ -456,7 +456,13 @@ export class IntakeService {
       this.prisma.documentIntake.count({ where }),
       this.prisma.documentIntake.findMany({
         where,
-        include: { aiResult: true },
+        // Omit heavy LongText columns from the list payload — the detail
+        // endpoint (getResult) still returns the full AI result.
+        include: {
+          aiResult: {
+            omit: { extractedText: true, structuredSummaryJson: true, nextActionJson: true },
+          },
+        },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -487,7 +493,17 @@ export class IntakeService {
     return result;
   }
 
-  async updateAiResult(intakeId: number, data: { summaryText?: string; actions?: string[] }) {
+  async updateAiResult(
+    intakeId: number,
+    organizationId: number,
+    data: { summaryText?: string; actions?: string[] },
+  ) {
+    const intake = await this.prisma.documentIntake.findFirst({
+      where: { id: BigInt(intakeId), organizationId: BigInt(organizationId) },
+      select: { id: true },
+    });
+    if (!intake) throw new NotFoundException(`Intake #${intakeId} not found`);
+
     const aiResult = await this.prisma.documentAiResult.findUnique({
       where: { documentIntakeId: BigInt(intakeId) },
     });

@@ -20,6 +20,7 @@ export class DispatchService {
         sentBy: { select: { fullName: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return items.map((d) => ({
@@ -73,8 +74,10 @@ export class DispatchService {
     return { id: Number(entry.id), dispatchNo: entry.dispatchNo };
   }
 
-  async markDelivered(id: number, receivedBy: string) {
-    const entry = await this.prisma.dispatchEntry.findUnique({ where: { id: BigInt(id) } });
+  async markDelivered(id: number, organizationId: number, receivedBy: string) {
+    const entry = await this.prisma.dispatchEntry.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
+    });
     if (!entry) throw new NotFoundException(`Dispatch #${id} not found`);
 
     const updated = await this.prisma.dispatchEntry.update({
@@ -85,9 +88,9 @@ export class DispatchService {
     return { id: Number(updated.id), status: updated.status };
   }
 
-  async generateReceiptPdf(id: number): Promise<Buffer> {
-    const entry = await this.prisma.dispatchEntry.findUnique({
-      where: { id: BigInt(id) },
+  async generateReceiptPdf(id: number, organizationId: number): Promise<Buffer> {
+    const entry = await this.prisma.dispatchEntry.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
       include: {
         registry: { select: { subject: true, documentNo: true, registryNo: true, fromOrg: true } },
         sentBy: { select: { fullName: true } },

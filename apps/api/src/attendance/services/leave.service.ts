@@ -89,9 +89,9 @@ export class LeaveService {
 
   // ─── Approve ────────────────────────────────────────
 
-  async approve(requestId: number, approverId: number, note?: string) {
-    const req = await this.prisma.leaveRequest.findUnique({
-      where: { id: BigInt(requestId) },
+  async approve(requestId: number, approverId: number, organizationId: number, note?: string) {
+    const req = await this.prisma.leaveRequest.findFirst({
+      where: { id: BigInt(requestId), organizationId: BigInt(organizationId) },
     });
     if (!req) throw new NotFoundException('ไม่พบคำขอลา');
     this.validateTransition(req.status, 'approved');
@@ -114,9 +114,9 @@ export class LeaveService {
 
   // ─── Reject ─────────────────────────────────────────
 
-  async reject(requestId: number, approverId: number, reason: string) {
-    const req = await this.prisma.leaveRequest.findUnique({
-      where: { id: BigInt(requestId) },
+  async reject(requestId: number, approverId: number, organizationId: number, reason: string) {
+    const req = await this.prisma.leaveRequest.findFirst({
+      where: { id: BigInt(requestId), organizationId: BigInt(organizationId) },
     });
     if (!req) throw new NotFoundException('ไม่พบคำขอลา');
     this.validateTransition(req.status, 'rejected');
@@ -212,9 +212,9 @@ export class LeaveService {
     return requests.map((r) => this.serialize(r));
   }
 
-  async getById(requestId: number) {
-    const req = await this.prisma.leaveRequest.findUnique({
-      where: { id: BigInt(requestId) },
+  async getById(requestId: number, organizationId: number) {
+    const req = await this.prisma.leaveRequest.findFirst({
+      where: { id: BigInt(requestId), organizationId: BigInt(organizationId) },
       include: {
         user: {
           select: {

@@ -438,6 +438,9 @@ model InboundCase {
   @@index([assignedToUserId])
   @@index([directorStampStatus])
   @@index([requiresResponse, hasBeenReplied])
+  @@index([organizationId, status])
+  @@index([organizationId, receivedAt])
+  @@index([organizationId, dueDate])
   @@map("inbound_cases")
 }
 
@@ -605,6 +608,7 @@ model DocumentIntake {
   conversationSessions LineConversationSession[]
 
   @@index([academicYearId])
+  @@index([organizationId])
   @@map("document_intakes")
 }
 
@@ -656,6 +660,8 @@ model LineConversationSession {
   documentIntake DocumentIntake? @relation(fields: [documentIntakeId], references: [id])
   actions        LineSessionAction[]
 
+  @@index([lineUserIdRef, status])
+  @@index([documentIntakeId])
   @@map("line_conversation_sessions")
 }
 

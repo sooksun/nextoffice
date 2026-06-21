@@ -304,7 +304,7 @@ export class AuthService {
 
   async validateToken(token: string) {
     try {
-      const secret = this.config.get<string>('JWT_SECRET', 'nextoffice-dev-secret');
+      const secret = this.config.getOrThrow<string>('JWT_SECRET');
       const payload = jwt.verify(token, secret) as { sub: string; role: string; _adminId?: string };
       const user = await this.prisma.user.findUnique({
         where: { id: BigInt(payload.sub) },
@@ -349,7 +349,7 @@ export class AuthService {
   }
 
   private signToken(user: any, adminId?: number): string {
-    const secret = this.config.get<string>('JWT_SECRET', 'nextoffice-dev-secret');
+    const secret = this.config.getOrThrow<string>('JWT_SECRET');
     const expiresIn = this.config.get<string>('JWT_EXPIRES_IN', '7d');
     const payload: any = { sub: user.id.toString(), role: user.roleCode };
     if (adminId) payload._adminId = adminId.toString();

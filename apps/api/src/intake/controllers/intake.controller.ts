@@ -140,9 +140,10 @@ export class IntakeController {
   @ApiOperation({ summary: 'แก้ไขสรุป AI และสิ่งที่ต้องดำเนินการก่อนลงทะเบียน' })
   updateAiResult(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
     @Body() body: { summaryText?: string; actions?: string[] },
   ) {
-    return this.svc.updateAiResult(id, body);
+    return this.svc.updateAiResult(id, Number(user.organizationId), body);
   }
 
   @Get(':id/file-url')

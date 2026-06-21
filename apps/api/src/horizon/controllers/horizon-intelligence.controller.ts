@@ -1,9 +1,14 @@
-import { Controller, Get, Post, Query, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Query, Logger, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HorizonPipelineService } from '../services/horizon-pipeline.service';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
 
 @ApiTags('horizon-intelligence')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('horizon')
 export class HorizonIntelligenceController {
   private readonly logger = new Logger(HorizonIntelligenceController.name);
@@ -131,7 +136,9 @@ export class HorizonIntelligenceController {
   }
 
   @Post('pipeline/run')
-  @ApiOperation({ summary: 'Trigger full horizon pipeline for all active sources' })
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Trigger full horizon pipeline for all active sources (ADMIN only)' })
   async runPipeline() {
     this.logger.log('Full pipeline run triggered');
     return this.pipelineService.runAll();

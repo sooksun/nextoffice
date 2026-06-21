@@ -33,19 +33,8 @@ export class StampsController {
   ) {
     const userOrgId = Number(user?.organizationId);
 
-    // Try stamped version first
-    const stamped = await this.stampStorage.get(intakeId);
-    if (stamped) {
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': 'inline',
-        'Cache-Control': 'private, no-store',
-      });
-      res.end(stamped);
-      return;
-    }
-
-    // Fallback — serve original file
+    // Load the intake and run the org-ownership check BEFORE serving anything
+    // (stamped version included) — otherwise the stamped PDF leaks cross-tenant.
     const intake = await this.prisma.documentIntake.findUnique({
       where: { id: BigInt(intakeId) },
     });
@@ -69,6 +58,19 @@ export class StampsController {
       }
     }
 
+    // Authorized — try stamped version first
+    const stamped = await this.stampStorage.get(intakeId);
+    if (stamped) {
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'private, no-store',
+      });
+      res.end(stamped);
+      return;
+    }
+
+    // Fallback — serve original file
     if (!intake.storagePath) {
       this.logger.warn(`stamps.view: intake #${intakeId} has no storagePath`);
       throw new NotFoundException('ไม่พบไฟล์ต้นฉบับ (ไม่มีข้อมูลที่จัดเก็บ)');

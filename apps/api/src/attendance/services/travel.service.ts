@@ -47,8 +47,8 @@ export class TravelService {
     return this.serialize(updated);
   }
 
-  async approve(requestId: number, approverId: number, note?: string) {
-    const req = await this.findOrFail(requestId);
+  async approve(requestId: number, approverId: number, organizationId: number, note?: string) {
+    const req = await this.findOrFail(requestId, organizationId);
     this.validateTransition(req.status, 'approved');
 
     const updated = await this.prisma.travelRequest.update({
@@ -83,8 +83,8 @@ export class TravelService {
     return this.serialize(updated);
   }
 
-  async reject(requestId: number, approverId: number, reason: string) {
-    const req = await this.findOrFail(requestId);
+  async reject(requestId: number, approverId: number, organizationId: number, reason: string) {
+    const req = await this.findOrFail(requestId, organizationId);
     this.validateTransition(req.status, 'rejected');
 
     const updated = await this.prisma.travelRequest.update({
@@ -128,9 +128,9 @@ export class TravelService {
     return requests.map((r) => this.serialize(r));
   }
 
-  async getById(requestId: number) {
-    const req = await this.prisma.travelRequest.findUnique({
-      where: { id: BigInt(requestId) },
+  async getById(requestId: number, organizationId: number) {
+    const req = await this.prisma.travelRequest.findFirst({
+      where: { id: BigInt(requestId), organizationId: BigInt(organizationId) },
       include: {
         user: { select: { id: true, fullName: true, roleCode: true } },
         approvedBy: { select: { id: true, fullName: true } },
@@ -140,10 +140,10 @@ export class TravelService {
     return this.serialize(req);
   }
 
-  private async findOrFail(requestId: number) {
-    const req = await this.prisma.travelRequest.findUnique({
-      where: { id: BigInt(requestId) },
-    });
+  private async findOrFail(requestId: number, organizationId?: number) {
+    const where: any = { id: BigInt(requestId) };
+    if (organizationId !== undefined) where.organizationId = BigInt(organizationId);
+    const req = await this.prisma.travelRequest.findFirst({ where });
     if (!req) throw new NotFoundException('ไม่พบคำขอไปราชการ');
     return req;
   }

@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { ProjectsService } from '../services/projects.service';
 import { ProjectMatchingService } from '../services/project-matching.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -19,18 +20,21 @@ export class ProjectsController {
   @ApiQuery({ name: 'organizationId', required: false, type: Number })
   @ApiQuery({ name: 'status', required: false })
   findAll(
+    @CurrentUser() user: any,
     @Query('organizationId') organizationId?: string,
     @Query('status') status?: string,
   ) {
-    return this.projectsService.findAll(
-      organizationId ? Number(organizationId) : undefined,
-      status,
-    );
+    const effectiveOrgId =
+      user.roleCode === 'ADMIN' && organizationId
+        ? Number(organizationId)
+        : Number(user.organizationId);
+    return this.projectsService.findAll(effectiveOrgId, status);
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a new project' })
   create(
+    @CurrentUser() user: any,
     @Body() body: {
       organizationId: number;
       name: string;
@@ -44,19 +48,25 @@ export class ProjectsController {
       topics?: { topicCode: string; score?: number }[];
     },
   ) {
-    return this.projectsService.create(body);
+    // Non-ADMIN callers can only create projects in their own organization
+    const organizationId =
+      user.roleCode === 'ADMIN' && body.organizationId
+        ? body.organizationId
+        : Number(user.organizationId);
+    return this.projectsService.create({ ...body, organizationId });
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get project by ID with topics, documents, reports' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.projectsService.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.projectsService.findOne(id, Number(user.organizationId));
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update a project' })
   update(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
     @Body() body: {
       name?: string;
       description?: string;
@@ -68,19 +78,20 @@ export class ProjectsController {
       policyAlignment?: string;
     },
   ) {
-    return this.projectsService.update(id, body);
+    return this.projectsService.update(id, body, Number(user.organizationId));
   }
 
   @Get(':id/documents')
   @ApiOperation({ summary: 'List documents linked to a project' })
-  getDocuments(@Param('id', ParseIntPipe) id: number) {
-    return this.projectsService.getDocuments(id);
+  getDocuments(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.projectsService.getDocuments(id, Number(user.organizationId));
   }
 
   @Post(':id/documents')
   @ApiOperation({ summary: 'Manually link a document to a project' })
   addDocument(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
     @Body() body: {
       inboundCaseId?: number;
       documentId?: number;
@@ -89,7 +100,7 @@ export class ProjectsController {
       matchRationale?: string;
     },
   ) {
-    return this.projectsService.addDocument(id, body);
+    return this.projectsService.addDocument(id, body, Number(user.organizationId));
   }
 
   @Get('cases/:caseId/project-matches')

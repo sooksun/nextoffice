@@ -11,6 +11,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { EmailService } from '../email/email.service';
 
 @ApiTags('organizations')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('organizations')
 export class OrganizationsController {
   constructor(

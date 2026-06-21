@@ -48,15 +48,20 @@ export class DispatchController {
   @ApiOperation({ summary: 'Mark dispatch as delivered' })
   markDelivered(
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
     @Body() body: { receivedBy: string },
   ) {
-    return this.svc.markDelivered(id, body.receivedBy);
+    return this.svc.markDelivered(id, Number(user.organizationId), body.receivedBy);
   }
 
   @Get(':id/receipt-pdf')
   @ApiOperation({ summary: 'Generate receipt slip PDF' })
-  async receiptPdf(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const buffer = await this.svc.generateReceiptPdf(id);
+  async receiptPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.svc.generateReceiptPdf(id, Number(user.organizationId));
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="receipt-${id}.pdf"`);
     res.setHeader('Content-Length', buffer.length);

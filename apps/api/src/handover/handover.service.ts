@@ -18,6 +18,7 @@ export class HandoverService {
         _count: { select: { items: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return records.map((r) => ({
@@ -37,9 +38,9 @@ export class HandoverService {
     }));
   }
 
-  async findOne(id: number) {
-    const record = await this.prisma.handoverRecord.findUnique({
-      where: { id: BigInt(id) },
+  async findOne(id: number, organizationId: number) {
+    const record = await this.prisma.handoverRecord.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
       include: {
         createdBy: { select: { fullName: true } },
         approvedBy: { select: { fullName: true } },
@@ -143,8 +144,10 @@ export class HandoverService {
     return { id: Number(record.id), handoverNo: record.handoverNo };
   }
 
-  async approve(id: number, userId: number) {
-    const record = await this.prisma.handoverRecord.findUnique({ where: { id: BigInt(id) } });
+  async approve(id: number, userId: number, organizationId: number) {
+    const record = await this.prisma.handoverRecord.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
+    });
     if (!record) throw new NotFoundException(`Handover #${id} not found`);
     if (record.status !== 'draft') throw new BadRequestException('สถานะไม่ถูกต้อง');
 
@@ -155,8 +158,10 @@ export class HandoverService {
     return { id: Number(updated.id), status: updated.status };
   }
 
-  async complete(id: number) {
-    const record = await this.prisma.handoverRecord.findUnique({ where: { id: BigInt(id) } });
+  async complete(id: number, organizationId: number) {
+    const record = await this.prisma.handoverRecord.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
+    });
     if (!record) throw new NotFoundException(`Handover #${id} not found`);
     if (record.status !== 'approved') throw new BadRequestException('ต้องอนุมัติก่อน');
 
@@ -167,8 +172,8 @@ export class HandoverService {
     return { id: Number(updated.id), status: updated.status };
   }
 
-  async generatePdf(id: number): Promise<Buffer> {
-    const detail = await this.findOne(id);
+  async generatePdf(id: number, organizationId: number): Promise<Buffer> {
+    const detail = await this.findOne(id, organizationId);
 
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);

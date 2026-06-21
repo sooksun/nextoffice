@@ -48,11 +48,17 @@ export class ArchiveService {
 
   // ─── Archive Documents ─────────────────────
 
-  async archiveDocument(registryId: number, folderId: number) {
-    const folder = await this.prisma.documentFolder.findUnique({
-      where: { id: BigInt(folderId) },
+  async archiveDocument(registryId: number, folderId: number, organizationId: number) {
+    const folder = await this.prisma.documentFolder.findFirst({
+      where: { id: BigInt(folderId), organizationId: BigInt(organizationId) },
     });
     if (!folder) throw new NotFoundException('Folder not found');
+
+    const registry = await this.prisma.documentRegistry.findFirst({
+      where: { id: BigInt(registryId), organizationId: BigInt(organizationId) },
+      select: { id: true },
+    });
+    if (!registry) throw new NotFoundException('Document not found');
 
     const retentionEndDate = new Date();
     retentionEndDate.setFullYear(retentionEndDate.getFullYear() + folder.retentionYears);
@@ -158,7 +164,13 @@ export class ArchiveService {
     }));
   }
 
-  async approveDestruction(requestId: number, approvedByUserId: number) {
+  async approveDestruction(requestId: number, approvedByUserId: number, organizationId: number) {
+    const request = await this.prisma.destructionRequest.findFirst({
+      where: { id: BigInt(requestId), organizationId: BigInt(organizationId) },
+      select: { id: true },
+    });
+    if (!request) throw new NotFoundException('Request not found');
+
     const updated = await this.prisma.destructionRequest.update({
       where: { id: BigInt(requestId) },
       data: {
@@ -170,17 +182,18 @@ export class ArchiveService {
     return { id: Number(updated.id), status: 'approved' };
   }
 
-  async confirmDestruction(requestId: number, remarks?: string) {
-    const request = await this.prisma.destructionRequest.findUnique({
-      where: { id: BigInt(requestId) },
+  async confirmDestruction(requestId: number, organizationId: number, remarks?: string) {
+    const request = await this.prisma.destructionRequest.findFirst({
+      where: { id: BigInt(requestId), organizationId: BigInt(organizationId) },
       include: { items: true },
     });
     if (!request) throw new NotFoundException('Request not found');
 
-    // Update registry entries to destroy type
-    for (const item of request.items) {
-      await this.prisma.documentRegistry.update({
-        where: { id: item.documentRegistryId },
+    // Update registry entries to destroy type — scoped to the request's organization
+    const registryIds = request.items.map((item) => item.documentRegistryId);
+    if (registryIds.length) {
+      await this.prisma.documentRegistry.updateMany({
+        where: { id: { in: registryIds }, organizationId: BigInt(organizationId) },
         data: { registryType: 'destroy' },
       });
     }

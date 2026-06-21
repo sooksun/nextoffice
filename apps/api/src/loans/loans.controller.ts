@@ -50,7 +50,7 @@ export class LoansController {
 
   @Post(':id/return')
   @ApiOperation({ summary: 'Return a borrowed document' })
-  returnDocument(@Param('id', ParseIntPipe) id: number) {
-    return this.svc.returnDocument(id);
+  returnDocument(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.svc.returnDocument(id, Number(user.organizationId));
   }
 }

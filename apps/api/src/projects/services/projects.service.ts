@@ -21,14 +21,15 @@ export class ProjectsService {
         _count: { select: { documents: true, reports: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
     });
 
     return projects.map((p) => this.serialize(p));
   }
 
-  async findOne(id: number) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: BigInt(id) },
+  async findOne(id: number, organizationId: number) {
+    const project = await this.prisma.project.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
       include: {
         organization: { select: { id: true, name: true } },
         responsible: { select: { id: true, fullName: true } },
@@ -98,9 +99,10 @@ export class ProjectsService {
       responsibleUserId?: number;
       policyAlignment?: string;
     },
+    organizationId: number,
   ) {
-    const existing = await this.prisma.project.findUnique({
-      where: { id: BigInt(id) },
+    const existing = await this.prisma.project.findFirst({
+      where: { id: BigInt(id), organizationId: BigInt(organizationId) },
     });
     if (!existing) throw new NotFoundException(`Project #${id} not found`);
 
@@ -139,9 +141,10 @@ export class ProjectsService {
       matchScore?: number;
       matchRationale?: string;
     },
+    organizationId: number,
   ) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: BigInt(projectId) },
+    const project = await this.prisma.project.findFirst({
+      where: { id: BigInt(projectId), organizationId: BigInt(organizationId) },
     });
     if (!project) throw new NotFoundException(`Project #${projectId} not found`);
 
@@ -166,9 +169,9 @@ export class ProjectsService {
     };
   }
 
-  async getDocuments(projectId: number) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: BigInt(projectId) },
+  async getDocuments(projectId: number, organizationId: number) {
+    const project = await this.prisma.project.findFirst({
+      where: { id: BigInt(projectId), organizationId: BigInt(organizationId) },
     });
     if (!project) throw new NotFoundException(`Project #${projectId} not found`);
 
