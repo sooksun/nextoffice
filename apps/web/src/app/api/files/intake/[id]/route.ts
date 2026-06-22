@@ -13,12 +13,10 @@ export async function GET(
   const { id } = await params;
   const internalBase = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
 
-  // Token from cookie (LIFF in-app) or query param (external browser)
+  // Auth via the httpOnly cookie only — never accept the token as a query param
+  // (it would leak into server logs, referrers, and browser history).
   const store = await cookies();
-  const token =
-    store.get("token")?.value ??
-    request.nextUrl.searchParams.get("token") ??
-    undefined;
+  const token = store.get("token")?.value ?? undefined;
 
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;

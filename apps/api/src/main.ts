@@ -9,13 +9,43 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // HSTS is opt-in (ENABLE_HSTS=true) — keep off until HTTPS is stable; NPM can also terminate TLS/HSTS.
+  const enableHsts = process.env.ENABLE_HSTS === 'true';
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      // CSP in Report-Only mode: browsers report violations but never block, so it is
+      // safe to ship without breaking LIFF/Google. Flip reportOnly:false after the
+      // reports are clean to actually enforce it.
+      contentSecurityPolicy: {
+        useDefaults: true,
+        reportOnly: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            "'unsafe-eval'",
+            'https://accounts.google.com',
+            'https://apis.google.com',
+            'https://static.line-scdn.net',
+          ],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+          fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+          connectSrc: ["'self'", 'https:', 'wss:'],
+          frameSrc: ["'self'", 'https://accounts.google.com', 'https://*.line.me'],
+          frameAncestors: ["'self'", 'https://*.line.me'],
+          objectSrc: ["'none'"],
+          upgradeInsecureRequests: null,
+        },
+      },
+      // Keep these off: COEP/COOP break LIFF iframes + OAuth popups; CORP is handled by CORS.
       crossOriginEmbedderPolicy: false,
       crossOriginOpenerPolicy: false,
       crossOriginResourcePolicy: false,
-      strictTransportSecurity: false,
+      strictTransportSecurity: enableHsts
+        ? { maxAge: 15552000, includeSubDomains: true }
+        : false,
     }),
   );
   app.enableCors({

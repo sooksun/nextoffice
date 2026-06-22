@@ -11,7 +11,9 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
 import { PairingService } from '../services/pairing.service';
@@ -22,6 +24,8 @@ import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
 
+const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -30,18 +34,44 @@ export class AuthController {
     private pairingService: PairingService,
   ) {}
 
+  /** Set the JWT as an httpOnly cookie so XSS cannot read it (defense-in-depth alongside Bearer). */
+  private setAuthCookie(res: Response, token: string) {
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: AUTH_COOKIE_MAX_AGE,
+      path: '/',
+    });
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'เข้าสู่ระบบด้วยอีเมลและรหัสผ่าน' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.login(dto);
+    this.setAuthCookie(res, result.token);
+    return result;
   }
 
   @Post('google')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'เข้าสู่ระบบด้วย Google (ID Token)' })
-  async googleLogin(@Body() body: { idToken: string }) {
-    return this.authService.loginWithGoogle(body.idToken);
+  async googleLogin(
+    @Body() body: { idToken: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.loginWithGoogle(body.idToken);
+    this.setAuthCookie(res, result.token);
+    return result;
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'ออกจากระบบ — ล้าง httpOnly cookie' })
+  async logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie('token', { path: '/' });
+    return { ok: true };
   }
 
   @Post('register')
@@ -95,8 +125,11 @@ export class AuthController {
   async switchUser(
     @Body() body: { email: string; password: string },
     @CurrentUser() user: any,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.switchUser(user.id, body.email, body.password);
+    const result = await this.authService.switchUser(user.id, body.email, body.password);
+    if ((result as any)?.token) this.setAuthCookie(res, (result as any).token);
+    return result;
   }
 
   @Get('users/all')
@@ -116,17 +149,25 @@ export class AuthController {
   async impersonate(
     @Param('userId', ParseIntPipe) userId: number,
     @CurrentUser() user: any,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.impersonate(user.id, userId);
+    const result = await this.authService.impersonate(user.id, userId);
+    if ((result as any)?.token) this.setAuthCookie(res, (result as any).token);
+    return result;
   }
 
   @Delete('impersonate')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'หยุดการทดสอบ — คืน Admin token เดิม' })
-  async stopImpersonate(@CurrentUser() user: any) {
+  async stopImpersonate(
+    @CurrentUser() user: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const adminId = (user as any)._adminId;
     if (!adminId) throw new BadRequestException('ไม่ได้อยู่ในโหมดทดสอบ');
-    return this.authService.stopImpersonate(adminId);
+    const result = await this.authService.stopImpersonate(adminId);
+    if ((result as any)?.token) this.setAuthCookie(res, (result as any).token);
+    return result;
   }
 }

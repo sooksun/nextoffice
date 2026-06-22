@@ -54,9 +54,9 @@ export default function LiffSignPage() {
   }, [caseId, liffStatus]);
 
   const intakeId = caseData?.intake?.id ?? caseData?.description?.match(/intake:(\d+)/)?.[1];
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  // File route authenticates via the httpOnly cookie (sent automatically on same-origin requests)
   const pdfUrl = intakeId
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/files/intake/${intakeId}?stamped=true${token ? `&token=${encodeURIComponent(token)}` : ""}`
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/files/intake/${intakeId}?stamped=true`
     : null;
 
   const handleSubmit = async () => {

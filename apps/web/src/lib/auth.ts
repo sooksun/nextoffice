@@ -59,6 +59,8 @@ export async function loginWithGoogle(
 
 export function logout() {
   if (typeof window !== "undefined") {
+    // Best-effort: clear the server-side httpOnly cookie too.
+    apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     document.cookie = "token=; path=/; max-age=0";

@@ -36,6 +36,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       : getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    // Send the httpOnly auth cookie alongside the Bearer header (same-site).
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

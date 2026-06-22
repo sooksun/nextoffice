@@ -10,15 +10,24 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://api:3000";
 
-const PASSTHROUGH_HEADERS = ["authorization", "content-type", "accept", "x-requested-with"];
+const PASSTHROUGH_HEADERS = ["authorization", "content-type", "accept", "x-requested-with", "cookie"];
 
-// Block system/diagnostic routes that don't require proxying and shouldn't be exposed
-const BLOCKED_SEGMENTS = new Set(["health", "metrics", "swagger", "swagger-ui", "api-json", "favicon"]);
+// Allowlist of backend API base segments that may be relayed through this proxy.
+// Anything not listed (health, metrics, swagger, internal routes, …) is rejected.
+// Keep in sync with the @Controller() base paths in apps/api/src.
+const ALLOWED_SEGMENTS = new Set([
+  "auth", "line", "line-auth", "organizations", "cases", "documents", "intake", "outbound",
+  "dispatch", "loans", "handover", "archive", "tracking", "templates", "stamps",
+  "projects", "workflow-patterns", "reports", "chat", "search", "messages", "news",
+  "tender", "webboard", "circular", "download", "calendar", "academic-years",
+  "work-groups", "staff-config", "attendance", "vault", "knowledge", "knowledge-import",
+  "horizon", "digital-signature", "system-prompts", "notifications", "admin",
+]);
 
 async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
   const targetPath = path.join("/");
 
-  if (BLOCKED_SEGMENTS.has(path[0])) {
+  if (!path.length || !ALLOWED_SEGMENTS.has(path[0])) {
     return NextResponse.json({ error: "proxy_forbidden" }, { status: 403 });
   }
 
@@ -42,11 +51,15 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
     });
 
     const resBody = await upstream.arrayBuffer();
+    const resHeaders: Record<string, string> = {
+      "content-type": upstream.headers.get("content-type") ?? "application/json",
+    };
+    // Forward auth cookies (Set-Cookie) from the backend so httpOnly login works through the proxy
+    const setCookie = upstream.headers.get("set-cookie");
+    if (setCookie) resHeaders["set-cookie"] = setCookie;
     return new NextResponse(resBody, {
       status: upstream.status,
-      headers: {
-        "content-type": upstream.headers.get("content-type") ?? "application/json",
-      },
+      headers: resHeaders,
     });
   } catch (err: any) {
     return NextResponse.json(

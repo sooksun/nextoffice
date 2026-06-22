@@ -256,12 +256,17 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 - `intake.listIntakes` — `omit` LongText (`extractedText`,`structuredSummaryJson`,`nextActionJson`) จาก list payload + cap `limit ≤ 100`
 - defensive `take` cap บน list ที่ไม่มี pagination: loans/dispatch/handover/projects (500)
 
-### ยังเป็นข้อเสนอ (ไม่แก้อัตโนมัติ — กระทบสถาปัตยกรรม/deployment ต้องตัดสินใจ)
-- JWT เก็บใน localStorage + non-httpOnly cookie (เสี่ยง XSS) → ควรย้ายเป็น httpOnly cookie ที่ backend set
-- `main.ts` Helmet ปิด CSP/HSTS ทั้งหมด → ควรเปิด CSP/HSTS (ระวัง LIFF iframe); NPM ทำ TLS อยู่แล้ว
-- `api/proxy/[...path]` ใช้ denylist → ควรเปลี่ยนเป็น allowlist
-- `?token=` query param ใน `api/files/*` → ควรเอาออก, ใช้ cookie อย่างเดียว
-- `docker-compose.yml` expose MinIO console/Qdrant → ควรถอด ports ออกให้อยู่ internal network
+### Hardening รอบ 2 (session 2026-06-22, ต่อจากด้านบน) — แก้แล้วแบบ backwards-compatible
+- **httpOnly cookie (foundation)**: `auth.controller.ts` ตั้ง httpOnly+SameSite cookie ตอน login/google/impersonate/switch + เพิ่ม `POST /auth/logout`; `jwt-auth.guard.ts` อ่าน token จาก Bearer **หรือ** cookie; `apiFetch` ใส่ `credentials:'include'`. ของเดิม Bearer/localStorage ยังทำงาน (ไม่พัง) → ขั้นถอด localStorage ทิ้งทั้งหมดต้องทดสอบ login/LIFF/upload สดก่อน
+- **CSP**: `main.ts` เปิด CSP แบบ **Report-Only** (ไม่ block) + HSTS แบบ opt-in ผ่าน `ENABLE_HSTS=true` → ตรวจ violation report แล้วค่อยพลิก `reportOnly:false`
+- **proxy allowlist**: `api/proxy/[...path]` เปลี่ยนจาก denylist → **allowlist** ของ controller base paths (⚠️ prod ใช้ `NEXT_PUBLIC_API_URL=/api/proxy` ทุก call ผ่าน proxy — เพิ่ม controller ใหม่ต้องเติม segment ใน list ด้วย) + forward `cookie`/`set-cookie` สองทาง
+- **`?token=` ออกแล้ว**: `api/files/intake|face-template` อ่าน cookie อย่างเดียว; LIFF (`cases/[id]`,`sign/[id]`) เลิกแนบ `&token=` ใน iframe URL
+- **docker ports**: ถอด `9001` (MinIO console) + `6333` (Qdrant) ออกจาก host → internal network เท่านั้น
+
+### ยังเป็นข้อเสนอ (ยังไม่ทำ)
+- ถอด JWT ออกจาก localStorage ทั้งหมด (uploads/PDF/LIFF ต้องเปลี่ยนมาใช้ cookie) — ต้องรันแอปทดสอบ
+- พลิก CSP `reportOnly:false` หลัง report สะอาด
+- MinIO default cred `minioadmin:minioadmin` ใน `docker-compose.yml` → ตั้ง `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` ใน `.env.production`
 - `reports.service` หลาย query ต่อ status/stage → รวมเป็น `groupBy` (index ใหม่ช่วยลดผลกระทบแล้ว)
 
 ---

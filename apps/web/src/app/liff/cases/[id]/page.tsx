@@ -179,9 +179,9 @@ export default function LiffCaseDetailPage() {
   }, [caseId, liffStatus]);
 
   const intakeId = data?.intake?.id ?? (data?.description?.match(/intake:(\d+)/)?.[1] as any);
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  // File route authenticates via the httpOnly cookie (sent automatically on same-origin requests)
   const pdfUrl = intakeId
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/files/intake/${intakeId}?stamped=true${token ? `&token=${encodeURIComponent(token)}` : ""}`
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/files/intake/${intakeId}?stamped=true`
     : null;
 
   const isDirector = user && ["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(user.roleCode);
