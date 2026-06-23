@@ -44,6 +44,11 @@ COPY --from=builder /app/apps/api/generated ./apps/api/generated
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY apps/api/prisma.config.js ./apps/api/prisma.config.js
 
+# Drop root: run as the image's built-in non-root `node` user. Pre-create the
+# vault mount point owned by `node` so the named volume initializes writable.
+RUN mkdir -p /app/vault && chown -R node:node /app/vault
+USER node
+
 WORKDIR /app/apps/api
 
 EXPOSE 3000

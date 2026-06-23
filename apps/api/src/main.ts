@@ -77,22 +77,28 @@ async function bootstrap() {
   // Map Multer upload errors (size/type) to clean 4xx responses.
   app.useGlobalFilters(new MulterExceptionFilter());
 
-  const config = new DocumentBuilder()
-    .setTitle('NextOffice AI E-office API')
-    .setDescription('AI-powered document management system for Thai schools')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  // Swagger exposes the full API surface + DTO schemas — keep it off in
+  // production unless explicitly enabled (ENABLE_SWAGGER=true).
+  const swaggerEnabled =
+    process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true';
+  if (swaggerEnabled) {
+    const config = new DocumentBuilder()
+      .setTitle('NextOffice AI E-office API')
+      .setDescription('AI-powered document management system for Thai schools')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
 
-  // Redirect root to Swagger docs
-  app.use('/', (req: any, res: any, next: any) => {
-    if (req.method === 'GET' && req.path === '/') {
-      return res.redirect('/api/docs');
-    }
-    next();
-  });
+    // Redirect root to Swagger docs (only when docs are served)
+    app.use('/', (req: any, res: any, next: any) => {
+      if (req.method === 'GET' && req.path === '/') {
+        return res.redirect('/api/docs');
+      }
+      next();
+    });
+  }
 
   const port = process.env.PORT || 3000;
   await app.listen(port);

@@ -19,8 +19,11 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+      # No insecure default — MINIO_ACCESS_KEY/MINIO_SECRET_KEY must be set in
+      # .env.production (MinIO refuses to start otherwise). The API reads the
+      # same vars via env_file, so both sides stay in sync.
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY in .env.production}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY in .env.production}
     volumes:
       - minio_data:/data
     # MinIO console/API stay on the internal network only (the API reaches it via MINIO_ENDPOINT=minio).

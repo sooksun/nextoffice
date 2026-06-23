@@ -4,7 +4,8 @@ dist
 .git
 .env
 .env.*
-!.env.production
+# .env.production is NOT whitelisted: it holds secrets (DB/JWT/MinIO) and is
+# only needed at runtime via docker-compose `env_file`, never at build time.
 *.md
 !apps/web/AGENTS.md
 docs/
