@@ -52,6 +52,7 @@ export class EmptySpaceService {
         data: new Uint8Array(pdfBuffer),
         disableFontFace: true,
         useSystemFonts: false,
+        isEvalSupported: false, // mitigate CVE-2024-4367 (eval-based RCE via crafted PDF)
       }).promise;
 
       // Scan up to 4 pages — find the last page containing a complimentary close phrase
@@ -213,6 +214,7 @@ export class EmptySpaceService {
         data: new Uint8Array(pdfBuffer),
         disableFontFace: true,
         useSystemFonts: false,
+        isEvalSupported: false, // mitigate CVE-2024-4367 (eval-based RCE via crafted PDF)
       }).promise;
 
       const page = await doc.getPage(pageIndex + 1);

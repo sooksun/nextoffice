@@ -18,7 +18,7 @@ export class ContentFetchService {
       },
     );
     const buffer = Buffer.from(res.data);
-    const contentType = res.headers['content-type'] || 'application/octet-stream';
+    const contentType = String(res.headers['content-type'] || 'application/octet-stream');
     return { buffer, contentType };
   }
 
