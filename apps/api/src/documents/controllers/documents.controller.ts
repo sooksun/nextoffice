@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { DocumentsService } from '../services/documents.service';
 import { IntakeService } from '../../intake/services/intake.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @ApiTags('documents')
 @ApiBearerAuth()
@@ -20,12 +21,8 @@ export class DocumentsController {
     return this.docsSvc.listDocuments(query);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get document by ID' })
-  findDocument(@Param('id', ParseIntPipe) id: number) {
-    return this.docsSvc.findDocumentById(id);
-  }
-
+  // NOTE: literal `intakes` routes must precede `:id` — otherwise `:id` (with
+  // ParseIntPipe) shadows `GET /documents/intakes` and the list 400s.
   @Get('intakes')
   @ApiOperation({ summary: 'List all document intakes' })
   @ApiQuery({ name: 'status', required: false })
@@ -35,13 +32,19 @@ export class DocumentsController {
   @ApiQuery({ name: 'dateTo', required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  listIntakes(@Query() query: any) {
-    return this.intakeSvc.listIntakes(query);
+  listIntakes(@Query() query: any, @CurrentUser() user: any) {
+    return this.intakeSvc.listIntakes({ ...query, organizationId: Number(user.organizationId) });
   }
 
   @Get('intakes/:id')
   @ApiOperation({ summary: 'Get document intake detail' })
-  getIntakeDetail(@Param('id', ParseIntPipe) id: number) {
-    return this.intakeSvc.findById(id);
+  getIntakeDetail(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {
+    return this.intakeSvc.findById(id, Number(user.organizationId));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get document by ID' })
+  findDocument(@Param('id', ParseIntPipe) id: number) {
+    return this.docsSvc.findDocumentById(id);
   }
 }
