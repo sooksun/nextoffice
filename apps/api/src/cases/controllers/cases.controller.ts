@@ -10,6 +10,12 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import {
+  CreateManualCaseDto,
+  AssignCaseDto,
+  UpdateCaseStatusDto,
+  DirectorSignDto,
+} from '../dto/case-actions.dto';
 
 @ApiTags('cases')
 @ApiBearerAuth()
@@ -127,17 +133,7 @@ export class CasesController {
   @ApiOperation({ summary: 'สร้างเอกสารเข้าด้วยมือ (ไม่ผ่าน AI pipeline)' })
   createManual(
     @CurrentUser() user: any,
-    @Body() body: {
-      title: string;
-      description?: string;
-      documentNo?: string;
-      documentDate?: string;
-      senderOrg?: string;
-      recipientNote?: string;
-      urgencyLevel?: string;
-      dueDate?: string;
-      intakeId?: number;
-    },
+    @Body() body: CreateManualCaseDto,
   ) {
     return this.svc.createManual({
       ...body,
@@ -163,11 +159,7 @@ export class CasesController {
   async directorSign(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: any,
-    @Body() body: {
-      noteText: string;
-      signatureMethod: 'pad' | 'electronic';
-      signatureBase64?: string;
-    },
+    @Body() body: DirectorSignDto,
   ) {
     // Block cross-tenant signing — applyDirectorStampAsync itself is org-agnostic.
     await this.assertCaseAccess(id, user);
@@ -240,13 +232,7 @@ export class CasesController {
   assign(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: any,
-    @Body() body: {
-      assignments: { userId: number; role?: string; dueDate?: string; note?: string }[];
-      directorNote?: string;
-      selectedOptionId?: number;
-      clerkOpinion?: string;
-      routingPath?: 'direct' | 'via_vice';
-    },
+    @Body() body: AssignCaseDto,
   ) {
     return this.workflow.assign(
       id,
@@ -285,7 +271,7 @@ export class CasesController {
   updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: any,
-    @Body() body: { status: string },
+    @Body() body: UpdateCaseStatusDto,
   ) {
     return this.workflow.updateStatus(id, body.status, Number(user.id), Number(user.organizationId));
   }
@@ -302,7 +288,7 @@ export class CasesController {
   updateAssignmentStatus(
     @Param('assignmentId', ParseIntPipe) assignmentId: number,
     @CurrentUser() user: any,
-    @Body() body: { status: string },
+    @Body() body: UpdateCaseStatusDto,
   ) {
     return this.workflow.updateAssignmentStatus(assignmentId, body.status, Number(user.id), Number(user.organizationId));
   }

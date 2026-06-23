@@ -19,6 +19,8 @@ import { AuthService } from '../services/auth.service';
 import { PairingService } from '../services/pairing.service';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
+import { GoogleLoginDto } from '../dto/google-login.dto';
+import { SwitchUserDto } from '../dto/switch-user.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -58,7 +60,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'เข้าสู่ระบบด้วย Google (ID Token)' })
   async googleLogin(
-    @Body() body: { idToken: string },
+    @Body() body: GoogleLoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.loginWithGoogle(body.idToken);
@@ -125,7 +127,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin สลับ session เป็น user อื่น โดยกรอก email+password ของ user นั้น' })
   async switchUser(
-    @Body() body: { email: string; password: string },
+    @Body() body: SwitchUserDto,
     @CurrentUser() user: any,
     @Res({ passthrough: true }) res: Response,
   ) {

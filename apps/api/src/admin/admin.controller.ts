@@ -6,6 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ResetYearService } from './services/reset-year.service';
 import { DemoDataService } from './services/demo-data.service';
+import { NewAcademicYearDto, SeedDemoDto } from './dto/admin-actions.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -36,13 +37,7 @@ export class AdminController {
   @ApiOperation({ summary: 'เริ่มปีการศึกษาใหม่ — สร้าง AcademicYear ใหม่ + ล้าง transaction data ของ org' })
   newAcademicYear(
     @CurrentUser() user: any,
-    @Body() dto: {
-      organizationId?: number;
-      year: number;
-      yearName?: string;
-      startDate: string;
-      endDate: string;
-    },
+    @Body() dto: NewAcademicYearDto,
   ) {
     const organizationId = this.getSessionOrgId(user);
     this.assertNoCrossOrgRequest(dto.organizationId, organizationId);
@@ -51,7 +46,7 @@ export class AdminController {
 
   @Post('seed-demo')
   @ApiOperation({ summary: 'สร้าง demo data ตัวอย่าง workflow หนังสือทุกขั้นตอน สำหรับทดสอบระบบ' })
-  seedDemo(@CurrentUser() user: any, @Body() dto: { organizationId?: number }) {
+  seedDemo(@CurrentUser() user: any, @Body() dto: SeedDemoDto) {
     const organizationId = this.getSessionOrgId(user);
     this.assertNoCrossOrgRequest(dto.organizationId, organizationId);
     return this.demoData.execute(organizationId);
