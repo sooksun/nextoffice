@@ -228,9 +228,18 @@ ${extractedText.substring(0, 2000)}
         throw new NotFoundException(`Prediction #${predictionId} not found`);
       }
     }
-    return this.prisma.casePrediction.update({
+    const updated = await this.prisma.casePrediction.update({
       where: { id: predictionId },
       data: { isAccepted: accepted },
     });
+    // Serialize BigInt PKs before they reach the JSON response (CLAUDE.md rule).
+    return {
+      id: Number(updated.id),
+      caseId: Number(updated.inboundCaseId),
+      type: updated.predictionType,
+      confidence: Number(updated.confidence),
+      isAccepted: updated.isAccepted,
+      createdAt: updated.createdAt,
+    };
   }
 }

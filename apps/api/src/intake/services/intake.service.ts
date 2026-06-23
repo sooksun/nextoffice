@@ -6,6 +6,7 @@ import { QueueDispatcherService } from '../../queue/services/queue-dispatcher.se
 import { OcrService } from '../../ai/services/ocr.service';
 import { ClassifierService } from '../../ai/services/classifier.service';
 import { ExtractionService } from '../../ai/services/extraction.service';
+import { INTAKE_MIMES } from '../../common/upload-options';
 
 @Injectable()
 export class IntakeService {
@@ -120,15 +121,9 @@ export class IntakeService {
     organizationId?: number,
     userId?: number,
   ) {
-    const ALLOWED_MIMES = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-    ];
-    if (!ALLOWED_MIMES.includes(file.mimetype)) {
-      throw new BadRequestException('รองรับเฉพาะไฟล์ PDF, DOCX, JPG, JPEG, PNG เท่านั้น');
+    // Single source of truth shared with the Multer fileFilter (defense in depth).
+    if (!INTAKE_MIMES.includes(file.mimetype)) {
+      throw new BadRequestException('รองรับเฉพาะไฟล์ PDF, JPG, JPEG, PNG, WebP เท่านั้น');
     }
     if (!this.ocrService || !this.classifier || !this.extraction) {
       throw new BadRequestException('AI services are not available');

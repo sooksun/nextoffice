@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import type { AuthUser } from "@/lib/auth";
@@ -16,10 +16,14 @@ export default function AuthProvider({
   const pathname = usePathname();
   const router = useRouter();
   const [checked, setChecked] = useState(false);
+  // Validate the session cookie via /auth/me once per mount, not on every
+  // client-side navigation. Stale sessions are still caught by apiFetch's 401
+  // handler on the page's own data calls.
+  const validatedRef = useRef(false);
 
   useEffect(() => {
     const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
-    if (isPublic) {
+    if (isPublic || validatedRef.current) {
       startTransition(() => setChecked(true));
       return;
     }
@@ -28,6 +32,7 @@ export default function AuthProvider({
     apiFetch<AuthUser>("/auth/me")
       .then((user) => {
         if (cancelled) return;
+        validatedRef.current = true;
         localStorage.removeItem("token");
         localStorage.setItem("user", JSON.stringify(user));
         startTransition(() => setChecked(true));
