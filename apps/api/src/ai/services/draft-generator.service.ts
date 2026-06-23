@@ -35,12 +35,16 @@ export class DraftGeneratorService {
     });
     if (!inboundCase) throw new Error(`Case ${caseId} not found`);
 
-    // Get AI result for context
-    const latestIntake = await this.prisma.documentIntake.findFirst({
-      where: {},
-      include: { aiResult: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const intakeMatch = inboundCase.description?.match(/intake:(\d+)/);
+    const latestIntake = intakeMatch
+      ? await this.prisma.documentIntake.findFirst({
+          where: {
+            id: BigInt(intakeMatch[1]),
+            organizationId: inboundCase.organizationId,
+          },
+          include: { aiResult: true },
+        })
+      : null;
 
     const aiResult = latestIntake?.aiResult;
     const extractedText = aiResult?.extractedText?.substring(0, 2000) || '';

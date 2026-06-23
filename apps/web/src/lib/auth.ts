@@ -23,6 +23,20 @@ interface LoginResponse {
   user: AuthUser;
 }
 
+function clearLegacyTokenStorage() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("token");
+  localStorage.removeItem("adminToken");
+  // Expire any legacy non-httpOnly token cookie from older builds.
+  document.cookie = "token=; path=/; max-age=0";
+}
+
+function persistUser(user: AuthUser) {
+  if (typeof window === "undefined") return;
+  clearLegacyTokenStorage();
+  localStorage.setItem("user", JSON.stringify(user));
+}
+
 export async function login(
   email: string,
   password: string,
@@ -32,11 +46,7 @@ export async function login(
     body: JSON.stringify({ email, password }),
   });
   if (typeof window !== "undefined") {
-    localStorage.setItem("token", data.token.trim());
-    localStorage.setItem("user", JSON.stringify(data.user));
-    // Also set cookie so server-side components can read JWT
-    const maxAge = 7 * 24 * 3600;
-    document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
+    persistUser(data.user);
   }
   return data;
 }
@@ -49,10 +59,7 @@ export async function loginWithGoogle(
     body: JSON.stringify({ idToken }),
   });
   if (typeof window !== "undefined") {
-    localStorage.setItem("token", data.token.trim());
-    localStorage.setItem("user", JSON.stringify(data.user));
-    const maxAge = 7 * 24 * 3600;
-    document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
+    persistUser(data.user);
   }
   return data;
 }
@@ -61,15 +68,14 @@ export function logout() {
   if (typeof window !== "undefined") {
     // Best-effort: clear the server-side httpOnly cookie too.
     apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
-    localStorage.removeItem("token");
     localStorage.removeItem("user");
-    document.cookie = "token=; path=/; max-age=0";
+    localStorage.removeItem("adminUser");
+    clearLegacyTokenStorage();
   }
 }
 
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+  return null;
 }
 
 export function getUser(): AuthUser | null {
@@ -84,14 +90,15 @@ export function getUser(): AuthUser | null {
 }
 
 export function isLoggedIn(): boolean {
-  return !!getToken();
+  return !!getUser();
 }
 
 // ─── Impersonation ────────────────────────────────────────────────────────────
 
 export function isImpersonating(): boolean {
   if (typeof window === "undefined") return false;
-  return !!localStorage.getItem("adminToken");
+  const user = getUser();
+  return !!user?._adminId;
 }
 
 export function getAdminUser(): AuthUser | null {
@@ -106,29 +113,19 @@ export async function impersonate(targetUserId: number): Promise<void> {
     `/auth/impersonate/${targetUserId}`,
     { method: "POST" },
   );
-  // Preserve current admin session
-  const currentToken = getToken();
   const currentUser = getUser();
-  localStorage.setItem("adminToken", currentToken!);
-  localStorage.setItem("adminUser", JSON.stringify(currentUser));
-  // Activate impersonation token
-  const maxAge = 7 * 24 * 3600;
-  localStorage.setItem("token", data.token.trim());
+  clearLegacyTokenStorage();
+  if (currentUser) localStorage.setItem("adminUser", JSON.stringify(currentUser));
   localStorage.setItem("user", JSON.stringify(data.user));
-  document.cookie = `token=${data.token.trim()}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
   window.location.assign("/");
 }
 
-export function stopImpersonate(): void {
-  const adminToken = localStorage.getItem("adminToken");
-  const adminUser = localStorage.getItem("adminUser");
-  if (adminToken) {
-    const maxAge = 7 * 24 * 3600;
-    localStorage.setItem("token", adminToken);
-    if (adminUser) localStorage.setItem("user", adminUser);
-    document.cookie = `token=${adminToken}; path=/; max-age=${maxAge}; SameSite=Strict; Secure`;
-  }
-  localStorage.removeItem("adminToken");
+export async function stopImpersonate(): Promise<void> {
+  const data = await apiFetch<{ token: string; user: AuthUser }>("/auth/impersonate", {
+    method: "DELETE",
+  });
+  clearLegacyTokenStorage();
   localStorage.removeItem("adminUser");
+  localStorage.setItem("user", JSON.stringify(data.user));
   window.location.assign("/");
 }

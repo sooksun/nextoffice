@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw, Trash2, Eye, AlertTriangle, X } from "lucide-react";
-import { getAuthToken } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { toastSuccess, toastError, confirmDelete } from "@/lib/toast";
 
@@ -93,9 +92,8 @@ export default function KnowledgeImportPage() {
   const fetchItems = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const token = getAuthToken();
       const res = await fetch(`${apiBase}/knowledge-import`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (res.ok) {
         const data = await res.json();
@@ -156,7 +154,6 @@ export default function KnowledgeImportPage() {
 
     setSubmitting(true);
     try {
-      const token = getAuthToken();
       const formData = new FormData();
       formData.append("title", title.trim());
       if (category) formData.append("category", category);
@@ -168,7 +165,7 @@ export default function KnowledgeImportPage() {
 
       const res = await fetch(`${apiBase}/knowledge-import`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
         body: formData,
       });
 
@@ -200,10 +197,9 @@ export default function KnowledgeImportPage() {
     );
     if (!ok) return;
     try {
-      const token = getAuthToken();
       const res = await fetch(`${apiBase}/knowledge-import/${id}`, {
         method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (res.ok) {
         toastSuccess("ลบความรู้เรียบร้อยแล้ว");
@@ -230,14 +226,11 @@ export default function KnowledgeImportPage() {
       qdrantChunkCount: 0,
       chunks: [],
     });
-    const token = getAuthToken();
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
     // Fetch detail + chunks independently — if the /chunks endpoint is
     // missing (e.g. API not yet rebuilt), we still show the extracted text.
     const [detailSettled, chunksSettled] = await Promise.allSettled([
-      fetch(`${apiBase}/knowledge-import/${item.id}`, { headers }),
-      fetch(`${apiBase}/knowledge-import/${item.id}/chunks`, { headers }),
+      fetch(`${apiBase}/knowledge-import/${item.id}`, { credentials: "include" }),
+      fetch(`${apiBase}/knowledge-import/${item.id}/chunks`, { credentials: "include" }),
     ]);
 
     let detail: {
@@ -299,10 +292,9 @@ export default function KnowledgeImportPage() {
     if (!ok) return;
     setResetting(true);
     try {
-      const token = getAuthToken();
       const res = await fetch(`${apiBase}/knowledge-import/admin/reset-org`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (!res.ok) {
         const err = await res.text();
@@ -326,10 +318,9 @@ export default function KnowledgeImportPage() {
     if (!ok) return;
     setResetting(true);
     try {
-      const token = getAuthToken();
       const res = await fetch(`${apiBase}/knowledge-import/admin/reset-qdrant`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (!res.ok) {
         const err = await res.text();
@@ -347,10 +338,9 @@ export default function KnowledgeImportPage() {
 
   const handleRetry = async (id: number) => {
     try {
-      const token = getAuthToken();
       const res = await fetch(`${apiBase}/knowledge-import/${id}/retry`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (res.ok) {
         toastSuccess("เริ่มประมวลผลใหม่แล้ว");
@@ -406,7 +396,7 @@ export default function KnowledgeImportPage() {
             </button>
             <button
               onClick={handleAdminResetQdrant}
-              disabled={resetting}
+              disabled={true}
               className="inline-flex items-center gap-2 px-3 py-2 bg-surface-bright border border-red-500/40 text-red-700 dark:text-red-300 text-sm font-medium rounded-xl hover:bg-red-500/15 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Drop + recreate Qdrant knowledge collection (ทุกองค์กร)"
             >

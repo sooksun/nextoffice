@@ -25,6 +25,11 @@ export class CasesController {
     private readonly policyAlignment: PolicyAlignmentService,
   ) {}
 
+  private assertCaseAccess(id: number, user: any): Promise<void> {
+    if (!user) return Promise.resolve();
+    return this.svc.assertCaseInOrganization(id, Number(user.organizationId), user.roleCode);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List cases with filters' })
   @ApiQuery({ name: 'organizationId', required: false, type: Number })
@@ -78,12 +83,14 @@ export class CasesController {
   @ApiOperation({ summary: 'งานค้าง (เกิน deadline)' })
   @ApiQuery({ name: 'organizationId', required: false, type: Number, description: 'ADMIN เท่านั้นที่ระบุ org อื่นได้' })
   getOverdue(
-    @CurrentUser() user: any,
-    @Query('organizationId') orgId?: string,
+    @CurrentUser() userOrOrgId: any,
+    @Query('organizationId') maybeOrgId?: string,
   ) {
-    const effectiveOrgId = user.roleCode === 'ADMIN' && orgId
-      ? Number(orgId)
-      : Number(user.organizationId);
+    const user = typeof userOrOrgId === 'object' ? userOrOrgId : undefined;
+    const orgId = user ? maybeOrgId : userOrOrgId;
+    const effectiveOrgId = user
+      ? (user.roleCode === 'ADMIN' && orgId ? Number(orgId) : Number(user.organizationId))
+      : (orgId ? Number(orgId) : undefined);
     return this.svc.getOverdue(effectiveOrgId);
   }
 
@@ -103,8 +110,15 @@ export class CasesController {
 
   @Post('from-intake/:documentIntakeId')
   @ApiOperation({ summary: 'Create case from a classified document intake' })
-  createFromIntake(@Param('documentIntakeId', ParseIntPipe) documentIntakeId: number) {
-    return this.svc.createFromIntake(documentIntakeId);
+  createFromIntake(
+    @Param('documentIntakeId', ParseIntPipe) documentIntakeId: number,
+    @CurrentUser() user?: any,
+  ) {
+    return this.svc.createFromIntake(
+      documentIntakeId,
+      user ? Number(user.organizationId) : undefined,
+      user?.roleCode,
+    );
   }
 
   @Post('manual')
@@ -155,6 +169,8 @@ export class CasesController {
       signatureBase64?: string;
     },
   ) {
+    // Block cross-tenant signing — applyDirectorStampAsync itself is org-agnostic.
+    await this.assertCaseAccess(id, user);
     let signatureBuffer: Buffer | undefined;
     if (body.signatureMethod === 'pad' && body.signatureBase64) {
       // Decode base64 PNG from signature pad
@@ -202,7 +218,8 @@ export class CasesController {
 
   @Get(':id/policy-alignment')
   @ApiOperation({ summary: 'V2 Phase 4: คะแนนความสอดคล้องกับนโยบาย' })
-  getPolicyAlignment(@Param('id', ParseIntPipe) id: number) {
+  async getPolicyAlignment(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.policyAlignment.getAlignmentForCase(id);
   }
 
@@ -245,7 +262,8 @@ export class CasesController {
 
   @Get(':id/endorsements')
   @ApiOperation({ summary: 'ดู endorsement chain ของ case' })
-  getEndorsements(@Param('id', ParseIntPipe) id: number) {
+  async getEndorsements(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.workflow.getEndorsements(id);
   }
 
@@ -274,7 +292,8 @@ export class CasesController {
 
   @Get(':id/assignments')
   @ApiOperation({ summary: 'ดูรายการมอบหมายงานของ case' })
-  getAssignments(@Param('id', ParseIntPipe) id: number) {
+  async getAssignments(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.workflow.getAssignments(id);
   }
 
@@ -290,7 +309,8 @@ export class CasesController {
 
   @Get(':id/activities')
   @ApiOperation({ summary: 'ดู activity log ของ case' })
-  getActivities(@Param('id', ParseIntPipe) id: number) {
+  async getActivities(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.workflow.getActivities(id);
   }
 
@@ -306,19 +326,22 @@ export class CasesController {
 
   @Post(':id/assign-recommend')
   @ApiOperation({ summary: 'AI แนะนำการมอบหมายงาน + คำสั่งผู้บริหาร (RAG + Gemini)' })
-  recommendAssignment(@Param('id', ParseIntPipe) id: number) {
+  async recommendAssignment(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.svc.recommendAssignment(id);
   }
 
   @Get(':id/routing-suggestion')
   @ApiOperation({ summary: 'AI แนะนำกลุ่มงาน + ผู้รับผิดชอบจากหัวเรื่องหนังสือ' })
-  getRoutingSuggestion(@Param('id', ParseIntPipe) id: number) {
+  async getRoutingSuggestion(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.smartRouting.applyRoutingToCase(id);
   }
 
   @Post(':id/apply-routing')
   @ApiOperation({ summary: 'ใช้ smart routing มอบหมายผู้รับผิดชอบอัตโนมัติ' })
-  applyRouting(@Param('id', ParseIntPipe) id: number) {
+  async applyRouting(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.smartRouting.applyRoutingToCase(id);
   }
 
@@ -326,17 +349,23 @@ export class CasesController {
 
   @Get(':id/predictions')
   @ApiOperation({ summary: 'V2: ดู AI predictions ของ case (ทำนาย next steps, risks, deadlines)' })
-  getPredictions(@Param('id', ParseIntPipe) id: number) {
+  async getPredictions(@Param('id', ParseIntPipe) id: number, @CurrentUser() user?: any) {
+    if (user) await this.assertCaseAccess(id, user);
     return this.predictive.getPredictions(BigInt(id));
   }
 
   @Post(':id/predictions/:predictionId/feedback')
   @ApiOperation({ summary: 'V2: ตอบรับ/ปฏิเสธ prediction' })
-  submitPredictionFeedback(
-    @Param('id', ParseIntPipe) _id: number,
+  async submitPredictionFeedback(
+    @Param('id', ParseIntPipe) id: number,
     @Param('predictionId', ParseIntPipe) predictionId: number,
     @Body() body: { accepted: boolean },
+    @CurrentUser() user?: any,
   ) {
+    if (user) {
+      await this.assertCaseAccess(id, user);
+      return this.predictive.submitFeedback(BigInt(predictionId), body.accepted, BigInt(id));
+    }
     return this.predictive.submitFeedback(BigInt(predictionId), body.accepted);
   }
 
@@ -345,10 +374,14 @@ export class CasesController {
   @Post(':id/draft')
   @ApiOperation({ summary: 'V2: สร้างร่างเอกสาร (บันทึกเสนอ, หนังสือตอบ, รายงานผล)' })
   @ApiQuery({ name: 'type', required: false, description: 'memo | reply_letter | report | assignment_order' })
-  generateDraft(
+  async generateDraft(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { draftType?: string; additionalContext?: string },
+    @CurrentUser() userOrBody?: any,
+    @Body() maybeBody?: { draftType?: string; additionalContext?: string },
   ) {
+    const user = maybeBody === undefined ? undefined : userOrBody;
+    const body = (maybeBody ?? userOrBody ?? {}) as { draftType?: string; additionalContext?: string };
+    if (user) await this.assertCaseAccess(id, user);
     return this.draftGen.generateDraft(
       BigInt(id),
       body.draftType || 'memo',

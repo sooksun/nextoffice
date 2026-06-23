@@ -10,6 +10,7 @@ import {
   UseGuards,
   ParseIntPipe,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
@@ -99,7 +100,7 @@ export class KnowledgeImportController {
   @Roles('ADMIN')
   @ApiOperation({ summary: '[ADMIN] Drop & recreate Qdrant knowledge collection (ALL orgs) — DESTRUCTIVE' })
   adminResetQdrant() {
-    return this.svc.adminResetQdrantCollection();
+    throw new ForbiddenException('Global Qdrant reset is disabled; use organization-scoped reset instead');
   }
 
   @Get(':id')

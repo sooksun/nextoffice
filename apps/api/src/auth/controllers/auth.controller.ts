@@ -88,7 +88,9 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'ดูข้อมูลผู้ใช้ปัจจุบัน' })
   async me(@CurrentUser() user: any) {
-    return this.authService.getMe(user.id);
+    const me = await this.authService.getMe(user.id);
+    if ((user as any)._adminId) (me as any)._adminId = (user as any)._adminId;
+    return me;
   }
 
   @Get('users')

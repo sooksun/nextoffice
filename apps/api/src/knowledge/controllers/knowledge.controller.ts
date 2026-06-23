@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger'
 import { KnowledgeService } from '../services/knowledge.service';
 import { CreateKnowledgeDto } from '../dto/create-knowledge.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
 
 @ApiTags('knowledge')
 @ApiBearerAuth()
@@ -25,25 +27,33 @@ export class KnowledgeController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'เพิ่มข้อมูลความรู้ใหม่' })
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'เพิ่มข้อมูลความรู้ใหม่ (ADMIN เท่านั้น — ฐานความรู้ใช้ร่วมทุกองค์กร)' })
   create(@Body() dto: CreateKnowledgeDto) {
     return this.service.create(dto);
   }
 
   @Post('seed-obec')
-  @ApiOperation({ summary: 'Seed ข้อมูลนโยบาย สพฐ. เริ่มต้น (8 นโยบายหลัก)' })
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Seed ข้อมูลนโยบาย สพฐ. เริ่มต้น (8 นโยบายหลัก) — ADMIN เท่านั้น' })
   seedObec() {
     return this.service.seedObec();
   }
 
   @Post('seed-horizon-sources')
-  @ApiOperation({ summary: 'Seed แหล่งข้อมูล Horizon สพฐ./ศธ. (5 แหล่ง)' })
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Seed แหล่งข้อมูล Horizon สพฐ./ศธ. (5 แหล่ง) — ADMIN เท่านั้น' })
   seedHorizonSources() {
     return this.service.seedHorizonSources();
   }
 
   @Delete(':type/:id')
-  @ApiOperation({ summary: 'ลบข้อมูลความรู้' })
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'ลบข้อมูลความรู้ (ADMIN เท่านั้น — ฐานความรู้ใช้ร่วมทุกองค์กร)' })
   delete(@Param('type') type: string, @Param('id') id: string) {
     return this.service.delete(type, +id);
   }

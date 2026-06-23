@@ -130,12 +130,11 @@ function NewInboxForm() {
   const handleFileUpload = async (file: File) => {
     setUploading(true);
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch(`${apiBase}/intake/store-only`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
         body: fd,
       });
       if (!res.ok) throw new Error("Upload failed");

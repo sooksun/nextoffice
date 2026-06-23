@@ -27,12 +27,11 @@ export default function SeedPanel({ stats }: { stats: Stats }) {
     setSeedingPolicy(true);
     setError(null);
     try {
-      const token = localStorage.getItem("token");
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/knowledge/seed-obec`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);
@@ -51,12 +50,11 @@ export default function SeedPanel({ stats }: { stats: Stats }) {
     setSeedingHorizon(true);
     setError(null);
     try {
-      const token = localStorage.getItem("token");
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/knowledge/seed-horizon-sources`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       if (!res.ok) throw new Error(`Error ${res.status}`);

@@ -223,11 +223,10 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
       const formData = new FormData();
       formData.append("file", file);
 
-      const token = localStorage.getItem("token");
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
       const res = await fetch(`${apiBase}/intake/web-upload`, {
         method: "POST",
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: "include",
         body: formData,
       });
       if (!res.ok) {

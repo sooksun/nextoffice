@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
 import { toastError } from "@/lib/toast";
-import { getToken } from "@/lib/auth";
 
 interface Props {
   docId: number;
@@ -17,9 +16,8 @@ export default function OutboundPdfButton({ docId, documentNo }: Props) {
   const handleDownloadWord = async () => {
     setLoading(true);
     try {
-      const token = getToken();
       const res = await fetch(`${apiBase}/outbound/documents/${docId}/word`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: "include",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();

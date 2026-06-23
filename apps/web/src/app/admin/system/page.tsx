@@ -14,6 +14,7 @@ import {
   Info,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,11 @@ export default function SystemAdminPage() {
 
   useEffect(() => {
     apiFetch<Organization[]>("/organizations")
-      .then((r) => setOrgs(Array.isArray(r) ? r : []))
+      .then((r) => {
+        const list = Array.isArray(r) ? r : [];
+        const currentOrgId = getUser()?.organizationId;
+        setOrgs(currentOrgId ? list.filter((org) => org.id === currentOrgId) : list);
+      })
       .catch(() => {})
       .finally(() => setLoadingOrgs(false));
   }, []);

@@ -17,12 +17,46 @@ export class CasesService {
     @Optional() private readonly notifications: NotificationService,
   ) {}
 
-  async createFromIntake(documentIntakeId: number) {
+  async assertCaseInOrganization(caseId: number, organizationId: number, callerRole?: string): Promise<void> {
+    // ADMIN may access any organization's case — only verify existence (mirror findById).
+    if (callerRole === 'ADMIN') {
+      const exists = await this.prisma.inboundCase.findFirst({
+        where: { id: BigInt(caseId) },
+        select: { id: true },
+      });
+      if (!exists) throw new NotFoundException(`Case #${caseId} not found`);
+      return;
+    }
+    if (!Number.isFinite(organizationId) || organizationId <= 0) {
+      throw new ForbiddenException('Case access requires an organization-scoped account');
+    }
+    const c = await this.prisma.inboundCase.findFirst({
+      where: {
+        id: BigInt(caseId),
+        organizationId: BigInt(organizationId),
+      },
+      select: { id: true },
+    });
+    if (!c) throw new NotFoundException(`Case #${caseId} not found`);
+  }
+
+  async createFromIntake(documentIntakeId: number, callerOrgId?: number, callerRole?: string) {
     const intake = await this.prisma.documentIntake.findUnique({
       where: { id: BigInt(documentIntakeId) },
       include: { aiResult: true },
     });
     if (!intake) throw new NotFoundException(`DocumentIntake #${documentIntakeId} not found`);
+
+    // Cross-tenant guard: a non-ADMIN caller may only create a case from an
+    // intake that belongs to their own organization.
+    if (
+      callerRole !== 'ADMIN' &&
+      callerOrgId != null &&
+      intake.organizationId != null &&
+      intake.organizationId !== BigInt(callerOrgId)
+    ) {
+      throw new NotFoundException(`DocumentIntake #${documentIntakeId} not found`);
+    }
 
     const orgId = intake.organizationId || BigInt(1);
 
@@ -128,8 +162,8 @@ export class CasesService {
     const intakeMatch = c.description?.match(/intake:(\d+)/);
     if (intakeMatch) {
       const intakeId = Number(intakeMatch[1]);
-      const intake = await this.prisma.documentIntake.findUnique({
-        where: { id: BigInt(intakeId) },
+      const intake = await this.prisma.documentIntake.findFirst({
+        where: { id: BigInt(intakeId), organizationId: c.organizationId },
         select: {
           id: true, storagePath: true, mimeType: true, originalFileName: true, fileSize: true,
           aiResult: { select: { nextActionJson: true, summaryText: true, documentNo: true, issuingAuthority: true, documentDate: true } },
@@ -422,8 +456,11 @@ export class CasesService {
     let summaryText = '';
     const intakeMatch = c.description?.match(/intake:(\d+)/);
     if (intakeMatch) {
-      const intake = await this.prisma.documentIntake.findUnique({
-        where: { id: BigInt(intakeMatch[1]) },
+      const intake = await this.prisma.documentIntake.findFirst({
+        where: {
+          id: BigInt(intakeMatch[1]),
+          organizationId: c.organizationId,
+        },
         include: { aiResult: true },
       });
       extractedText = intake?.aiResult?.extractedText || '';

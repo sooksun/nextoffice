@@ -213,7 +213,7 @@ describe('CasesService', () => {
 
   describe('findById()', () => {
     it('throws NotFoundException when case does not exist', async () => {
-      mockPrisma.inboundCase.findUnique.mockResolvedValue(null);
+      mockPrisma.inboundCase.findFirst.mockResolvedValue(null);
 
       await expect(service.findById(999)).rejects.toThrow(NotFoundException);
     });
@@ -227,12 +227,12 @@ describe('CasesService', () => {
         assignments: [],
         options: [],
       };
-      mockPrisma.inboundCase.findUnique.mockResolvedValue(found);
+      mockPrisma.inboundCase.findFirst.mockResolvedValue(found);
 
       const result = await service.findById(1);
 
       expect(result).toBeDefined();
-      expect(mockPrisma.inboundCase.findUnique).toHaveBeenCalledWith(
+      expect(mockPrisma.inboundCase.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: BigInt(1) } }),
       );
     });

@@ -121,9 +121,7 @@ export default function HandoverPage() {
   };
 
   const openPdf = (id: number) => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-    window.open(`${apiBase}/handover/${id}/pdf?token=${token}`, "_blank");
+    window.open(`/api/proxy/handover/${id}/pdf`, "_blank");
   };
 
   const canApprove = user?.roleCode === "DIRECTOR" || user?.roleCode === "ADMIN";

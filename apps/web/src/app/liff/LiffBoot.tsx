@@ -81,9 +81,8 @@ export default function LiffBoot({ liffId, children }: Props) {
             body: JSON.stringify({ accessToken }),
           });
           if (cancelled) return;
-          localStorage.setItem("token", resp.token);
+          localStorage.removeItem("token");
           localStorage.setItem("user", JSON.stringify(resp.user));
-          document.cookie = `token=${resp.token}; path=/; max-age=${60 * 60 * 24 * 7}`;
           setStatus("ready");
         } catch (err: any) {
           const msg = String(err?.message ?? "");

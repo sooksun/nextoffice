@@ -25,6 +25,7 @@ const mockCasesService = {
   getOptions: jest.fn(),
   recommendAssignment: jest.fn(),
   getPendingDirectorSigning: jest.fn(),
+  assertCaseInOrganization: jest.fn(),
 };
 
 const mockWorkflow = {

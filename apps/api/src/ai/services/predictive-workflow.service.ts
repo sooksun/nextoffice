@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
@@ -34,18 +34,14 @@ export class PredictiveWorkflowService {
     });
     if (!inboundCase) return;
 
-    // Get AI result for extracted text context
-    const intake = await this.prisma.documentIntake.findFirst({
-      where: { id: inboundCase.sourceDocumentId ? undefined : undefined },
-      include: { aiResult: true },
-    });
-
-    // Also fetch intake by document relation
-    const intakeByDoc = inboundCase.sourceDocumentId
+    const intakeMatch = inboundCase.description?.match(/intake:(\d+)/);
+    const intakeByDoc = intakeMatch
       ? await this.prisma.documentIntake.findFirst({
-          where: {},
+          where: {
+            id: BigInt(intakeMatch[1]),
+            organizationId: inboundCase.organizationId,
+          },
           include: { aiResult: true },
-          orderBy: { createdAt: 'desc' },
         })
       : null;
 
@@ -222,7 +218,16 @@ ${extractedText.substring(0, 2000)}
     }));
   }
 
-  async submitFeedback(predictionId: bigint, accepted: boolean) {
+  async submitFeedback(predictionId: bigint, accepted: boolean, caseId?: bigint) {
+    if (caseId) {
+      const prediction = await this.prisma.casePrediction.findFirst({
+        where: { id: predictionId, inboundCaseId: caseId },
+        select: { id: true },
+      });
+      if (!prediction) {
+        throw new NotFoundException(`Prediction #${predictionId} not found`);
+      }
+    }
     return this.prisma.casePrediction.update({
       where: { id: predictionId },
       data: { isAccepted: accepted },

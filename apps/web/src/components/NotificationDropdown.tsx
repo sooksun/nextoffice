@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, AlertTriangle, Clock, ChevronRight, CalendarClock, CheckCircle2 } from "lucide-react";
 import clsx from "clsx";
-import { apiFetch, getAuthToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -30,24 +30,16 @@ interface MyTasksResponse {
   summary: { total: number; overdue: number; dueToday: number; dueSoon: number };
 }
 
-function subscribeToken(cb: () => void): () => void {
-  window.addEventListener("storage", cb);
-  return () => window.removeEventListener("storage", cb);
-}
-const hasTokenNow = () => (getAuthToken() ? "1" : "0");
-
 /**
  * Notification bell + dropdown showing the top urgent/overdue tasks.
  * Falls back to empty state if the user has no tasks.
  */
 export default function NotificationDropdown() {
-  const tokenFlag = useSyncExternalStore(subscribeToken, hasTokenNow, () => "0");
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<MyTasksResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (tokenFlag !== "1") return;
     // refresh tasks whenever the dropdown opens + on initial mount
     let cancelled = false;
     const load = async () => {
@@ -63,7 +55,7 @@ export default function NotificationDropdown() {
     };
     load();
     return () => { cancelled = true; };
-  }, [open, tokenFlag]);
+  }, [open]);
 
   const total = data?.summary.total ?? 0;
   const overdue = data?.summary.overdue ?? 0;

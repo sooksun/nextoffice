@@ -16,12 +16,11 @@ interface SwitchResponse {
   user: AuthUser & { _adminId?: number };
 }
 
-function applySession(data: SwitchResponse, currentToken: string, currentUser: AuthUser) {
-  localStorage.setItem("adminToken", currentToken);
+function applySession(data: SwitchResponse, currentUser: AuthUser) {
+  localStorage.removeItem("token");
+  localStorage.removeItem("adminToken");
   localStorage.setItem("adminUser", JSON.stringify(currentUser));
-  localStorage.setItem("token", data.token.trim());
   localStorage.setItem("user", JSON.stringify(data.user));
-  document.cookie = `token=${data.token.trim()}; path=/; max-age=${7 * 24 * 3600}; SameSite=Lax`;
   window.location.assign("/");
 }
 
@@ -66,14 +65,12 @@ export default function AdminSwitchPanel() {
     setError("");
     setLoading(true);
     try {
-      const token = localStorage.getItem("adminToken") || localStorage.getItem("token") || "";
-      const user = adminUser || currentUser;
+      const user = currentUser;
       const data = await apiFetch<SwitchResponse>("/auth/switch-user", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ email: email.trim(), password }),
       });
-      applySession(data, token, user!);
+      applySession(data, user!);
     } catch (err: any) {
       setError(err.message?.replace(/^API \d+: /, "") ?? "เกิดข้อผิดพลาด");
     } finally {
@@ -147,6 +144,7 @@ export default function AdminSwitchPanel() {
             )}
 
             {/* Switch form */}
+            {!impersonating && (
             <form onSubmit={handleSwitch} className="space-y-3">
               <p className="text-xs font-semibold text-on-surface-variant">
                 {impersonating ? "สลับไปยัง User อื่น:" : "เข้าสู่ระบบในฐานะ User:"}
@@ -193,6 +191,7 @@ export default function AdminSwitchPanel() {
                 {loading ? "กำลังสลับ..." : "สลับ User"}
               </button>
             </form>
+            )}
           </div>
         </div>
       )}

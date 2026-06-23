@@ -112,9 +112,7 @@ export default function DispatchPage() {
   };
 
   const openReceiptPdf = (id: number) => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-    window.open(`${apiBase}/dispatch/${id}/receipt-pdf?token=${token}`, "_blank");
+    window.open(`/api/proxy/dispatch/${id}/receipt-pdf`, "_blank");
   };
 
   return (

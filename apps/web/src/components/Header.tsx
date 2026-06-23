@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Search, Menu as MenuIcon, Grid3x3 } from "lucide-react";
-import { getUser, getToken, isImpersonating } from "@/lib/auth";
+import { getUser, isImpersonating } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import clsx from "clsx";
 import ImpersonateMenu from "./ImpersonateMenu";
@@ -35,7 +35,6 @@ export default function Header({ scrolled, onOpenMobileMenu }: HeaderProps) {
   );
 
   useEffect(() => {
-    if (!getToken()) return;
     void apiFetch("/auth/me").catch(() => {});
   }, []);
 

@@ -65,12 +65,11 @@ function StaffCard({
       const form = new FormData();
       form.append("file", file);
       // ใช้ fetch โดยตรง — ห้ามใส่ Content-Type header เองเพราะ browser ต้อง set boundary ให้
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
       const res = await fetch(`${apiBase}/staff-config/${member.id}/signature`, {
         method: "POST",
+        credentials: "include",
         body: form,
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
         const text = await res.text();

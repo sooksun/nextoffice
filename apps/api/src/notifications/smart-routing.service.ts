@@ -238,11 +238,16 @@ export class SmartRoutingService {
     try {
       const intakeMatch = c.description?.match(/intake:(\d+)/);
       if (intakeMatch) {
-        const aiResult = await this.prisma.documentAiResult.findUnique({
-          where: { documentIntakeId: BigInt(intakeMatch[1]) },
-          select: { extractedText: true },
+        const intake = await this.prisma.documentIntake.findFirst({
+          where: {
+            id: BigInt(intakeMatch[1]),
+            organizationId: c.organizationId,
+          },
+          select: {
+            aiResult: { select: { extractedText: true } },
+          },
         });
-        if (aiResult?.extractedText) extractedText += ' ' + aiResult.extractedText;
+        if (intake?.aiResult?.extractedText) extractedText += ' ' + intake.aiResult.extractedText;
       }
     } catch { /* ถ้า query ซับซ้อนเกินไป ใช้แค่ description */ }
 

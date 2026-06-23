@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { apiFetch, getAuthToken } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import SignaturePad from "@/components/SignaturePad";
 import { useLiff } from "../LiffBoot";
@@ -55,11 +55,10 @@ export default function LiffSignaturePage() {
       const formData = new FormData();
       formData.append("file", blob, "signature.png");
 
-      const token = getAuthToken();
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
       const res = await fetch(`${apiBase}/staff-config/${user.id}/signature`, {
         method: "POST",
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: "include",
         body: formData,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
