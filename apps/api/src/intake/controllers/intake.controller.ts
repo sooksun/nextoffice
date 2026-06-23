@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { IntakeService } from '../services/intake.service';
 import { FileStorageService } from '../services/file-storage.service';
+import { intakeUploadOptions, attachmentUploadOptions } from '../../common/upload-options';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
@@ -44,7 +45,7 @@ export class IntakeController {
       },
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', intakeUploadOptions))
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: any,
@@ -68,7 +69,7 @@ export class IntakeController {
       },
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', intakeUploadOptions))
   async webUpload(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: any,
@@ -92,7 +93,7 @@ export class IntakeController {
       properties: { file: { type: 'string', format: 'binary' } },
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', attachmentUploadOptions))
   async storeOnly(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: any,

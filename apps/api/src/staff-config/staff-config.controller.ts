@@ -10,6 +10,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { StaffConfigService } from './staff-config.service';
+import { signatureUploadOptions } from '../common/upload-options';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -66,7 +67,7 @@ export class StaffConfigController {
       required: ['file'],
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', signatureUploadOptions))
   uploadSignature(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: any,

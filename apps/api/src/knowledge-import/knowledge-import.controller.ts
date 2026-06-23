@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { intakeUploadOptions } from '../common/upload-options';
 
 @ApiTags('knowledge-import')
 @ApiBearerAuth()
@@ -42,7 +43,7 @@ export class KnowledgeImportController {
       },
     },
   })
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', intakeUploadOptions))
   async create(
     @CurrentUser() user: any,
     @UploadedFile() file: Express.Multer.File | undefined,

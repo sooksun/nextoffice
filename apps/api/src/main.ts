@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { json } from 'express';
 import { AppModule } from './app.module';
+import { MulterExceptionFilter } from './common/multer-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -72,6 +73,9 @@ async function bootstrap() {
       forbidNonWhitelisted: false,
     }),
   );
+
+  // Map Multer upload errors (size/type) to clean 4xx responses.
+  app.useGlobalFilters(new MulterExceptionFilter());
 
   const config = new DocumentBuilder()
     .setTitle('NextOffice AI E-office API')
