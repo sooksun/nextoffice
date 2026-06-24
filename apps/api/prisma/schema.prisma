@@ -182,6 +182,8 @@ model Document {
   summaryText      String?   @map("summary_text") @db.Text
   fullText         String?   @map("full_text") @db.LongText
   storagePath      String?   @map("storage_path") @db.VarChar(500)
+  // Portable trigram FULLTEXT search index (maintained by DB trigger). See prisma/sql/search-index.sql
+  searchText       String?   @map("search_text") @db.Text
   createdAt        DateTime  @map("created_at") @default(now())
   updatedAt        DateTime  @map("updated_at") @updatedAt
 
@@ -194,6 +196,7 @@ model Document {
   @@index([sourceType])
   @@index([documentType])
   @@index([publishedAt])
+  @@fulltext([searchText])
   @@map("documents")
 }
 
@@ -413,6 +416,8 @@ model InboundCase {
   responseType           String?   @map("response_type") @db.VarChar(30) // reply_required | action_required | report_required | informational | unknown
   hasBeenReplied         Boolean   @map("has_been_replied") @default(false)
   repliedAt              DateTime? @map("replied_at")
+  // Portable trigram FULLTEXT search index (maintained by DB trigger). See prisma/sql/search-index.sql
+  searchText             String?   @map("search_text") @db.Text
   createdAt              DateTime  @map("created_at") @default(now())
   updatedAt              DateTime  @map("updated_at") @updatedAt
 
@@ -441,6 +446,7 @@ model InboundCase {
   @@index([organizationId, status])
   @@index([organizationId, receivedAt])
   @@index([organizationId, dueDate])
+  @@fulltext([searchText])
   @@map("inbound_cases")
 }
 
@@ -701,6 +707,8 @@ model User {
   lineUserRef      BigInt?   @map("line_user_ref") @unique // 1:1 link to LineUser
   isActive         Boolean   @map("is_active") @default(true)
   lastLoginAt      DateTime? @map("last_login_at")
+  // Portable trigram FULLTEXT search index (maintained by DB trigger). See prisma/sql/search-index.sql
+  searchText       String?   @map("search_text") @db.Text
   createdAt        DateTime  @map("created_at") @default(now())
   updatedAt        DateTime  @map("updated_at") @updatedAt
 
@@ -751,6 +759,7 @@ model User {
   @@index([roleCode])
   @@index([organizationId])
   @@index([workGroupId])
+  @@fulltext([searchText])
   @@map("users")
 }
 

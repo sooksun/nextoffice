@@ -95,13 +95,16 @@ echo "[6/7] Running Prisma db push..."
 DB_RAW=$(grep -E '^[[:space:]]*DATABASE_URL=' .env.production | head -1 | cut -d'=' -f2- | tr -d '\r')
 DB_URL=$(printf '%s' "$DB_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
 if [ -n "$DB_URL" ]; then
-    docker compose run --rm -e "DATABASE_URL=${DB_URL}" api sh -c "npx --yes prisma db push" || {
-        echo "  Prisma db push failed — run manually (ใช้ค่า DATABASE_URL จาก .env.production โดยไม่มีเครื่องหมายคำพูดซ้อน):"
-        echo "  docker compose run --rm --env-file .env.production api sh -c \"npx prisma db push\""
+    # db push creates schema (incl. search_text columns + FULLTEXT indexes);
+    # apply-search-index installs the trigram function/triggers + backfill —
+    # these live outside Prisma's schema, so they must be re-applied each push.
+    docker compose run --rm -e "DATABASE_URL=${DB_URL}" api sh -c "npx --yes prisma db push && node prisma/apply-search-index.js" || {
+        echo "  Prisma db push / search-index failed — run manually (ใช้ค่า DATABASE_URL จาก .env.production โดยไม่มีเครื่องหมายคำพูดซ้อน):"
+        echo "  docker compose run --rm --env-file .env.production api sh -c \"npx prisma db push && node prisma/apply-search-index.js\""
     }
 else
     echo "  WARNING: DATABASE_URL not found in .env.production"
-    echo "  Run manually: docker compose run --rm --env-file .env.production api sh -c \"npx prisma db push\""
+    echo "  Run manually: docker compose run --rm --env-file .env.production api sh -c \"npx prisma db push && node prisma/apply-search-index.js\""
 fi
 
 # ─── 7. Start services ───

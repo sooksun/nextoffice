@@ -279,6 +279,13 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 - เปลี่ยน schema → แก้ `schema.prisma` แล้ว `npx prisma db push` (จาก `apps/api`)
 - ดู impact ก่อน (read-only): `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
 
+### [IMPORTANT] หลัง `prisma db push` ต้อง re-run `npm run search:index`
+- Quick search (`/search/quick`) ใช้ **portable trigram FULLTEXT** (Thai) — คอลัมน์ `search_text` + `@@fulltext` อยู่ใน schema (db push สร้างให้) แต่ **stored function `fn_search_trigrams` + triggers อยู่นอก schema** → `db push` ไม่ดูแลให้ และถ้า reset DB จะหายไป
+- ทุกครั้งหลัง `db push`/reset DB (dev หรือ prod) ต้องรัน `npm run search:index` (= `node prisma/apply-search-index.js`) เพื่อติดตั้ง function/triggers + backfill `search_text` ใหม่ — `deploy.sh` ทำให้อัตโนมัติแล้ว (chain ต่อจาก db push)
+- **dev = MySQL 8 / prod = MariaDB 11** → ใช้ default-parser FULLTEXT (ไม่ใช่ ngram ที่ MariaDB ไม่รองรับ); trigram ยาว 3 ตัวเพื่อให้ผ่าน `innodb_ft_min_token_size=3`
+- ถ้าแก้ separator/tokenizer: ต้องแก้ให้ตรงกัน **ทั้ง 3 ที่** — `src/search/search-trigram.util.ts` (SEPARATORS), `prisma/apply-search-index.js` (REPLACE chain), `prisma/sql/search-index.sql` — ไม่งั้น index/query ไม่ match
+- term < 3 ตัวอักษร (สร้าง trigram ไม่ได้) → controller fallback เป็น `LIKE` อัตโนมัติ
+
 ### [RESOLVED] Google Login หายหลัง rebuild web image
 
 **สถานะ:** แก้ถาวรแล้ว (session 2026-04-15) — ไม่เกิดอีกแม้ rebuild โดยไม่ export env

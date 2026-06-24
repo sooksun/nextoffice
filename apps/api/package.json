@@ -19,6 +19,7 @@
     "backfill:response-type": "npx ts-node -r dotenv/config prisma/backfill-response-classification.ts",
     "reindex:documents": "npx ts-node -r dotenv/config prisma/reindex-documents.ts",
     "reindex:documents:prod": "node -r dotenv/config dist/prisma/reindex-documents.js",
+    "search:index": "node prisma/apply-search-index.js",
     "eval:retrieval": "npx ts-node -r dotenv/config prisma/eval-retrieval.ts",
     "eval:retrieval:prod": "node -r dotenv/config dist/prisma/eval-retrieval.js"
   },
