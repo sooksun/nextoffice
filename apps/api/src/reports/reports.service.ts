@@ -162,29 +162,38 @@ export class ReportsService {
     const orgId = BigInt(organizationId);
     const results = [];
 
-    for (const s of stages) {
-      const cases = await this.prisma.inboundCase.findMany({
-        where: { organizationId: orgId },
-        select: { id: true },
-      });
-      const caseIds = cases.map((c) => c.id);
-      if (caseIds.length === 0) {
-        results.push({ stage: s.stage, avgDays: 0, medianDays: 0, caseCount: 0 });
-        continue;
-      }
+    // Fetch case ids (+ createdAt for the first stage) once, instead of per-stage
+    const cases = await this.prisma.inboundCase.findMany({
+      where: { organizationId: orgId },
+      select: { id: true, createdAt: true },
+    });
 
-      // Get activities for start and end of each stage
-      const activities = await this.prisma.caseActivity.findMany({
-        where: {
-          inboundCaseId: { in: caseIds },
-          action: { in: [s.fromAction, s.toAction].filter(Boolean) as string[] },
-        },
-        orderBy: { createdAt: 'asc' },
-      });
+    if (cases.length === 0) {
+      return stages.map((s) => ({ stage: s.stage, avgDays: 0, medianDays: 0, caseCount: 0 }));
+    }
+
+    const caseIds = cases.map((c) => c.id);
+
+    // Fetch all relevant activities once (avoid omitting the LongText `detail`)
+    const actions = Array.from(
+      new Set(stages.flatMap((s) => [s.fromAction, s.toAction].filter(Boolean) as string[])),
+    );
+    const activities = await this.prisma.caseActivity.findMany({
+      where: {
+        inboundCaseId: { in: caseIds },
+        action: { in: actions },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { inboundCaseId: true, action: true, createdAt: true },
+    });
+
+    for (const s of stages) {
+      const stageActions = new Set([s.fromAction, s.toAction].filter(Boolean) as string[]);
 
       // Group by caseId and compute durations
       const caseMap = new Map<string, { from?: Date; to?: Date }>();
       for (const a of activities) {
+        if (!stageActions.has(a.action)) continue;
         const key = a.inboundCaseId.toString();
         if (!caseMap.has(key)) caseMap.set(key, {});
         const entry = caseMap.get(key)!;
@@ -194,11 +203,7 @@ export class ReportsService {
 
       // For the first stage (new→registered), use case createdAt as the "from" time
       if (!s.fromAction) {
-        const casesWithDate = await this.prisma.inboundCase.findMany({
-          where: { id: { in: caseIds } },
-          select: { id: true, createdAt: true },
-        });
-        for (const c of casesWithDate) {
+        for (const c of cases) {
           const key = c.id.toString();
           if (!caseMap.has(key)) caseMap.set(key, {});
           caseMap.get(key)!.from = c.createdAt;
@@ -244,25 +249,35 @@ export class ReportsService {
     const now = new Date();
     const results = [];
 
+    // Single query for all non-terminal statuses; group in memory.
+    // Global `updatedAt asc` order is preserved within each status bucket.
+    const cases = await this.prisma.inboundCase.findMany({
+      where: { organizationId: orgId, status: { in: nonTerminalStatuses } },
+      orderBy: { updatedAt: 'asc' },
+      select: { id: true, title: true, updatedAt: true, status: true },
+    });
+
+    const byStatus = new Map<string, typeof cases>();
+    for (const c of cases) {
+      const group = byStatus.get(c.status);
+      if (group) group.push(c);
+      else byStatus.set(c.status, [c]);
+    }
+
     for (const status of nonTerminalStatuses) {
-      const cases = await this.prisma.inboundCase.findMany({
-        where: { organizationId: orgId, status },
-        orderBy: { updatedAt: 'asc' },
-        select: { id: true, title: true, updatedAt: true },
-      });
+      const group = byStatus.get(status);
+      if (!group || group.length === 0) continue;
 
-      if (cases.length === 0) continue;
-
-      const daysInStatus = cases.map((c) =>
+      const daysInStatus = group.map((c) =>
         (now.getTime() - c.updatedAt.getTime()) / (1000 * 60 * 60 * 24),
       );
       const avgDays = daysInStatus.reduce((sum, d) => sum + d, 0) / daysInStatus.length;
-      const oldest = cases[0]; // already sorted by updatedAt asc
+      const oldest = group[0]; // already sorted by updatedAt asc
       const oldestDays = (now.getTime() - oldest.updatedAt.getTime()) / (1000 * 60 * 60 * 24);
 
       results.push({
         status,
-        count: cases.length,
+        count: group.length,
         avgDaysInStatus: Math.round(avgDays * 100) / 100,
         oldestCase: {
           id: Number(oldest.id),
@@ -376,34 +391,59 @@ export class ReportsService {
       select: { id: true, name: true, shortName: true },
     });
 
-    const results = [];
-    for (const child of children) {
-      const [totalCases, completedCases, pendingCases, overdueCases] = await Promise.all([
-        this.prisma.inboundCase.count({ where: { organizationId: child.id } }),
-        this.prisma.inboundCase.count({ where: { organizationId: child.id, status: 'completed' } }),
-        this.prisma.inboundCase.count({
-          where: { organizationId: child.id, status: { notIn: ['completed', 'archived'] } },
-        }),
-        this.prisma.inboundCase.count({
-          where: {
-            organizationId: child.id,
-            dueDate: { lt: new Date() },
-            status: { notIn: ['completed', 'archived'] },
-          },
-        }),
-      ]);
+    const childIds = children.map((c) => c.id);
+    const now = new Date();
 
-      results.push({
+    // Two grouped queries cover all schools instead of 4 counts per school.
+    const [byOrgStatus, overdueByOrg] = childIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          this.prisma.inboundCase.groupBy({
+            by: ['organizationId', 'status'],
+            where: { organizationId: { in: childIds } },
+            _count: { id: true },
+          }),
+          this.prisma.inboundCase.groupBy({
+            by: ['organizationId'],
+            where: {
+              organizationId: { in: childIds },
+              dueDate: { lt: now },
+              status: { notIn: ['completed', 'archived'] },
+            },
+            _count: { id: true },
+          }),
+        ]);
+
+    const statMap = new Map<string, { total: number; completed: number; pending: number; overdue: number }>();
+    for (const id of childIds) {
+      statMap.set(id.toString(), { total: 0, completed: 0, pending: 0, overdue: 0 });
+    }
+    for (const row of byOrgStatus) {
+      const stat = statMap.get(row.organizationId.toString());
+      if (!stat) continue;
+      const count = row._count.id;
+      stat.total += count;
+      if (row.status === 'completed') stat.completed += count;
+      if (!['completed', 'archived'].includes(row.status)) stat.pending += count;
+    }
+    for (const row of overdueByOrg) {
+      const stat = statMap.get(row.organizationId.toString());
+      if (stat) stat.overdue = row._count.id;
+    }
+
+    const results = children.map((child) => {
+      const stat = statMap.get(child.id.toString())!;
+      return {
         organizationId: Number(child.id),
         name: child.name,
         shortName: child.shortName,
-        totalCases,
-        completedCases,
-        pendingCases,
-        overdueCases,
-        completionRate: totalCases > 0 ? Math.round((completedCases / totalCases) * 100) : 0,
-      });
-    }
+        totalCases: stat.total,
+        completedCases: stat.completed,
+        pendingCases: stat.pending,
+        overdueCases: stat.overdue,
+        completionRate: stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0,
+      };
+    });
 
     const totals = {
       schoolCount: children.length,

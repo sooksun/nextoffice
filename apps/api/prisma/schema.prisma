@@ -869,7 +869,7 @@ model CaseActivity {
   inboundCase InboundCase @relation(fields: [inboundCaseId], references: [id])
   user        User?       @relation(fields: [userId], references: [id])
 
-  @@index([inboundCaseId])
+  @@index([inboundCaseId, action])
   @@index([userId])
   @@map("case_activities")
 }
