@@ -60,6 +60,7 @@ export class OutboundService {
     const docs = await this.prisma.outboundDocument.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      take: 500, // defensive cap — list has no pagination yet
       include: {
         organization: { select: { id: true, name: true, shortName: true } },
         createdBy: { select: { id: true, fullName: true } },

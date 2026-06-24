@@ -89,14 +89,22 @@ export class NotificationService {
       },
     });
 
+    // Single grouped query for overdue counts across all orgs (was N+1 count loop)
+    const overdueGroups = orgs.length === 0
+      ? []
+      : await this.prisma.inboundCase.groupBy({
+          by: ['organizationId'],
+          where: {
+            organizationId: { in: orgs.map((o) => o.id) },
+            status: { notIn: ['completed', 'archived'] },
+            dueDate: { lt: sevenDaysAgo },
+          },
+          _count: { id: true },
+        });
+    const overdueMap = new Map(overdueGroups.map((g) => [g.organizationId.toString(), g._count.id]));
+
     for (const org of orgs) {
-      const overdue = await this.prisma.inboundCase.count({
-        where: {
-          organizationId: org.id,
-          status: { notIn: ['completed', 'archived'] },
-          dueDate: { lt: sevenDaysAgo },
-        },
-      });
+      const overdue = overdueMap.get(org.id.toString()) ?? 0;
 
       if (overdue === 0) continue;
 
