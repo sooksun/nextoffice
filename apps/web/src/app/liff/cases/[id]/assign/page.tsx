@@ -4,8 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
 import { toast } from "react-toastify";
 import { useLiff } from "../../../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
+import type { AuthUser } from "@/lib/auth";
 
 interface StaffUser {
   id: number | string;
@@ -34,7 +37,7 @@ export default function LiffAssignPage() {
   const [directorNote, setDirectorNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [me, setMe] = useState<any>(null);
+  const [me, setMe] = useState<AuthUser | null>(null);
 
   useEffect(() => {
     if (liffStatus !== "ready") return;
@@ -50,8 +53,7 @@ export default function LiffAssignPage() {
           setCaseData(c);
           setDirectorNote(c.directorNote ?? "ดำเนินการตามเสนอ");
         }
-        const arr = Array.isArray(s) ? s : (s as any).data ?? [];
-        setStaff(arr);
+        setStaff(unwrapList(s));
       })
       .finally(() => setLoading(false));
   }, [caseId, liffStatus]);
@@ -89,8 +91,8 @@ export default function LiffAssignPage() {
       });
       toast.success("มอบหมายสำเร็จ");
       router.push(`/liff/cases/${caseId}`);
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     } finally {
       setSubmitting(false);
     }

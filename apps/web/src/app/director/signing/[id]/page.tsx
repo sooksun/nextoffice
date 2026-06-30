@@ -3,10 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
 import { toast } from "react-toastify";
 import { ArrowLeft, PenLine, Stamp, Loader2 } from "lucide-react";
 import Link from "next/link";
 import SignaturePad from "@/components/SignaturePad";
+import { getErrorMessage } from "@/lib/errors";
 
 interface CaseDetail {
   id: number;
@@ -17,6 +19,12 @@ interface CaseDetail {
   description: string | null;
   status: string;
   directorStampStatus: string | null;
+}
+
+interface StaffSignatureItem {
+  id: number;
+  roleCode: string;
+  hasSignature?: boolean;
 }
 
 export default function DirectorSigningDetailPage() {
@@ -51,11 +59,11 @@ export default function DirectorSigningDetailPage() {
 
   // Check if electronic signature exists
   useEffect(() => {
-    apiFetch<{ id: number; hasSignature: boolean; roleCode: string }[]>("/staff-config")
+    apiFetch<StaffSignatureItem[] | { data?: StaffSignatureItem[] }>("/staff-config")
       .then((list) => {
-        const arr = Array.isArray(list) ? list : (list as any).data ?? [];
+        const arr = unwrapList(list);
         const me = arr.find(
-          (s: any) => s.roleCode === "DIRECTOR" || s.roleCode === "VICE_DIRECTOR",
+          (s) => s.roleCode === "DIRECTOR" || s.roleCode === "VICE_DIRECTOR",
         );
         if (me?.hasSignature) {
           setHasElectronicSig(true);
@@ -93,8 +101,8 @@ export default function DirectorSigningDetailPage() {
       toast.success("ลงนามเกษียณหนังสือสำเร็จ");
       router.push("/director/signing");
       router.refresh();
-    } catch (e: any) {
-      toast.error(e.message ?? "เกิดข้อผิดพลาด");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "เกิดข้อผิดพลาด");
     } finally {
       setSubmitting(false);
     }

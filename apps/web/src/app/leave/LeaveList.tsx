@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Printer, Pencil, Trash2, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -47,7 +46,6 @@ function formatDateTH(iso: string): string {
 }
 
 function RowActions({ row, onDeleted }: { row: LeaveRequest; onDeleted: (id: number) => void }) {
-  const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 

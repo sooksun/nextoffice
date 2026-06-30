@@ -44,6 +44,7 @@ import { WebboardModule } from './webboard/webboard.module';
 import { MessagesModule } from './messages/messages.module';
 import { SearchModule } from './search/search.module';
 import { AdminModule } from './admin/admin.module';
+import { DriveImportModule } from './drive-import/drive-import.module';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { AdminModule } from './admin/admin.module';
     MessagesModule,
     SearchModule,
     AdminModule,
+    DriveImportModule,
   ],
 })
 export class AppModule {}

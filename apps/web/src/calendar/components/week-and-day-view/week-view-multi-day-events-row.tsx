@@ -11,11 +11,18 @@ interface IProps {
 }
 
 export function WeekViewMultiDayEventsRow({ selectedDate, multiDayEvents }: IProps) {
-  const weekStart = startOfWeek(selectedDate);
-  const weekEnd = endOfWeek(selectedDate);
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const selectedDateTime = selectedDate.getTime();
+  const weekStartTime = useMemo(() => startOfWeek(new Date(selectedDateTime)).getTime(), [selectedDateTime]);
+  const weekEndTime = useMemo(() => endOfWeek(new Date(selectedDateTime)).getTime(), [selectedDateTime]);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(new Date(weekStartTime), i)),
+    [weekStartTime],
+  );
 
   const processedEvents = useMemo(() => {
+    const weekStart = new Date(weekStartTime);
+    const weekEnd = new Date(weekEndTime);
+
     return multiDayEvents
       .map(event => {
         const start = parseISO(event.startDate);
@@ -38,7 +45,7 @@ export function WeekViewMultiDayEventsRow({ selectedDate, multiDayEvents }: IPro
         if (startDiff !== 0) return startDiff;
         return b.endIndex - b.startIndex - (a.endIndex - a.startIndex);
       });
-  }, [multiDayEvents, weekStart, weekEnd]);
+  }, [multiDayEvents, weekStartTime, weekEndTime]);
 
   const eventRows = useMemo(() => {
     const rows: (typeof processedEvents)[] = [];
@@ -58,6 +65,9 @@ export function WeekViewMultiDayEventsRow({ selectedDate, multiDayEvents }: IPro
   }, [processedEvents]);
 
   const hasEventsInWeek = useMemo(() => {
+    const weekStart = new Date(weekStartTime);
+    const weekEnd = new Date(weekEndTime);
+
     return multiDayEvents.some(event => {
       const start = parseISO(event.startDate);
       const end = parseISO(event.endDate);
@@ -71,7 +81,7 @@ export function WeekViewMultiDayEventsRow({ selectedDate, multiDayEvents }: IPro
         (start <= weekStart && end >= weekEnd)
       );
     });
-  }, [multiDayEvents, weekStart, weekEnd]);
+  }, [multiDayEvents, weekStartTime, weekEndTime]);
 
   if (!hasEventsInWeek) {
     return null;

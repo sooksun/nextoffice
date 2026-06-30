@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { FolderOpen, Plus, Archive, AlertTriangle, Trash2 } from "lucide-react";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
-import Link from "next/link";
 
 interface Folder {
   id: number;
@@ -51,6 +51,11 @@ const STATUS_COLOR: Record<string, string> = {
   destroyed: "bg-red-500/20 text-red-800 dark:text-red-300",
 };
 
+const DISPOSITION_LABEL: Record<string, string> = {
+  keep_self: "ขอเก็บเอง",
+  deposit: "ฝากหนังสือ",
+};
+
 export default function ArchivePage() {
   const [orgId, setOrgId] = useState(1);
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -61,14 +66,7 @@ export default function ArchivePage() {
   const [newFolder, setNewFolder] = useState({ name: "", code: "", retentionYears: 10 });
   const [tab, setTab] = useState<"archive" | "destruction">("archive");
 
-  useEffect(() => {
-    const user = getUser();
-    const id = (user as any)?.organizationId || 1;
-    setOrgId(id);
-    loadData(id);
-  }, []);
-
-  const loadData = async (oid: number) => {
+  const loadData = useCallback(async (oid: number) => {
     try {
       const [f, d, dr] = await Promise.all([
         apiFetch<Folder[]>(`/archive/${oid}/folders`),
@@ -79,7 +77,23 @@ export default function ArchivePage() {
       setDocs(d);
       setDestructions(dr);
     } catch { /* ignore */ }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void Promise.resolve().then(async () => {
+      const user = getUser();
+      const id = user?.organizationId || 1;
+      if (cancelled) return;
+      setOrgId(id);
+      await loadData(id);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadData]);
 
   const handleCreateFolder = async () => {
     if (!newFolder.name || !newFolder.code) return;
@@ -91,9 +105,31 @@ export default function ArchivePage() {
       toastSuccess("สร้างแฟ้มสำเร็จ");
       setShowNewFolder(false);
       setNewFolder({ name: "", code: "", retentionYears: 10 });
-      loadData(orgId);
+      void loadData(orgId);
     } catch (err: unknown) {
-      toastError((err as Error).message);
+      toastError(getErrorMessage(err));
+    }
+  };
+
+  const handleDisposition = async (
+    registryId: number,
+    disposition: "keep_self" | "deposit" | "archive",
+  ) => {
+    try {
+      await apiFetch(`/archive/documents/${registryId}/disposition`, {
+        method: "POST",
+        body: JSON.stringify({ disposition }),
+      });
+      toastSuccess(
+        disposition === "keep_self"
+          ? "บันทึกเป็นบัญชีขอเก็บเองแล้ว"
+          : disposition === "deposit"
+            ? "บันทึกเป็นบัญชีฝากหนังสือแล้ว"
+            : "คืนสู่ทะเบียนหนังสือเก็บแล้ว",
+      );
+      void loadData(orgId);
+    } catch (err: unknown) {
+      toastError(getErrorMessage(err));
     }
   };
 
@@ -179,11 +215,12 @@ export default function ArchivePage() {
                     <th className="px-3 py-3 text-left">แฟ้ม</th>
                     <th className="px-3 py-3 text-left">วันที่เก็บ</th>
                     <th className="px-3 py-3 text-left">ครบกำหนด</th>
+                    <th className="px-3 py-3 text-left">จัดเก็บครบ ๒๐ ปี</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDocs.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบเอกสาร</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบเอกสาร</td></tr>
                   )}
                   {filteredDocs.map((d, i) => (
                     <tr key={d.id} className="border-t border-outline-variant/10 hover:bg-surface-bright/50">
@@ -201,6 +238,38 @@ export default function ArchivePage() {
                             {formatThaiDateShort(d.retentionEndDate)}
                           </span>
                         ) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {d.registryType === "destroy" ? (
+                          <span className="text-[10px] text-red-600 font-semibold">ทำลายแล้ว</span>
+                        ) : DISPOSITION_LABEL[d.registryType] ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-lg bg-secondary/15 text-secondary font-semibold text-[10px] whitespace-nowrap">
+                              {DISPOSITION_LABEL[d.registryType]}
+                            </span>
+                            <button
+                              onClick={() => handleDisposition(d.id, "archive")}
+                              className="text-[10px] text-on-surface-variant hover:text-primary underline"
+                            >
+                              ยกเลิก
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDisposition(d.id, "keep_self")}
+                              className="px-2 py-0.5 rounded-lg bg-surface-bright hover:bg-secondary/15 text-[10px] font-medium whitespace-nowrap"
+                            >
+                              ขอเก็บเอง
+                            </button>
+                            <button
+                              onClick={() => handleDisposition(d.id, "deposit")}
+                              className="px-2 py-0.5 rounded-lg bg-surface-bright hover:bg-tertiary/15 text-[10px] font-medium whitespace-nowrap"
+                            >
+                              ฝาก
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

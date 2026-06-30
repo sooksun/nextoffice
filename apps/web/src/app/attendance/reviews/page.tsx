@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
+import { getErrorMessage } from "@/lib/errors";
 
 type ReviewItem = {
   reviewId: number;
@@ -75,8 +76,8 @@ export default function AttendanceReviewsPage() {
       toast.success(`${type === "confirm" ? "ยืนยัน" : type === "reject" ? "ปฏิเสธ" : "reassign"} สำเร็จ`);
       setReassignId(null);
       fetchData();
-    } catch (e: any) {
-      toast.error(e.message ?? "ทำรายการไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ทำรายการไม่สำเร็จ");
     } finally {
       setActionMap((m) => { const n = { ...m }; delete n[reviewId]; return n; });
     }

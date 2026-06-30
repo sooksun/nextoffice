@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { FileText, Sparkles, X, Loader2 } from "lucide-react";
+import { getErrorMessage } from "@/lib/errors";
 
 interface Props {
   caseId: number;
   caseTitle: string;
   directorNote?: string | null;
+}
+
+interface AiDraftResponse {
+  subject?: string;
+  bodyText?: string;
+  recipientName?: string;
 }
 
 const DOC_TYPES = [
@@ -30,15 +37,15 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
   const handleAiDraft = async () => {
     setAiLoading(true);
     try {
-      const res = await apiFetch<any>("/outbound/ai-draft", {
+      const res = await apiFetch<AiDraftResponse>("/outbound/ai-draft", {
         method: "POST",
         body: JSON.stringify({ caseId, draftType: letterType === "internal_memo" ? "memo" : "reply" }),
       });
       if (res.subject) setSubject(res.subject);
       if (res.bodyText) setBodyText(res.bodyText);
       if (res.recipientName) setRecipientName(res.recipientName);
-    } catch (e: any) {
-      toastError(e.message ?? "AI ร่างไม่สำเร็จ");
+    } catch (e: unknown) {
+      toastError(getErrorMessage(e) ?? "AI ร่างไม่สำเร็จ");
     } finally {
       setAiLoading(false);
     }
@@ -61,8 +68,8 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
       toastSuccess("สร้างเอกสารร่างแล้ว");
       setOpen(false);
       router.push(`/outbound/${res.id}`);
-    } catch (e: any) {
-      toastError(e.message ?? "สร้างไม่สำเร็จ");
+    } catch (e: unknown) {
+      toastError(getErrorMessage(e) ?? "สร้างไม่สำเร็จ");
     } finally {
       setSubmitting(false);
     }

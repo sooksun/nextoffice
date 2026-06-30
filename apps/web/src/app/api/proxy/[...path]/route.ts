@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * General API proxy: /api/proxy/:path* → INTERNAL_API_URL/:path*
+ * General API proxy: /api/proxy/:path* -> INTERNAL_API_URL/:path*
  *
- * Solves CSP issue: browser calls /api/proxy/... (same-origin HTTPS),
- * this route forwards to http://api:3000/... (Docker-internal HTTP).
- * INTERNAL_API_URL is read at runtime — no rebuild needed when it changes.
+ * Solves CSP issues when an HTTPS page calls an HTTP backend.
+ * In Docker: INTERNAL_API_URL=http://api:3000
+ * In localhost dev: INTERNAL_API_URL=http://localhost:3001
  */
 
-const BACKEND = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://api:3000";
+const BACKEND =
+  process.env.INTERNAL_API_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "production" ? "http://api:3000" : "http://localhost:3001");
 
 const PASSTHROUGH_HEADERS = ["authorization", "content-type", "accept", "x-requested-with", "cookie"];
 
 // Allowlist of backend API base segments that may be relayed through this proxy.
-// Anything not listed (health, metrics, swagger, internal routes, …) is rejected.
+// Anything not listed (health, metrics, swagger, internal routes, etc.) is rejected.
 // Keep in sync with the @Controller() base paths in apps/api/src.
 const ALLOWED_SEGMENTS = new Set([
   "auth", "line", "line-auth", "organizations", "cases", "documents", "intake", "outbound",
@@ -21,7 +24,7 @@ const ALLOWED_SEGMENTS = new Set([
   "projects", "workflow-patterns", "reports", "chat", "search", "messages", "news",
   "tender", "webboard", "circular", "download", "calendar", "academic-years",
   "work-groups", "staff-config", "attendance", "vault", "knowledge", "knowledge-import",
-  "horizon", "digital-signature", "system-prompts", "notifications", "admin",
+  "horizon", "digital-signature", "system-prompts", "notifications", "drive-import", "admin",
 ]);
 
 async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
@@ -54,16 +57,16 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
     const resHeaders: Record<string, string> = {
       "content-type": upstream.headers.get("content-type") ?? "application/json",
     };
-    // Forward auth cookies (Set-Cookie) from the backend so httpOnly login works through the proxy
     const setCookie = upstream.headers.get("set-cookie");
     if (setCookie) resHeaders["set-cookie"] = setCookie;
     return new NextResponse(resBody, {
       status: upstream.status,
       headers: resHeaders,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected proxy error";
     return NextResponse.json(
-      { error: "proxy_error", message: err.message },
+      { error: "proxy_error", message },
       { status: 502 },
     );
   }
@@ -73,18 +76,22 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   const { path } = await ctx.params;
   return proxy(req, path);
 }
+
 export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   return proxy(req, path);
 }
+
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   return proxy(req, path);
 }
+
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   return proxy(req, path);
 }
+
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   return proxy(req, path);

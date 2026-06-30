@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
-import { getUser } from "@/lib/auth";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 import { Send, Plus, CheckCircle, Printer } from "lucide-react";
 
@@ -22,14 +21,6 @@ interface DispatchItem {
   registryDocNo: string | null;
   sentByName: string | null;
   createdAt: string;
-}
-
-interface RegistryOption {
-  id: number;
-  documentNo: string | null;
-  subject: string | null;
-  registryNo: string | null;
-  toOrg: string | null;
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -52,31 +43,19 @@ const STATUS_COLOR: Record<string, string> = {
 export default function DispatchPage() {
   const [items, setItems] = useState<DispatchItem[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [registryOptions, setRegistryOptions] = useState<RegistryOption[]>([]);
   const [form, setForm] = useState({ registryId: 0, recipientOrg: "", recipientName: "", deliveryMethod: "messenger", remarks: "" });
   const [deliverModal, setDeliverModal] = useState<{ id: number; receivedBy: string } | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const data = await apiFetch<DispatchItem[]>("/dispatch");
       setItems(data);
     } catch { /* ignore */ }
-  };
-
-  const loadRegistryOptions = async () => {
-    try {
-      const user = getUser();
-      const orgId = (user as any)?.organizationId || 1;
-      const res = await apiFetch<{ data: RegistryOption[] }>(`/reports/${orgId}/summary`);
-      // fallback: load from outbound registry
-      const outbound = await apiFetch<{ data: RegistryOption[] }>(`/saraban/outbound-registry?organizationId=${orgId}`).catch(() => ({ data: [] }));
-      setRegistryOptions(outbound.data || []);
-    } catch { /* ignore */ }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void Promise.resolve().then(loadData);
+  }, [loadData]);
 
   const handleCreate = async () => {
     if (!form.registryId || !form.recipientOrg) return toastError("กรุณากรอกข้อมูลให้ครบ");
@@ -94,7 +73,7 @@ export default function DispatchPage() {
       toastSuccess("สร้างรายการส่งสำเร็จ");
       setShowForm(false);
       setForm({ registryId: 0, recipientOrg: "", recipientName: "", deliveryMethod: "messenger", remarks: "" });
-      loadData();
+      void loadData();
     } catch { toastError("เกิดข้อผิดพลาด"); }
   };
 
@@ -107,7 +86,7 @@ export default function DispatchPage() {
       });
       toastSuccess("บันทึกการรับแล้ว");
       setDeliverModal(null);
-      loadData();
+      void loadData();
     } catch { toastError("เกิดข้อผิดพลาด"); }
   };
 

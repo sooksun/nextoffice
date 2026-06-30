@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { BookMarked } from "lucide-react";
+import { BookMarked, Printer } from "lucide-react";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 
 interface RegistryDoc {
@@ -25,25 +25,31 @@ export default function SendStorePage() {
 
   useEffect(() => {
     const user = getUser();
-    const orgId = (user as any)?.organizationId || 1;
-    apiFetch<RegistryDoc[]>(`/outbound/${orgId}/registry?type=outbound`)
+    const orgId = user?.organizationId || 1;
+    apiFetch<RegistryDoc[]>(`/outbound/${orgId}/registry?type=archive`)
       .then(setDocs)
       .catch(() => setDocs([]))
       .finally(() => setLoading(false));
   }, []);
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
-          <BookMarked size={20} className="text-secondary" />
+    <div className="print-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center no-print">
+            <BookMarked size={20} className="text-secondary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-primary tracking-tight print-title">บัญชีหนังสือส่งเก็บ</h1>
+            <p className="text-xs text-on-surface-variant">
+              ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ ข้อ ๕๔ (แบบที่ ๑๙) — พบ {toThaiNumerals(docs.length)} รายการ
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-black text-primary tracking-tight">บัญชีหนังสือส่งเก็บ</h1>
-          <p className="text-xs text-on-surface-variant">
-            ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ ข้อ ๕๗ — พบ {toThaiNumerals(docs.length)} รายการ
-          </p>
-        </div>
+        <button onClick={() => window.print()} className="btn-ghost flex items-center gap-2 no-print">
+          <Printer size={16} />
+          <span className="text-sm">พิมพ์บัญชี</span>
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm">

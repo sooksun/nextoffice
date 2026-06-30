@@ -66,7 +66,9 @@ export default function EnrollmentsPage() {
     }
   }, [search, filterStatus]);
 
-  useEffect(() => { fetchData(1); }, [search, filterStatus]);
+  useEffect(() => {
+    void fetchData(1);
+  }, [fetchData]);
 
   const stats = data?.items ? {
     total: data.total,

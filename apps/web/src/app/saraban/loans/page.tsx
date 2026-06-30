@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 import { BookOpen, Plus, RotateCcw, AlertTriangle } from "lucide-react";
 
@@ -40,17 +41,17 @@ export default function LoansPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ registryId: 0, dueDate: "", purpose: "" });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const status = tab === "all" ? undefined : tab;
       const data = await apiFetch<LoanItem[]>(`/loans${status ? `?status=${status}` : ""}`);
       setItems(data);
     } catch { /* ignore */ }
-  };
+  }, [tab]);
 
   useEffect(() => {
-    loadData();
-  }, [tab]);
+    void Promise.resolve().then(loadData);
+  }, [loadData]);
 
   const handleCreate = async () => {
     if (!form.registryId || !form.dueDate) return toastError("กรุณากรอกข้อมูลให้ครบ");
@@ -60,7 +61,7 @@ export default function LoansPage() {
         method: "POST",
         body: JSON.stringify({
           registryId: form.registryId,
-          borrowerUserId: (user as any)?.id || 1,
+          borrowerUserId: user?.id || 1,
           dueDate: form.dueDate,
           purpose: form.purpose || undefined,
         }),
@@ -68,9 +69,9 @@ export default function LoansPage() {
       toastSuccess("บันทึกการยืมสำเร็จ");
       setShowForm(false);
       setForm({ registryId: 0, dueDate: "", purpose: "" });
-      loadData();
-    } catch (e: any) {
-      toastError(e?.message || "เกิดข้อผิดพลาด");
+      void loadData();
+    } catch (e: unknown) {
+      toastError(getErrorMessage(e));
     }
   };
 
@@ -78,7 +79,7 @@ export default function LoansPage() {
     try {
       await apiFetch(`/loans/${id}/return`, { method: "POST" });
       toastSuccess("คืนเอกสารสำเร็จ");
-      loadData();
+      void loadData();
     } catch { toastError("เกิดข้อผิดพลาด"); }
   };
 

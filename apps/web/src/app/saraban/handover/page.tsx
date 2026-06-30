@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
 import { getUser, AuthUser } from "@/lib/auth";
@@ -53,12 +53,12 @@ export default function HandoverPage() {
   const [form, setForm] = useState({ recipientOrg: "หอจดหมายเหตุแห่งชาติ", recipientName: "", description: "" });
   const [user, setUser] = useState<AuthUser | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const data = await apiFetch<HandoverItem[]>("/handover");
       setRecords(data);
     } catch { /* ignore */ }
-  };
+  }, []);
 
   const loadEligible = async () => {
     try {
@@ -68,10 +68,19 @@ export default function HandoverPage() {
   };
 
   useEffect(() => {
-    const u = getUser();
-    setUser(u);
-    loadData();
-  }, []);
+    let cancelled = false;
+
+    void Promise.resolve().then(async () => {
+      const u = getUser();
+      if (cancelled) return;
+      setUser(u);
+      await loadData();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadData]);
 
   const handleShowForm = () => {
     setShowForm(true);
@@ -100,7 +109,7 @@ export default function HandoverPage() {
       setShowForm(false);
       setSelectedIds([]);
       setForm({ recipientOrg: "หอจดหมายเหตุแห่งชาติ", recipientName: "", description: "" });
-      loadData();
+      void loadData();
     } catch { toastError("เกิดข้อผิดพลาด"); }
   };
 
@@ -108,7 +117,7 @@ export default function HandoverPage() {
     try {
       await apiFetch(`/handover/${id}/approve`, { method: "POST" });
       toastSuccess("อนุมัติแล้ว");
-      loadData();
+      void loadData();
     } catch { toastError("เกิดข้อผิดพลาด"); }
   };
 
@@ -116,7 +125,7 @@ export default function HandoverPage() {
     try {
       await apiFetch(`/handover/${id}/complete`, { method: "POST" });
       toastSuccess("บันทึกส่งมอบแล้ว");
-      loadData();
+      void loadData();
     } catch { toastError("เกิดข้อผิดพลาด"); }
   };
 

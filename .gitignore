@@ -26,5 +26,10 @@ apps/api/generated/prisma
 docs/*.pdf
 docs/*.docx
 docs/midone-vue-v1.0.0/
+docs/screenshot/
 NEXTOFFICE_AI_RAG_ANALYSIS.md
 QUICK_REFERENCE.md
+
+# Local runtime logs / boot artifacts (not source)
+apps/api/*.err
+apps/api/*.log

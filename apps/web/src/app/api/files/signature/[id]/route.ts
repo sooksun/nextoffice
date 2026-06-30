@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getErrorMessage } from "@/lib/errors";
 
 /**
  * Proxy endpoint: GET /api/files/signature/:userId
@@ -32,7 +33,7 @@ export async function GET(
         "Cache-Control": "private, max-age=300",
       },
     });
-  } catch (err: any) {
-    return new NextResponse(`เกิดข้อผิดพลาด: ${err.message}`, { status: 502 });
+  } catch (err: unknown) {
+    return new NextResponse(`เกิดข้อผิดพลาด: ${getErrorMessage(err)}`, { status: 502 });
   }
 }

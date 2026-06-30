@@ -6,6 +6,8 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import { useLiff } from "../../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
+import type { AuthUser } from "@/lib/auth";
 
 interface TravelDetail {
   id: number;
@@ -33,7 +35,7 @@ export default function LiffTravelDetailPage() {
   const params = useParams();
   const id = params.id as string;
 
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [item, setItem] = useState<TravelDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -54,7 +56,7 @@ export default function LiffTravelDetailPage() {
   const canApprove = isManager && item?.status === "pending" && !isOwner;
   const canCancel = isOwner && (item?.status === "pending" || item?.status === "draft");
 
-  const act = async (path: string, body: any, successMsg: string) => {
+  const act = async (path: string, body: Record<string, unknown>, successMsg: string) => {
     setActing(true);
     try {
       await apiFetch(path, { method: "PATCH", body: JSON.stringify(body) });
@@ -62,8 +64,8 @@ export default function LiffTravelDetailPage() {
       const fresh = await apiFetch<TravelDetail>(`/attendance/leave/travel/${id}`);
       setItem(fresh);
       setRejectMode(false);
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     } finally {
       setActing(false);
     }

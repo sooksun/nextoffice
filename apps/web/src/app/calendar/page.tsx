@@ -36,7 +36,16 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => {
-    Promise.all([fetchEvents(), fetchUsers()]).finally(() => setLoading(false));
+    let cancelled = false;
+
+    void Promise.resolve().then(async () => {
+      await Promise.all([fetchEvents(), fetchUsers()]);
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [fetchEvents, fetchUsers]);
 
   if (loading) {

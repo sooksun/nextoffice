@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useLiff } from "../LiffBoot";
+import type { AuthUser } from "@/lib/auth";
 
 interface LeaveRequest {
   id: number;
@@ -22,6 +23,11 @@ interface LeaveBalance {
   personal: number;
   vacation: number;
   [key: string]: number;
+}
+
+interface LeaveBalanceItem {
+  leaveType?: string;
+  remaining?: number;
 }
 
 const LEAVE_TYPE_LABEL: Record<string, string> = {
@@ -51,7 +57,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function LiffLeavePage() {
   const { status } = useLiff();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [my, setMy] = useState<LeaveRequest[]>([]);
   const [pending, setPending] = useState<LeaveRequest[]>([]);
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
@@ -59,32 +65,45 @@ export default function LiffLeavePage() {
 
   useEffect(() => {
     if (status !== "ready") return;
-    const u = JSON.parse(localStorage.getItem("user") ?? "null");
-    setUser(u);
+    let cancelled = false;
 
-    const canApprove = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER"].includes(
-      u?.roleCode,
-    );
+    void Promise.resolve().then(async () => {
+      const u = JSON.parse(localStorage.getItem("user") ?? "null") as AuthUser | null;
+      const canApprove = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR", "HEAD_TEACHER"].includes(
+        u?.roleCode ?? "",
+      );
 
-    Promise.all([
-      apiFetch<LeaveRequest[]>("/attendance/leave/my-requests").catch(() => []),
-      apiFetch<any>("/attendance/leave/balance").catch(() => null),
-      canApprove
-        ? apiFetch<LeaveRequest[]>("/attendance/leave/pending").catch(() => [])
-        : Promise.resolve([]),
-    ]).then(([mine, bal, pend]) => {
-      setMy(Array.isArray(mine) ? mine : []);
-      // API returns array [{leaveType, remaining}] — convert to {sick, personal, vacation}
-      if (Array.isArray(bal) && bal.length > 0) {
-        const obj: LeaveBalance = { sick: 0, personal: 0, vacation: 0 };
-        bal.forEach((b: any) => { if (b.leaveType) obj[b.leaveType] = b.remaining ?? 0; });
-        setBalance(obj);
-      } else {
-        setBalance(null);
+      try {
+        const [mine, bal, pend] = await Promise.all([
+          apiFetch<LeaveRequest[]>("/attendance/leave/my-requests").catch(() => []),
+          apiFetch<LeaveBalanceItem[]>("/attendance/leave/balance").catch(() => null),
+          canApprove
+            ? apiFetch<LeaveRequest[]>("/attendance/leave/pending").catch(() => [])
+            : Promise.resolve([]),
+        ]);
+        if (cancelled) return;
+
+        setUser(u);
+        setMy(Array.isArray(mine) ? mine : []);
+        // API returns array [{leaveType, remaining}] - convert to {sick, personal, vacation}
+        if (Array.isArray(bal) && bal.length > 0) {
+          const obj: LeaveBalance = { sick: 0, personal: 0, vacation: 0 };
+          bal.forEach((b) => {
+            if (b.leaveType) obj[b.leaveType] = b.remaining ?? 0;
+          });
+          setBalance(obj);
+        } else {
+          setBalance(null);
+        }
+        setPending(Array.isArray(pend) ? pend : []);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setPending(Array.isArray(pend) ? pend : []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [status]);
 
   const canApprove =

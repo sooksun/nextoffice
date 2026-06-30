@@ -12,6 +12,6 @@ import { AuthModule } from '../auth/auth.module';
   imports: [QueueModule, forwardRef(() => AiModule), AuthModule],
   controllers: [IntakeController],
   providers: [IntakeService, FileStorageService, ContentFetchService, GoogleDriveService],
-  exports: [IntakeService, FileStorageService, ContentFetchService],
+  exports: [IntakeService, FileStorageService, ContentFetchService, GoogleDriveService],
 })
 export class IntakeModule {}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import { useLiff } from "../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
 
 type QualityResult = {
   passed: boolean;
@@ -167,8 +168,8 @@ export default function LiffFaceRegisterPage() {
       toast.success("ลงทะเบียนใบหน้าสำเร็จ!");
       setDone(true);
       streamRef.current?.getTracks().forEach((t) => t.stop());
-    } catch (e: any) {
-      toast.error(e.message ?? "ยืนยันไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ยืนยันไม่สำเร็จ");
     } finally {
       setFinalizing(false);
     }

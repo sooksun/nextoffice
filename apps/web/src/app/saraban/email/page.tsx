@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { Mail, Send, Settings } from "lucide-react";
-import { formatThaiDateShort, formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
+import { formatThaiDateTime, toThaiNumerals } from "@/lib/thai-date";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "ร่าง",

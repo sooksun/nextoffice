@@ -11,13 +11,15 @@ export class FileStorageService {
 
   constructor(private readonly config: ConfigService) {
     this.bucket = config.get('MINIO_BUCKET', 'nextoffice');
-    this.client = new Minio.Client({
+    const clientOptions = {
       endPoint: config.get('MINIO_ENDPOINT', 'localhost'),
       port: config.get<number>('MINIO_PORT', 9000),
       useSSL: config.get('MINIO_USE_SSL', 'false') === 'true',
       accessKey: config.get('MINIO_ACCESS_KEY', 'minioadmin'),
       secretKey: config.get('MINIO_SECRET_KEY', 'minioadmin'),
-    });
+      checkCompatibility: false, // avoid "Failed to obtain server version" warning when MinIO is not running (local dev)
+    };
+    this.client = new Minio.Client(clientOptions as Minio.ClientOptions);
     this.ensureBucket();
   }
 

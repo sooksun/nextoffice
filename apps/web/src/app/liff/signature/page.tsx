@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
 import { toast } from "react-toastify";
 import SignaturePad from "@/components/SignaturePad";
 import { useLiff } from "../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
+import type { AuthUser } from "@/lib/auth";
 
 interface StaffItem {
   id: number;
@@ -15,7 +19,7 @@ interface StaffItem {
 
 export default function LiffSignaturePage() {
   const { status } = useLiff();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
   const [loading, setLoading] = useState(true);
   const [padData, setPadData] = useState("");
@@ -27,9 +31,9 @@ export default function LiffSignaturePage() {
     const u = JSON.parse(localStorage.getItem("user") ?? "null");
     setUser(u);
 
-    apiFetch<StaffItem[]>("/staff-config")
+    apiFetch<StaffItem[] | { data?: StaffItem[] }>("/staff-config")
       .then((list) => {
-        const arr = Array.isArray(list) ? list : (list as any).data ?? [];
+        const arr = unwrapList(list);
         const me = arr.find((s: StaffItem) => Number(s.id) === Number(u?.id));
         setHasSignature(!!me?.signaturePath);
       })
@@ -66,8 +70,8 @@ export default function LiffSignaturePage() {
       setHasSignature(true);
       setPadData("");
       setPreviewVersion((v) => v + 1);
-    } catch (e: any) {
-      toast.error(e.message ?? "บันทึกไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "บันทึกไม่สำเร็จ");
     } finally {
       setUploading(false);
     }
@@ -81,8 +85,8 @@ export default function LiffSignaturePage() {
       toast.success("ลบลายเซ็นเรียบร้อย");
       setHasSignature(false);
       setPreviewVersion((v) => v + 1);
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     }
   };
 
@@ -103,9 +107,12 @@ export default function LiffSignaturePage() {
       {hasSignature && sigUrl && (
         <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <p className="mb-2 text-xs font-semibold text-slate-700">ลายเซ็นปัจจุบัน</p>
-          <img
+          <Image
             src={sigUrl}
             alt="signature"
+            width={320}
+            height={128}
+            unoptimized
             className="mx-auto h-32 w-auto rounded border border-dashed border-slate-300 bg-white p-2"
             onError={() => setHasSignature(false)}
           />

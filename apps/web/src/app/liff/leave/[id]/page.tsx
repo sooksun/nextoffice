@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import { useLiff } from "../../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
+import type { AuthUser } from "@/lib/auth";
 
 interface LeaveDetail {
   id: number;
@@ -45,10 +47,9 @@ const STATUS_LABEL: Record<string, string> = {
 export default function LiffLeaveDetailPage() {
   const { status: liffStatus } = useLiff();
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
 
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [leave, setLeave] = useState<LeaveDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -74,7 +75,7 @@ export default function LiffLeaveDetailPage() {
   const handleAction = async (
     path: string,
     method: "PATCH" | "POST",
-    body: any,
+    body: Record<string, unknown>,
     successMsg: string,
   ) => {
     setActing(true);
@@ -83,8 +84,8 @@ export default function LiffLeaveDetailPage() {
       toast.success(successMsg);
       const fresh = await apiFetch<LeaveDetail>(`/attendance/leave/${id}`);
       setLeave(fresh);
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     } finally {
       setActing(false);
       setRejectMode(false);

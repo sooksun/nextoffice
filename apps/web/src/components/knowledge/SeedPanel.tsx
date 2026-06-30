@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Download, Globe, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { getErrorMessage } from "@/lib/errors";
 
 interface SeedResult {
   created: number;
@@ -39,8 +40,8 @@ export default function SeedPanel({ stats }: { stats: Stats }) {
       setPolicyResult(data);
       // Reload page to refresh stats and list
       setTimeout(() => window.location.reload(), 1500);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setSeedingPolicy(false);
     }
@@ -61,8 +62,8 @@ export default function SeedPanel({ stats }: { stats: Stats }) {
       const data = await res.json();
       setHorizonResult(data);
       setTimeout(() => window.location.reload(), 1500);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setSeedingHorizon(false);
     }

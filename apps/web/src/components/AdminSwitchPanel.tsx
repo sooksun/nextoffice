@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { UserCog, X, Eye, EyeOff, LogIn, ArrowLeftRight, ShieldCheck } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import {
   getUser,
   getAdminUser,
@@ -71,8 +72,8 @@ export default function AdminSwitchPanel() {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       applySession(data, user!);
-    } catch (err: any) {
-      setError(err.message?.replace(/^API \d+: /, "") ?? "เกิดข้อผิดพลาด");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err)?.replace(/^API \d+: /, "") ?? "เกิดข้อผิดพลาด");
     } finally {
       setLoading(false);
     }

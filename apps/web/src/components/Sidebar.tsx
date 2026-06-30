@@ -135,6 +135,8 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/saraban/handover", label: "ส่งมอบครบ 20 ปี", roles: SARABAN },
           { href: "/saraban/send-store", label: "บัญชีหนังสือส่งเก็บ" },
           { href: "/saraban/stored-register", label: "ทะเบียนหนังสือเก็บ" },
+          { href: "/saraban/keep-self", label: "บัญชีครบ ๒๐ ปีที่ขอเก็บเอง" },
+          { href: "/saraban/deposit", label: "บัญชีฝากหนังสือ" },
           { href: "/saraban/destroy-list", label: "บัญชีหนังสือขอทำลาย" },
         ],
       },

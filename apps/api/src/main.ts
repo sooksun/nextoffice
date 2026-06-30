@@ -49,7 +49,7 @@ async function bootstrap() {
     }),
   );
   app.enableCors({
-    origin: (process.env.WEB_URL || 'http://localhost:3001,https://nextoffice.cnppai.com')
+    origin: (process.env.WEB_URL || 'http://localhost:3000,http://localhost:3001,https://nextoffice.cnppai.com')
       .split(',')
       .map((s) => s.trim()),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
@@ -96,7 +96,11 @@ async function bootstrap() {
     });
   }
 
-  const port = process.env.PORT || 3000;
+  // Local dev default: 3001 | Docker/prod default: 3000 (api service sets NODE_ENV=production)
+  const port = process.env.PORT
+    ? Number(process.env.PORT)
+    : (process.env.NODE_ENV === 'production' ? 3000 : 3001);
+
   await app.listen(port);
   console.log(`🚀 NextOffice API running on http://localhost:${port}`);
   console.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);

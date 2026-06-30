@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatThaiDateShort } from "@/lib/thai-date";
-import { Download, Plus, X, FileText, File } from "lucide-react";
+import { Download, Plus, X, FileText } from "lucide-react";
 import { toastSuccess, toastError } from "@/lib/toast";
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -44,7 +44,7 @@ export default function DownloadPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -58,9 +58,11 @@ export default function DownloadPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [category, search]);
 
-  useEffect(() => { fetchData(); }, [category]);
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   async function handleDownload(item: DownloadFile) {
     try {
@@ -86,7 +88,7 @@ export default function DownloadPage() {
       toastSuccess("เพิ่มไฟล์สำเร็จ");
       setShowForm(false);
       setForm({ title: "", description: "", category: "general", fileUrl: "", fileName: "" });
-      fetchData();
+      void fetchData();
     } catch {
       toastError("เพิ่มไฟล์ไม่สำเร็จ");
     } finally {
@@ -130,9 +132,9 @@ export default function DownloadPage() {
           className="input-text flex-1"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchData()}
+          onKeyDown={(e) => e.key === "Enter" && void fetchData()}
         />
-        <button onClick={fetchData} className="btn-primary">ค้นหา</button>
+        <button onClick={() => void fetchData()} className="btn-primary">ค้นหา</button>
       </div>
 
       {/* File Grid */}

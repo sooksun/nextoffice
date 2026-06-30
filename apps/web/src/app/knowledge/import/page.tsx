@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Upload, FileText, Image, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw, Trash2, Eye, AlertTriangle, X } from "lucide-react";
+import { Upload, FileText, Image as ImageIcon, Type, CheckCircle, XCircle, Loader2, RefreshCw, RotateCcw, Trash2, Eye, AlertTriangle, X } from "lucide-react";
 import { getUser } from "@/lib/auth";
 import { toastSuccess, toastError, confirmDelete } from "@/lib/toast";
 
@@ -479,7 +479,7 @@ export default function KnowledgeImportPage() {
             {file ? (
               <div className="flex flex-col items-center gap-2">
                 {file.type.startsWith("image/") ? (
-                  <Image size={32} className="text-primary" />
+                  <ImageIcon size={32} className="text-primary" />
                 ) : (
                   <FileText size={32} className="text-primary" />
                 )}
@@ -710,7 +710,7 @@ export default function KnowledgeImportPage() {
                         {item.sourceType === "pdf" ? (
                           <FileText size={13} />
                         ) : item.sourceType === "image" ? (
-                          <Image size={13} />
+                          <ImageIcon size={13} />
                         ) : (
                           <Type size={13} />
                         )}

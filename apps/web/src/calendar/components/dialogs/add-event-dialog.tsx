@@ -44,7 +44,7 @@ export function AddEventDialog({ children, startDate, startTime }: IProps) {
     },
   });
 
-  const onSubmit = (_values: TEventFormData) => {
+  const onSubmit = () => {
     // TO DO: Create use-add-event hook
     onClose();
     form.reset();

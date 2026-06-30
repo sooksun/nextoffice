@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
+import type { AuthUser } from "@/lib/auth";
 import { toast } from "react-toastify";
 import { useLiff } from "./LiffBoot";
 
@@ -44,7 +46,7 @@ interface TodayAttendance {
 
 export default function LiffDashboardPage() {
   const { displayName, pictureUrl, status } = useLiff();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [myTasks, setMyTasks] = useState<MyTask[]>([]);
   const [pendingSign, setPendingSign] = useState<PendingSign[]>([]);
   const [pendingOutbound, setPendingOutbound] = useState<PendingOutbound[]>([]);
@@ -53,8 +55,8 @@ export default function LiffDashboardPage() {
   const [acknowledging, setAcknowledging] = useState<Set<number>>(new Set());
 
   const loadTasks = async () => {
-    const res = await apiFetch<{ tasks: MyTask[]; summary: any }>("/cases/my-tasks").catch(() => ({ tasks: [], summary: null }));
-    setMyTasks(Array.isArray((res as any).tasks) ? (res as any).tasks : []);
+    const res = await apiFetch<{ tasks: MyTask[]; summary: unknown }>("/cases/my-tasks").catch(() => ({ tasks: [], summary: null }));
+    setMyTasks(Array.isArray(res.tasks) ? res.tasks : []);
   };
 
   useEffect(() => {
@@ -65,10 +67,10 @@ export default function LiffDashboardPage() {
     (async () => {
       try {
         const [tasksRes, attendance] = await Promise.all([
-          apiFetch<{ tasks: MyTask[]; summary: any }>("/cases/my-tasks").catch(() => ({ tasks: [], summary: null })),
+          apiFetch<{ tasks: MyTask[]; summary: unknown }>("/cases/my-tasks").catch(() => ({ tasks: [], summary: null })),
           apiFetch<TodayAttendance>("/attendance/today").catch(() => null),
         ]);
-        setMyTasks(Array.isArray((tasksRes as any).tasks) ? (tasksRes as any).tasks : []);
+        setMyTasks(Array.isArray(tasksRes.tasks) ? tasksRes.tasks : []);
         setToday(attendance);
 
         if (["DIRECTOR", "VICE_DIRECTOR", "ADMIN"].includes(u?.roleCode)) {
@@ -79,8 +81,7 @@ export default function LiffDashboardPage() {
             ).catch(() => []),
           ]);
           setPendingSign(Array.isArray(pending) ? pending : []);
-          const outArr = Array.isArray(outbound) ? outbound : (outbound as any).data ?? [];
-          setPendingOutbound(outArr);
+          setPendingOutbound(unwrapList(outbound));
         }
       } finally {
         setLoading(false);
@@ -125,6 +126,7 @@ export default function LiffDashboardPage() {
     <div className="mx-auto max-w-md px-4 py-6">
       <header className="mb-6 flex items-center gap-3">
         {pictureUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- LINE profile images are arbitrary remote URLs.
           <img src={pictureUrl} alt="" className="h-12 w-12 rounded-full object-cover" />
         )}
         <div>

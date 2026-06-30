@@ -62,6 +62,7 @@ export default function LiffNewsDetailPage() {
       </div>
 
       {post.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- Announcement images can use arbitrary remote URLs.
         <img
           src={post.imageUrl}
           alt=""

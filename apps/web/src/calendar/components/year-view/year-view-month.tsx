@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { isSameDay, parseISO, getDaysInMonth, startOfMonth } from "date-fns";
 
 import { useCalendar } from "@/calendar/contexts/calendar-context";
-import { thaiMonthFull, toBE, THAI_WEEK_DAYS_SHORT } from "@/calendar/thai-locale";
+import { thaiMonthFull, THAI_WEEK_DAYS_SHORT } from "@/calendar/thai-locale";
 
 import { YearViewDayCell } from "@/calendar/components/year-view/year-view-day-cell";
 

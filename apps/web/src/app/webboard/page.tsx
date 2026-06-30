@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatThaiDateShort } from "@/lib/thai-date";
 import { Globe, Plus, X, MessageSquare, Eye } from "lucide-react";
@@ -50,7 +50,7 @@ export default function WebboardPage() {
   const [form, setForm] = useState({ title: "", content: "", category: "general" });
   const [saving, setSaving] = useState(false);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -63,9 +63,11 @@ export default function WebboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [category]);
 
-  useEffect(() => { fetchData(); }, [category]);
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   async function openThread(thread: WebboardThread) {
     try {
@@ -89,7 +91,7 @@ export default function WebboardPage() {
       setReplyContent("");
       const detail = await apiFetch<ThreadDetail>(`/webboard/threads/${selected.id}`);
       setSelected(detail);
-      fetchData();
+      void fetchData();
     } catch {
       toastError("ตอบกระทู้ไม่สำเร็จ");
     } finally {
@@ -109,7 +111,7 @@ export default function WebboardPage() {
       toastSuccess("ตั้งกระทู้สำเร็จ");
       setShowForm(false);
       setForm({ title: "", content: "", category: "general" });
-      fetchData();
+      void fetchData();
     } catch {
       toastError("ตั้งกระทู้ไม่สำเร็จ");
     } finally {

@@ -30,8 +30,6 @@ export default function VaultSettingsPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
 
-  const orgId = "1";
-
   useEffect(() => {
     async function load() {
       try {

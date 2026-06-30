@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 import {
   ArrowLeft, UserCheck, AlertCircle, Clock, Users, Camera,
   Trash2, CheckCircle, RefreshCw, ZoomIn, X, Plus,
@@ -59,7 +60,6 @@ const ROLE_TH: Record<string, string> = {
 
 export default function UserEnrollmentPage() {
   const { userId } = useParams<{ userId: string }>();
-  const router = useRouter();
 
   const [data, setData] = useState<UserEnrollment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,7 +122,7 @@ export default function UserEnrollmentPage() {
 
       const res = await apiFetch<{
         success: boolean; reason?: string; reasons?: string[];
-        templateCount?: number; canAddMore?: boolean; quality?: any;
+        templateCount?: number; canAddMore?: boolean; quality?: { score?: number | null } | null;
       }>(`/attendance/admin/enrollments/${userId}/upload-frame`, {
         method: "POST",
         body: JSON.stringify({ imageBase64 }),
@@ -137,8 +137,8 @@ export default function UserEnrollmentPage() {
         await load();
         if (!res.canAddMore) closeCamera();
       }
-    } catch (err: any) {
-      setCaptureMsg(`❌ ${err.message}`);
+    } catch (err: unknown) {
+      setCaptureMsg(`❌ ${getErrorMessage(err)}`);
     } finally {
       setCapturing(false);
     }
@@ -157,8 +157,8 @@ export default function UserEnrollmentPage() {
       await apiFetch(`/attendance/admin/enrollments/templates/${templateId}`, { method: "DELETE" });
       showMsg("ok", "ลบรูปเรียบร้อย");
       await load();
-    } catch (err: any) {
-      showMsg("err", err.message ?? "เกิดข้อผิดพลาด");
+    } catch (err: unknown) {
+      showMsg("err", getErrorMessage(err) ?? "เกิดข้อผิดพลาด");
     }
   };
 
@@ -168,8 +168,8 @@ export default function UserEnrollmentPage() {
       await apiFetch(`/attendance/admin/enrollments/${userId}/activate`, { method: "POST" });
       showMsg("ok", "ยืนยัน enrollment เรียบร้อย");
       await load();
-    } catch (err: any) {
-      showMsg("err", err.message ?? "เกิดข้อผิดพลาด");
+    } catch (err: unknown) {
+      showMsg("err", getErrorMessage(err) ?? "เกิดข้อผิดพลาด");
     }
   };
 
@@ -179,8 +179,8 @@ export default function UserEnrollmentPage() {
       await apiFetch(`/attendance/admin/enrollments/${userId}/reset`, { method: "POST" });
       showMsg("ok", "รีเซ็ตเรียบร้อย");
       await load();
-    } catch (err: any) {
-      showMsg("err", err.message ?? "เกิดข้อผิดพลาด");
+    } catch (err: unknown) {
+      showMsg("err", getErrorMessage(err) ?? "เกิดข้อผิดพลาด");
     }
   };
 
@@ -346,6 +346,7 @@ export default function UserEnrollmentPage() {
               <div key={tpl.id} className="group relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
                 {/* Thumbnail */}
                 <div className="relative aspect-square overflow-hidden bg-slate-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- API image uses cookie auth and custom fallback handling. */}
                   <img
                     src={`/api/files/face-template/${tpl.id}`}
                     alt={`รูปที่ ${idx + 1}`}
@@ -411,6 +412,7 @@ export default function UserEnrollmentPage() {
           >
             <X size={20} />
           </button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- API image uses cookie auth and must render without Next image optimization. */}
           <img
             src={`/api/files/face-template/${lightboxId}`}
             alt="face template"

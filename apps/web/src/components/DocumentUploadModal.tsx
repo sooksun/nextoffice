@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastError, toastWarning } from "@/lib/toast";
 import {
-  X, Upload, FileText, CheckCircle, XCircle, Loader2,
+  X, Upload, FileText, CheckCircle, Loader2,
   Building2, Calendar, Hash, AlertTriangle, Sparkles, UserPlus, Users,
   Pencil, Plus, Trash2,
 } from "lucide-react";
@@ -83,14 +83,6 @@ interface Props {
   onClose: () => void;
 }
 
-interface StructuredSummaryData {
-  sender: string;
-  request: string;
-  location: string | null;
-  deadline: string | null;
-  summarizedBy: string;
-}
-
 /** แปลงวันที่ ISO (ค.ศ.) เป็นข้อความภาษาไทย พ.ศ. เช่น "30 มีนาคม 2569" */
 function formatThaiDate(isoDate: string, time?: string | null): string {
   const THAI_MONTHS = [
@@ -111,55 +103,6 @@ function formatThaiDate(isoDate: string, time?: string | null): string {
   }
 }
 
-/** แสดงสรุป AI เป็นความเรียง — ข้ามส่วนที่ว่าง */
-function AiSummaryParagraph({
-  structured,
-  fallbackSummary,
-  fallbackIntent,
-  meetingDate,
-  meetingTime,
-}: {
-  structured: StructuredSummaryData | null;
-  fallbackSummary: string;
-  fallbackIntent?: string;
-  meetingDate?: string | null;
-  meetingTime?: string | null;
-}) {
-  if (!structured) {
-    return (
-      <div>
-        <p className="text-sm text-on-surface leading-relaxed">{fallbackSummary}</p>
-        {fallbackIntent && (
-          <p className="text-xs text-on-surface-variant mt-2">{fallbackIntent}</p>
-        )}
-      </div>
-    );
-  }
-
-  // หาวันที่สำคัญ: ใช้ deadline จาก structured ก่อน (AI แปลงเป็นภาษาไทยแล้ว)
-  // ถ้าไม่มี fallback ไปใช้ meetingDate (ISO) แปลงเป็นไทย
-  const dateLabel = structured.deadline
-    || (meetingDate ? formatThaiDate(meetingDate, meetingTime) : null);
-
-  // สร้างประโยคความเรียงจาก field ที่มีค่าเท่านั้น
-  const parts: string[] = [];
-  if (structured.sender) parts.push(structured.sender);
-  if (structured.request) parts.push(structured.request);
-  if (structured.location) parts.push(`ณ ${structured.location}`);
-  if (dateLabel) parts.push(`ในวันที่ ${dateLabel}`);
-
-  const paragraph = parts.join(" ");
-
-  return (
-    <div>
-      <p className="text-sm text-on-surface leading-relaxed">{paragraph}</p>
-      <p className="text-right text-xs text-on-surface-variant mt-3 pt-2 border-t border-outline-variant/10">
-        ผู้สรุป: <span className="font-medium">{structured.summarizedBy}</span>
-      </p>
-    </div>
-  );
-}
-
 export default function DocumentUploadModal({ isOpen, onClose }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -170,7 +113,6 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
   const [routing, setRouting] = useState<RoutingSuggestion | null>(null);
   const [loadingRouting, setLoadingRouting] = useState(false);
   const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]);
-  const [resolvedCaseId, setResolvedCaseId] = useState<number | null>(null);
 
   // Editable AI fields
   const [editingSummary, setEditingSummary] = useState(false);
@@ -188,7 +130,6 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     setResult(null);
     setRouting(null);
     setSelectedAssigneeIds([]);
-    setResolvedCaseId(null);
     setEditingSummary(false);
     setEditedSummary("");
     setEditedActions([]);
@@ -262,7 +203,6 @@ export default function DocumentUploadModal({ isOpen, onClose }: Props) {
     try {
       const caseId = result.caseId
         ?? (await apiFetch<{ caseId: number; status: string }>(`/cases/from-intake/${result.documentIntakeId}`, { method: "POST" })).caseId;
-      setResolvedCaseId(caseId);
       const routeRes = await apiFetch<RoutingResponse>(`/cases/${caseId}/routing-suggestion`);
       if (routeRes?.found && routeRes.suggestion) {
         setRouting(routeRes.suggestion);

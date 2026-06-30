@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "react-toastify";
+import { getErrorMessage } from "@/lib/errors";
 
 interface Props {
   /** Short description text sent to the picker (max ~500 chars) */
@@ -46,8 +47,8 @@ export default function ShareButton({ text, url, label = "📤 แชร์", cl
       }
 
       // Web Share API fallback
-      if (typeof navigator !== "undefined" && (navigator as any).share) {
-        await (navigator as any).share({ text, url });
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ text, url });
         return;
       }
 
@@ -56,8 +57,8 @@ export default function ShareButton({ text, url, label = "📤 แชร์", cl
         await navigator.clipboard.writeText(messageText);
         toast.info("คัดลอกข้อความแล้ว");
       }
-    } catch (e: any) {
-      const msg = e?.message ?? "";
+    } catch (e: unknown) {
+      const msg = getErrorMessage(e, "");
       if (!msg.includes("cancel")) {
         toast.error("แชร์ไม่สำเร็จ");
       }

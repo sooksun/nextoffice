@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { Trash2 } from "lucide-react";
+import { Trash2, Printer } from "lucide-react";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 
 interface RegistryDoc {
@@ -22,6 +22,7 @@ interface RegistryDoc {
     status: string;
     requestedBy: string;
     approvedBy: string | null;
+    approvedAt: string | null;
     createdAt: string;
   } | null;
 }
@@ -43,7 +44,7 @@ export default function DestroyListPage() {
 
   useEffect(() => {
     const user = getUser();
-    const orgId = (user as any)?.organizationId || 1;
+    const orgId = user?.organizationId || 1;
     apiFetch<RegistryDoc[]>(`/outbound/${orgId}/registry?type=destroy`)
       .then(setDocs)
       .catch(() => setDocs([]))
@@ -51,17 +52,23 @@ export default function DestroyListPage() {
   }, []);
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-          <Trash2 size={20} className="text-red-500" />
+    <div className="print-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center no-print">
+            <Trash2 size={20} className="text-red-500" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-primary tracking-tight print-title">บัญชีหนังสือขอทำลาย</h1>
+            <p className="text-xs text-on-surface-variant">
+              ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ ข้อ ๖๖–๗๐ (แบบที่ ๒๕) — พบ {toThaiNumerals(docs.length)} รายการ
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-black text-primary tracking-tight">บัญชีหนังสือขอทำลาย</h1>
-          <p className="text-xs text-on-surface-variant">
-            ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ ข้อ ๖๖–๗๐ — พบ {toThaiNumerals(docs.length)} รายการ
-          </p>
-        </div>
+        <button onClick={() => window.print()} className="btn-ghost flex items-center gap-2 no-print">
+          <Printer size={16} />
+          <span className="text-sm">พิมพ์บัญชี</span>
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm">
@@ -74,18 +81,19 @@ export default function DestroyListPage() {
               <th className="px-3 py-3 text-left">เรื่อง</th>
               <th className="px-3 py-3 text-left">แฟ้ม</th>
               <th className="px-3 py-3 text-left">วันหมดอายุ</th>
+              <th className="px-3 py-3 text-left">การพิจารณา</th>
               <th className="px-3 py-3 text-center">สถานะ</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">กำลังโหลด...</td>
+                <td colSpan={8} className="px-4 py-10 text-center text-on-surface-variant">กำลังโหลด...</td>
               </tr>
             )}
             {!loading && docs.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบรายการขอทำลาย</td>
+                <td colSpan={8} className="px-4 py-10 text-center text-on-surface-variant">ไม่พบรายการขอทำลาย</td>
               </tr>
             )}
             {docs.map((d, i) => (
@@ -105,6 +113,18 @@ export default function DestroyListPage() {
                 </td>
                 <td className="px-3 py-2 text-xs text-on-surface-variant whitespace-nowrap">
                   {formatThaiDateShort(d.retentionEndDate)}
+                </td>
+                <td className="px-3 py-2 text-xs text-on-surface-variant">
+                  {d.destructionRequest?.approvedBy ? (
+                    <span>
+                      เห็นชอบให้ทำลายโดย {d.destructionRequest.approvedBy}
+                      {d.destructionRequest.approvedAt && (
+                        <span className="block text-[10px]">{formatThaiDateShort(d.destructionRequest.approvedAt)}</span>
+                      )}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-3 py-2 text-center">
                   {d.destructionRequest ? (

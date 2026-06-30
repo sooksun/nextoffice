@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Query, ParseIntPipe, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, ParseIntPipe, UseGuards, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ArchiveService } from './archive.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -52,6 +52,27 @@ export class ArchiveController {
     @Body('folderId', ParseIntPipe) folderId: number,
   ) {
     return this.svc.archiveDocument(registryId, folderId, Number(user.organizationId));
+  }
+
+  @Post('documents/:registryId/disposition')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTOR', 'CLERK')
+  @ApiOperation({ summary: 'Set 20-year retention disposition (เก็บเอง/ฝาก/คืนสู่ทะเบียนเก็บ)' })
+  setDisposition(
+    @Param('registryId', ParseIntPipe) registryId: number,
+    @CurrentUser() user: any,
+    @Body() body: { disposition: 'keep_self' | 'deposit' | 'archive'; remarks?: string },
+  ) {
+    const allowed = ['keep_self', 'deposit', 'archive'];
+    if (!allowed.includes(body?.disposition)) {
+      throw new BadRequestException('การจัดเก็บไม่ถูกต้อง');
+    }
+    return this.svc.setDisposition(
+      registryId,
+      body.disposition,
+      Number(user.organizationId),
+      body.remarks,
+    );
   }
 
   @Get(':orgId/registry')

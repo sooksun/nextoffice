@@ -26,18 +26,25 @@ export class VectorStoreService implements OnModuleInit {
     const host = this.config.get<string>('QDRANT_HOST', 'localhost');
     const port = this.config.get<number>('QDRANT_PORT', 6333);
     this.client = new QdrantClient({ host, port });
-    // Retry for up to 60s to allow Qdrant to start
+    // Retry for up to 60s to allow Qdrant to start (common in local dev when docker services not running)
+    let lastError: any;
     for (let attempt = 1; attempt <= 6; attempt++) {
       try {
         await this.ensureCollections();
         this.logger.log('Qdrant connected and collections ready');
         return;
       } catch (err) {
-        this.logger.warn(`Qdrant not ready (attempt ${attempt}/6): ${err.message}`);
+        lastError = err;
+        if (attempt === 1) {
+          this.logger.warn(`Qdrant not reachable (will retry ${6 - attempt} more times): ${err.message}`);
+          this.logger.warn('→ To run full RAG features locally, start services: docker compose up -d qdrant minio redis');
+        }
+        // silent after first
         await new Promise((r) => setTimeout(r, 10000));
       }
     }
-    this.logger.error('Qdrant unavailable after 60s — vector search disabled');
+    this.logger.warn('Qdrant unavailable — vector search / RAG / knowledge features will be disabled');
+    this.logger.warn('Set QDRANT_HOST/QDRANT_PORT in .env or run the Docker services for full functionality.');
   }
 
   private async ensureCollections() {

@@ -18,10 +18,7 @@
 
 import { toast, ToastOptions } from "react-toastify";
 import {
-  CheckCircle,
-  XCircle,
   Info,
-  AlertTriangle,
   Trash2,
   Save,
   RefreshCw,

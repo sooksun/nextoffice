@@ -348,28 +348,92 @@ export class OutboundService {
 
   async getRegistry(organizationId: number, registryType?: string, academicYearId?: number) {
     const where: any = { organizationId: BigInt(organizationId) };
-    if (registryType) where.registryType = registryType;
+    if (registryType === 'archive') {
+      // ทะเบียนหนังสือเก็บ / บัญชีหนังสือส่งเก็บ (แบบ ๑๙/๒๐): เอกสารที่จัดเก็บเข้าแฟ้มแล้ว
+      // (archivedAt != null) และยังไม่ถูกจำหน่าย (ทำลาย/ขอเก็บเอง/ฝาก). เอกสารที่จัดเก็บยังคง
+      // registryType เดิม (inbound/outbound) จึงต้องกรองด้วย archivedAt ไม่ใช่ registryType.
+      where.archivedAt = { not: null };
+      where.registryType = { notIn: ['destroy', 'keep_self', 'deposit'] };
+    } else if (registryType) {
+      where.registryType = registryType;
+    }
     if (academicYearId) where.academicYearId = BigInt(academicYearId);
+
+    const include: any = {
+      inboundCase: { select: { id: true, title: true } },
+      outboundDoc: { select: { id: true, subject: true } },
+      academicYear: { select: { year: true, name: true } },
+      folder: { select: { name: true, code: true } },
+    };
+    // Surface the committee decision (การพิจารณา) for the destruction register (แบบ ๒๕)
+    if (registryType === 'destroy') {
+      include.destructionItems = {
+        take: 1,
+        orderBy: { id: 'desc' },
+        include: {
+          destructionRequest: {
+            select: {
+              id: true,
+              status: true,
+              approvedAt: true,
+              destroyedAt: true,
+              remarks: true,
+              createdAt: true,
+              requestedBy: { select: { fullName: true } },
+              approvedBy: { select: { fullName: true } },
+            },
+          },
+        },
+      };
+    }
 
     const entries = await this.prisma.documentRegistry.findMany({
       where,
       orderBy: [{ registryType: 'asc' }, { createdAt: 'desc' }],
-      include: {
-        inboundCase: { select: { id: true, title: true } },
-        outboundDoc: { select: { id: true, subject: true } },
-        academicYear: { select: { year: true, name: true } },
-      },
+      include,
     });
-    return entries.map((e) => ({
-      ...e,
-      id: Number(e.id),
-      organizationId: Number(e.organizationId),
-      inboundCaseId: e.inboundCaseId ? Number(e.inboundCaseId) : null,
-      outboundDocId: e.outboundDocId ? Number(e.outboundDocId) : null,
-      academicYearId: e.academicYearId ? Number(e.academicYearId) : null,
-      inboundCase: e.inboundCase ? { ...e.inboundCase, id: Number(e.inboundCase.id) } : null,
-      outboundDoc: e.outboundDoc ? { ...e.outboundDoc, id: Number(e.outboundDoc.id) } : null,
-    }));
+
+    return entries.map((e: any) => {
+      const dr = e.destructionItems?.[0]?.destructionRequest ?? null;
+      return {
+        id: Number(e.id),
+        organizationId: Number(e.organizationId),
+        registryType: e.registryType,
+        registryNo: e.registryNo,
+        documentNo: e.documentNo,
+        documentDate: e.documentDate,
+        fromOrg: e.fromOrg,
+        toOrg: e.toOrg,
+        subject: e.subject,
+        urgencyLevel: e.urgencyLevel,
+        actionTaken: e.actionTaken,
+        remarks: e.remarks,
+        archivedAt: e.archivedAt,
+        retentionEndDate: e.retentionEndDate,
+        folderId: e.folderId ? Number(e.folderId) : null,
+        folder: e.folder ? { name: e.folder.name, code: e.folder.code } : null,
+        inboundCaseId: e.inboundCaseId ? Number(e.inboundCaseId) : null,
+        outboundDocId: e.outboundDocId ? Number(e.outboundDocId) : null,
+        academicYearId: e.academicYearId ? Number(e.academicYearId) : null,
+        academicYear: e.academicYear ?? null,
+        inboundCase: e.inboundCase ? { id: Number(e.inboundCase.id), title: e.inboundCase.title } : null,
+        outboundDoc: e.outboundDoc ? { id: Number(e.outboundDoc.id), subject: e.outboundDoc.subject } : null,
+        trackingCode: e.trackingCode,
+        createdAt: e.createdAt,
+        destructionRequest: dr
+          ? {
+              id: Number(dr.id),
+              status: dr.status,
+              requestedBy: dr.requestedBy?.fullName ?? null,
+              approvedBy: dr.approvedBy?.fullName ?? null,
+              approvedAt: dr.approvedAt,
+              destroyedAt: dr.destroyedAt,
+              remarks: dr.remarks,
+              createdAt: dr.createdAt,
+            }
+          : null,
+      };
+    });
   }
 
   /** Register an inbound case into the document registry */

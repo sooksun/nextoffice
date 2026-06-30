@@ -47,7 +47,7 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
 
     // Check permission state first (Chrome/Edge/Firefox)
     try {
-      const perm = await (navigator.permissions as any).query({ name: "camera" });
+      const perm = await navigator.permissions.query({ name: "camera" as PermissionName });
       if (perm.state === "denied") {
         setCameraError("denied");
         return;
@@ -92,7 +92,7 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
   }, []);
 
   useEffect(() => {
-    startCamera();
+    void Promise.resolve().then(() => startCamera());
     return () => {
       if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); }
     };
@@ -113,7 +113,7 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
   useEffect(() => {
     if (!navigator.permissions) return;
     let permStatus: PermissionStatus | null = null;
-    (navigator.permissions as any).query({ name: "camera" }).then((ps: PermissionStatus) => {
+    navigator.permissions.query({ name: "camera" as PermissionName }).then((ps: PermissionStatus) => {
       permStatus = ps;
       ps.onchange = () => {
         if (ps.state === "granted" && mountedRef.current) window.location.reload();
@@ -154,17 +154,17 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
 
   // Auto-retry when user grants location permission
   useEffect(() => {
-    requestGps();
+    void Promise.resolve().then(() => requestGps());
     if (!navigator.permissions) return;
     let permStatus: PermissionStatus | null = null;
-    (navigator.permissions as any).query({ name: "geolocation" }).then((ps: PermissionStatus) => {
+    navigator.permissions.query({ name: "geolocation" as PermissionName }).then((ps: PermissionStatus) => {
       permStatus = ps;
       ps.onchange = () => {
         if (ps.state === "granted" && mountedRef.current) window.location.reload();
       };
     }).catch(() => {});
     return () => { if (permStatus) permStatus.onchange = null; };
-  }, []);
+  }, [requestGps]);
 
   // ─── Capture ─────────────────────────────────────────────────────────────
   const capture = useCallback(async () => {
@@ -189,7 +189,7 @@ export default function FaceCamera({ onCapture, buttonLabel = "ถ่ายภ�
           <div className="text-left bg-white/10 rounded-xl p-3 text-xs text-gray-200 leading-relaxed space-y-1">
             <p>1. คลิกไอคอน 🔒 ในแถบที่อยู่</p>
             <p>2. เลือก <strong>Camera → Allow</strong></p>
-            <p>3. กดปุ่ม <strong>"โหลดหน้าใหม่"</strong> ด้านล่าง</p>
+            <p>3. กดปุ่ม <strong>&quot;โหลดหน้าใหม่&quot;</strong> ด้านล่าง</p>
           </div>
           <div className="flex gap-2">
             <button onClick={startCamera}

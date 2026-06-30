@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
-import { MessageCircle, Link2, Unlink, Key, Copy, X, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { MessageCircle, Unlink, Key, Copy, X, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { toThaiNumerals } from "@/lib/thai-date";
+import { getErrorMessage } from "@/lib/errors";
 
 interface UserLine {
   id: number;
@@ -62,8 +63,8 @@ export default function LineAccountsPage() {
         { method: "POST" },
       );
       setPairingModal({ userId, fullName, code: res.code, expiry: res.expiresAt });
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สามารถสร้างรหัสได้");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สามารถสร้างรหัสได้");
     } finally {
       setGeneratingCode(false);
     }
@@ -76,8 +77,8 @@ export default function LineAccountsPage() {
       await apiFetch(`/staff-config/${userId}/line-unlink`, { method: "POST" });
       toast.success("ยกเลิกการเชื่อมต่อ LINE สำเร็จ");
       fetchData();
-    } catch (e: any) {
-      toast.error(e.message ?? "เกิดข้อผิดพลาด");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "เกิดข้อผิดพลาด");
     } finally {
       setUnlinking(null);
     }

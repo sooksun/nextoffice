@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatThaiDateShort } from "@/lib/thai-date";
 import { MessageCircle, Send, X, Inbox, SendHorizonal } from "lucide-react";
@@ -26,7 +26,7 @@ export default function MessagesPage() {
   const [form, setForm] = useState({ receiverUserId: "", subject: "", content: "" });
   const [saving, setSaving] = useState(false);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const endpoint = tab === "inbox" ? "/messages/inbox" : "/messages/sent";
@@ -38,9 +38,11 @@ export default function MessagesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [tab]);
 
-  useEffect(() => { fetchData(); }, [tab]);
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   async function openMessage(msg: Message) {
     setSelected(msg);
@@ -67,7 +69,7 @@ export default function MessagesPage() {
       toastSuccess("ส่งข้อความสำเร็จ");
       setShowCompose(false);
       setForm({ receiverUserId: "", subject: "", content: "" });
-      if (tab === "sent") fetchData();
+      if (tab === "sent") void fetchData();
     } catch {
       toastError("ส่งข้อความไม่สำเร็จ");
     } finally {

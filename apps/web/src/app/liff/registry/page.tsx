@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
 import { useLiff } from "../LiffBoot";
 
 interface CaseItem {
@@ -64,15 +65,24 @@ export default function LiffRegistryPage() {
 
   useEffect(() => {
     if (status !== "ready") return;
-    setLoading(true);
     const q = buildQuery(filter, search);
-    apiFetch<{ data: CaseItem[] } | CaseItem[]>(`/cases?${q}`)
-      .then((res) => {
-        const arr = Array.isArray(res) ? res : (res as any).data ?? [];
-        setCases(arr);
-      })
-      .catch(() => setCases([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    void Promise.resolve().then(async () => {
+      setLoading(true);
+      try {
+        const res = await apiFetch<{ data: CaseItem[] } | CaseItem[]>(`/cases?${q}`);
+        if (!cancelled) setCases(unwrapList(res));
+      } catch {
+        if (!cancelled) setCases([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [status, filter, search]);
 
   return (

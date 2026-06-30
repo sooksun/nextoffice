@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   Send,
@@ -336,7 +337,7 @@ export default function ChatPanel() {
         <div className="shrink-0 px-4 py-3 border-b border-outline-variant/10">
           <div className="flex items-center gap-2">
             <div className="bg-secondary p-1.5 rounded-lg shadow-sm shadow-secondary/20">
-              <img src="/Favicon.png" alt="AI" className="w-3.5 h-3.5 object-contain brightness-0 invert" />
+              <Image src="/Favicon.png" alt="AI" width={14} height={14} className="object-contain brightness-0 invert" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-xs font-black text-primary uppercase tracking-wider">AI NextOffice</h3>
@@ -372,7 +373,7 @@ export default function ChatPanel() {
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-2">
               <div className="bg-secondary/10 p-3 rounded-2xl mb-3">
-                <img src="/Favicon.png" alt="AI" className="w-6 h-6 object-contain" style={{ filter: "invert(29%) sepia(97%) saturate(500%) hue-rotate(230deg) brightness(90%)" }} />
+                <Image src="/Favicon.png" alt="AI" width={24} height={24} className="object-contain" style={{ filter: "invert(29%) sepia(97%) saturate(500%) hue-rotate(230deg) brightness(90%)" }} />
               </div>
               <p className="text-xs text-on-surface-variant mb-1">
                 AI ผู้ช่วยงานสารบรรณ NextOffice
@@ -407,7 +408,7 @@ export default function ChatPanel() {
               {loading && (
                 <div className="flex items-start gap-2">
                   <div className="w-6 h-6 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                    <img src="/Favicon.png" alt="AI" className="w-3 h-3 object-contain brightness-0 invert" />
+                    <Image src="/Favicon.png" alt="AI" width={12} height={12} className="object-contain brightness-0 invert" />
                   </div>
                   <div className="bg-surface-low border border-outline-variant/10 rounded-xl rounded-tl-sm px-3 py-2">
                     <div className="flex gap-1 items-center h-3">

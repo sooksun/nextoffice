@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
 import { useLiff } from "../LiffBoot";
 
 interface CaseItem {
@@ -40,8 +41,7 @@ export default function LiffSearchPage() {
       const data = await apiFetch<CaseItem[] | { data: CaseItem[] }>(
         `/cases?search=${encodeURIComponent(query)}&take=30`,
       );
-      const arr = Array.isArray(data) ? data : (data as any).data ?? [];
-      setResults(arr);
+      setResults(unwrapList(data));
     } catch {
       setResults([]);
     } finally {

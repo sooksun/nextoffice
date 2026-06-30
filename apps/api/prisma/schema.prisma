@@ -80,6 +80,8 @@ model Organization {
   tenderPosts          TenderPost[]
   webboardThreads      WebboardThread[]
   privateMessages      PrivateMessage[]
+  driveImportSources   GoogleDriveImportSource[]
+  driveImportFiles     GoogleDriveImportFile[]
 
   @@index([parentOrganizationId])
   @@map("organizations")
@@ -436,6 +438,7 @@ model InboundCase {
   outboundDocuments  OutboundDocument[]
   documentRegistries DocumentRegistry[]
   predictions        CasePrediction[]
+  driveImportFiles   GoogleDriveImportFile[]
 
   @@index([academicYearId])
   @@index([status])
@@ -612,6 +615,7 @@ model DocumentIntake {
   academicYear         AcademicYear?            @relation(fields: [academicYearId], references: [id])
   aiResult             DocumentAiResult?
   conversationSessions LineConversationSession[]
+  driveImportFiles     GoogleDriveImportFile[]
 
   @@index([academicYearId])
   @@index([organizationId])
@@ -648,6 +652,78 @@ model DocumentAiResult {
   documentIntake DocumentIntake @relation(fields: [documentIntakeId], references: [id])
 
   @@map("document_ai_results")
+}
+
+
+model GoogleDriveImportSource {
+  id                BigInt    @id @default(autoincrement())
+  organizationId    BigInt    @map("organization_id")
+  name              String    @db.VarChar(255)
+  rootFolderUrl     String?   @map("root_folder_url") @db.VarChar(1000)
+  rootFolderId      String    @map("root_folder_id") @db.VarChar(255)
+  rootFolderName    String?   @map("root_folder_name") @db.VarChar(255)
+  folderMappingJson String?   @map("folder_mapping_json") @db.LongText
+  syncMode          String    @map("sync_mode") @db.VarChar(30) @default("manual")
+  syncCron          String?   @map("sync_cron") @db.VarChar(100)
+  syncTimezone      String?   @map("sync_timezone") @db.VarChar(100)
+  lastSyncToken     String?   @map("last_sync_token") @db.Text
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  isActive          Boolean   @map("is_active") @default(true)
+  createdByUserId   BigInt?   @map("created_by_user_id")
+  createdAt         DateTime  @map("created_at") @default(now())
+  updatedAt         DateTime  @map("updated_at") @updatedAt
+
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  createdByUser     User?        @relation("DriveImportSourceCreatedBy", fields: [createdByUserId], references: [id])
+  files             GoogleDriveImportFile[]
+
+  @@index([organizationId, isActive])
+  @@index([createdByUserId])
+  @@map("google_drive_import_sources")
+}
+
+model GoogleDriveImportFile {
+  id                BigInt    @id @default(autoincrement())
+  sourceId          BigInt    @map("source_id")
+  organizationId    BigInt    @map("organization_id")
+  driveFileId       String    @map("drive_file_id") @db.VarChar(255)
+  driveFolderId     String?   @map("drive_folder_id") @db.VarChar(255)
+  drivePath         String?   @map("drive_path") @db.VarChar(1000)
+  fileName          String    @map("file_name") @db.VarChar(500)
+  mimeType          String    @map("mime_type") @db.VarChar(150)
+  md5Checksum       String?   @map("md5_checksum") @db.VarChar(64)
+  sha256            String?   @db.VarChar(64)
+  size              BigInt?
+  modifiedTime      DateTime? @map("modified_time")
+  webViewLink       String?   @map("web_view_link") @db.VarChar(1000)
+  academicYearId    BigInt?   @map("academic_year_id")
+  workGroupId       BigInt?   @map("work_group_id")
+  workFunctionId    BigInt?   @map("work_function_id")
+  documentIntakeId  BigInt?   @map("document_intake_id")
+  inboundCaseId     BigInt?   @map("inbound_case_id")
+  status            String    @db.VarChar(30) @default("discovered")
+  errorMessage      String?   @map("error_message") @db.Text
+  mappingConfidence Float?    @map("mapping_confidence")
+  mappingReason     String?   @map("mapping_reason") @db.Text
+  importedAt        DateTime? @map("imported_at")
+  createdAt         DateTime  @map("created_at") @default(now())
+  updatedAt         DateTime  @map("updated_at") @updatedAt
+
+  source            GoogleDriveImportSource @relation(fields: [sourceId], references: [id])
+  organization      Organization            @relation(fields: [organizationId], references: [id])
+  academicYear      AcademicYear?           @relation(fields: [academicYearId], references: [id])
+  workGroup         WorkGroup?              @relation(fields: [workGroupId], references: [id])
+  workFunction      WorkFunction?           @relation(fields: [workFunctionId], references: [id])
+  documentIntake    DocumentIntake?         @relation(fields: [documentIntakeId], references: [id])
+  inboundCase       InboundCase?            @relation(fields: [inboundCaseId], references: [id])
+
+  @@unique([organizationId, driveFileId, modifiedTime])
+  @@index([sourceId])
+  @@index([organizationId, status])
+  @@index([academicYearId, workGroupId])
+  @@index([documentIntakeId])
+  @@index([inboundCaseId])
+  @@map("google_drive_import_files")
 }
 
 model LineConversationSession {
@@ -754,6 +830,7 @@ model User {
   webboardReplies           WebboardReply[]      @relation("WebboardReplyAuthor")
   messagesSent              PrivateMessage[]     @relation("MessageSender")
   messagesReceived          PrivateMessage[]     @relation("MessageReceiver")
+  driveImportSourcesCreated GoogleDriveImportSource[] @relation("DriveImportSourceCreatedBy")
 
   @@index([email])
   @@index([roleCode])
@@ -798,6 +875,7 @@ model AcademicYear {
   documentRegistries DocumentRegistry[]
   leaveBalances      LeaveBalance[]
   activeOrganizations Organization[] @relation("OrgActiveYear")
+  driveImportFiles   GoogleDriveImportFile[]
 
   @@map("academic_years")
 }
@@ -919,6 +997,7 @@ model WorkGroup {
   organization  Organization?    @relation(fields: [organizationId], references: [id])
   functions     WorkFunction[]
   staffMembers  User[]           // users whose primary group = this WorkGroup
+  driveImportFiles GoogleDriveImportFile[]
 
   @@unique([organizationId, code])
   @@map("work_groups")
@@ -936,6 +1015,7 @@ model WorkFunction {
 
   workGroup   WorkGroup        @relation(fields: [workGroupId], references: [id])
   assignments StaffAssignment[]
+  driveImportFiles GoogleDriveImportFile[]
 
   @@unique([workGroupId, code])
   @@map("work_functions")

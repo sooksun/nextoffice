@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Users, ChevronDown, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { impersonate } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
 
 interface UserItem {
   id: number;
@@ -55,8 +56,8 @@ export default function ImpersonateMenu() {
     setBusy(userId);
     try {
       await impersonate(userId);
-    } catch (e: any) {
-      alert(e.message ?? "เกิดข้อผิดพลาด");
+    } catch (e: unknown) {
+      alert(getErrorMessage(e) ?? "เกิดข้อผิดพลาด");
       setBusy(null);
     }
   }

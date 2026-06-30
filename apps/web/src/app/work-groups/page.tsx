@@ -34,7 +34,7 @@ interface Assignment {
   academicYear: { year: number; name: string } | null;
 }
 
-async function getData(orgId: string) {
+async function getData() {
   const [groups, assignments] = await Promise.allSettled([
     apiFetch<WorkGroup[]>(`/work-groups`),
     apiFetch<Assignment[]>(`/work-groups/assignments/my-org`),
@@ -45,14 +45,8 @@ async function getData(orgId: string) {
   };
 }
 
-export default async function WorkGroupsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string>>;
-}) {
-  const sp = await searchParams;
-  const orgId = sp.organizationId ?? "1";
-  const { groups, assignments } = await getData(orgId);
+export default async function WorkGroupsPage() {
+  const { groups, assignments } = await getData();
 
   // Build a map: workGroupCode → assignments
   const assignmentsByGroup = new Map<string, Assignment[]>();

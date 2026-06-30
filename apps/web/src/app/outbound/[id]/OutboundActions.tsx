@@ -28,7 +28,7 @@ export default function OutboundActions({ docId, status, sentMethod, recipientEm
   const [method, setMethod] = useState(sentMethod || (recipientEmail ? "email" : "paper"));
 
   const user = typeof window !== "undefined" ? getUser() : null;
-  const roleCode: string = (user as any)?.roleCode ?? "TEACHER";
+  const roleCode: string = user?.roleCode ?? "TEACHER";
   const isApprover = APPROVER_ROLES.includes(roleCode);
 
   const call = async (path: string, body?: object) => {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useLiff } from "../LiffBoot";
+import type { AuthUser } from "@/lib/auth";
 
 interface TravelRequest {
   id: number;
@@ -35,26 +36,35 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function LiffTravelPage() {
   const { status } = useLiff();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [my, setMy] = useState<TravelRequest[]>([]);
   const [pending, setPending] = useState<TravelRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (status !== "ready") return;
-    const u = JSON.parse(localStorage.getItem("user") ?? "null");
-    setUser(u);
-    const canApprove = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR"].includes(u?.roleCode);
-    Promise.all([
-      apiFetch<TravelRequest[]>("/attendance/leave/travel/my-requests").catch(() => []),
-      canApprove
-        ? apiFetch<TravelRequest[]>("/attendance/leave/travel/pending").catch(() => [])
-        : Promise.resolve([]),
-    ]).then(([mine, pend]) => {
+    let cancelled = false;
+
+    void Promise.resolve().then(async () => {
+      const u = JSON.parse(localStorage.getItem("user") ?? "null") as AuthUser | null;
+      const canApprove = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR"].includes(u?.roleCode ?? "");
+      const [mine, pend] = await Promise.all([
+        apiFetch<TravelRequest[]>("/attendance/leave/travel/my-requests").catch(() => []),
+        canApprove
+          ? apiFetch<TravelRequest[]>("/attendance/leave/travel/pending").catch(() => [])
+          : Promise.resolve([]),
+      ]);
+      if (cancelled) return;
+
+      setUser(u);
       setMy(Array.isArray(mine) ? mine : []);
       setPending(Array.isArray(pend) ? pend : []);
       setLoading(false);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [status]);
 
   const canApprove = user && ["ADMIN", "DIRECTOR", "VICE_DIRECTOR"].includes(user.roleCode);

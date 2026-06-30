@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import { useLiff } from "../../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
 
 const LEAVE_TYPES = [
   { value: "sick", label: "ลาป่วย" },
@@ -66,8 +67,8 @@ export default function LiffLeaveNewPage() {
       });
       toast.success("ส่งใบลาเรียบร้อย รอการอนุมัติ");
       router.push("/liff/leave");
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     } finally {
       setSubmitting(false);
     }

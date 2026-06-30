@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatThaiDateShort } from "@/lib/thai-date";
 import { FileText, Plus, X, Calendar } from "lucide-react";
@@ -55,7 +55,7 @@ export default function TenderPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -68,9 +68,11 @@ export default function TenderPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter]);
 
-  useEffect(() => { fetchData(); }, [statusFilter]);
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +93,7 @@ export default function TenderPage() {
       toastSuccess("โพสต์ประกาศสำเร็จ");
       setShowForm(false);
       setForm({ title: "", content: "", budget: "", deadline: "", tenderType: "price_check", fileUrl: "" });
-      fetchData();
+      void fetchData();
     } catch {
       toastError("โพสต์ประกาศไม่สำเร็จ");
     } finally {

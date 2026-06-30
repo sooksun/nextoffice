@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Image from "next/image";
 import {
   User,
   BookOpen,
@@ -64,10 +65,12 @@ export function ChatBubble({ message, onFeedback }: Props) {
             {isUser ? (
               <User size={12} className="text-on-primary" />
             ) : (
-              <img
+              <Image
                 src="/Favicon.png"
                 alt="AI"
-                className="w-3 h-3 object-contain brightness-0 invert"
+                width={12}
+                height={12}
+                className="object-contain brightness-0 invert"
               />
             )}
           </div>

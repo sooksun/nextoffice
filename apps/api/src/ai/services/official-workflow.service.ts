@@ -96,7 +96,7 @@ export class OfficialWorkflowService {
     const document = await this.prisma.document.create({
       data: {
         title: metadata.subjectText || 'ไม่ทราบชื่อเรื่อง',
-        sourceType: 'line_intake',
+        sourceType: intake.sourceChannel || 'document_intake',
         documentType: 'official_letter',
         sourceChannel: intake.sourceChannel,
         issuingAuthority: metadata.issuingAuthority,
@@ -110,6 +110,7 @@ export class OfficialWorkflowService {
     const inboundCase = await this.prisma.inboundCase.create({
       data: {
         organizationId: orgId,
+        academicYearId: intake.academicYearId,
         title: metadata.subjectText || 'กรณีใหม่จากหนังสือราชการ',
         description: [metadata.summary, `intake:${documentIntakeId}`].filter(Boolean).join('\n'),
         sourceDocumentId: document.id,

@@ -1,19 +1,12 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import type { ComponentType, MutableRefObject } from "react";
+import type { ForceGraphMethods, ForceGraphProps } from "react-force-graph-2d";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import dynamic from "next/dynamic";
-
-const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full text-on-surface-variant text-sm">
-      กำลังโหลด Graph...
-    </div>
-  ),
-});
 
 interface GraphNode {
   id: number;
@@ -32,6 +25,33 @@ interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
+
+interface RenderNode extends GraphNode {
+  label: string;
+  color: string;
+  x?: number;
+  y?: number;
+}
+
+interface RenderLink {
+  source: number | RenderNode;
+  target: number | RenderNode;
+  relation: string;
+}
+
+type ForceGraphRef = ForceGraphMethods<RenderNode, RenderLink>;
+type ForceGraphComponentProps = ForceGraphProps<RenderNode, RenderLink> & {
+  ref?: MutableRefObject<ForceGraphRef | undefined>;
+};
+
+const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full text-on-surface-variant text-sm">
+      กำลังโหลด Graph...
+    </div>
+  ),
+}) as ComponentType<ForceGraphComponentProps>;
 
 const NOTE_TYPE_COLORS: Record<string, string> = {
   policy: "#6750A4",
@@ -55,7 +75,7 @@ export default function VaultGraphPage() {
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const containerRef = useRef<HTMLDivElement>(null);
-  const graphRef = useRef<any>(null);
+  const graphRef = useRef<ForceGraphRef | undefined>(undefined);
 
   useEffect(() => {
     apiFetch<GraphData>("/vault/graph?organizationId=1")
@@ -90,10 +110,11 @@ export default function VaultGraphPage() {
     graphRef.current?.zoomToFit(400, 40);
   }, []);
 
-  const graphData = graph
+  const graphData: { nodes: RenderNode[]; links: RenderLink[] } = graph
     ? {
         nodes: graph.nodes.map((n) => ({
           id: n.id,
+          title: n.title,
           label: n.title,
           noteType: n.noteType,
           status: n.status,
@@ -106,6 +127,10 @@ export default function VaultGraphPage() {
         })),
       }
     : { nodes: [], links: [] };
+
+  const getNodeId = (node: number | RenderNode) => (typeof node === "object" ? node.id : node);
+  const getConnectedLinkCount = (nodeId: number) =>
+    graphData.links.filter((link) => getNodeId(link.source) === nodeId || getNodeId(link.target) === nodeId).length;
 
   const noteTypes = graph
     ? [...new Set(graph.nodes.map((n) => n.noteType))]
@@ -186,41 +211,35 @@ export default function VaultGraphPage() {
             graphData={graphData}
             backgroundColor="#0f0f14"
             nodeRelSize={6}
-            nodeVal={(node: any) => 1 + (graphData.links.filter(
-              (l: any) => l.source === node.id || l.target === node.id ||
-                (typeof l.source === "object" && l.source?.id === node.id) ||
-                (typeof l.target === "object" && l.target?.id === node.id)
-            ).length * 0.5)}
-            nodeColor={(node: any) => node.color}
+            nodeVal={(node: RenderNode) => 1 + getConnectedLinkCount(node.id) * 0.5}
+            nodeColor={(node: RenderNode) => node.color}
             nodeLabel=""
             linkColor={() => "rgba(255,255,255,0.12)"}
             linkWidth={1.5}
             linkDirectionalParticles={2}
             linkDirectionalParticleWidth={1.5}
             linkDirectionalParticleColor={() => "rgba(255,255,255,0.4)"}
-            onNodeHover={(node: any) => setHoveredNode(node ?? null)}
-            onNodeClick={(node: any) => {
+            onNodeHover={(node: RenderNode | null) => setHoveredNode(node ?? null)}
+            onNodeClick={(node: RenderNode) => {
               window.location.href = `/vault/${node.id}`;
             }}
-            nodeCanvasObject={(node: any, ctx, globalScale) => {
+            nodeCanvasObject={(node: RenderNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
               const isHovered = hoveredNode?.id === node.id;
-              const r = 5 + (graphData.links.filter(
-                (l: any) =>
-                  (typeof l.source === "object" ? l.source?.id : l.source) === node.id ||
-                  (typeof l.target === "object" ? l.target?.id : l.target) === node.id
-              ).length * 0.8);
+              const r = 5 + getConnectedLinkCount(node.id) * 0.8;
+              const x = node.x ?? 0;
+              const y = node.y ?? 0;
 
               // Glow for hovered
               if (isHovered) {
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI);
+                ctx.arc(x, y, r + 4, 0, 2 * Math.PI);
                 ctx.fillStyle = node.color + "44";
                 ctx.fill();
               }
 
               // Node circle
               ctx.beginPath();
-              ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+              ctx.arc(x, y, r, 0, 2 * Math.PI);
               ctx.fillStyle = node.color;
               ctx.fill();
 
@@ -239,8 +258,8 @@ export default function VaultGraphPage() {
               ctx.textAlign = "center";
               ctx.fillText(
                 label.length > 20 ? label.substring(0, 20) + "…" : label,
-                node.x,
-                node.y + r + fontSize + 2
+                x,
+                y + r + fontSize + 2
               );
             }}
             cooldownTicks={120}

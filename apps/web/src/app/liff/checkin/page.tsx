@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useLiff } from "../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
 
 type Mode = "in" | "out";
 
@@ -149,7 +150,7 @@ export default function LiffCheckinPage() {
         await videoRef.current.play();
         setCameraReady(true);
       }
-    } catch (e: any) {
+    } catch {
       setCameraError(
         "ไม่สามารถเปิดกล้องได้ — กรุณาอนุญาตการใช้กล้องให้ LINE ในการตั้งค่ามือถือ",
       );
@@ -257,8 +258,8 @@ export default function LiffCheckinPage() {
         setResult(res);
       }
       streamRef.current?.getTracks().forEach((t) => t.stop());
-    } catch (e: any) {
-      setSubmitError(e.message ?? "ลงเวลาไม่สำเร็จ");
+    } catch (e: unknown) {
+      setSubmitError(getErrorMessage(e) ?? "ลงเวลาไม่สำเร็จ");
     } finally {
       setSubmitting(false);
     }

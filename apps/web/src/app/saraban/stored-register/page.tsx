@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { Archive, AlertTriangle } from "lucide-react";
+import { Archive, AlertTriangle, Printer } from "lucide-react";
 import { formatThaiDateShort, toThaiNumerals } from "@/lib/thai-date";
 
 interface RegistryDoc {
@@ -37,7 +37,7 @@ export default function StoredRegisterPage() {
 
   useEffect(() => {
     const user = getUser();
-    const orgId = (user as any)?.organizationId || 1;
+    const orgId = user?.organizationId || 1;
     apiFetch<RegistryDoc[]>(`/outbound/${orgId}/registry?type=archive`)
       .then(setDocs)
       .catch(() => setDocs([]))
@@ -45,17 +45,23 @@ export default function StoredRegisterPage() {
   }, []);
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
-          <Archive size={20} className="text-tertiary" />
+    <div className="print-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center no-print">
+            <Archive size={20} className="text-tertiary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-primary tracking-tight print-title">ทะเบียนหนังสือเก็บ</h1>
+            <p className="text-xs text-on-surface-variant">
+              ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ ข้อ ๕๕ (แบบที่ ๒๐) — พบ {toThaiNumerals(docs.length)} รายการ
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-black text-primary tracking-tight">ทะเบียนหนังสือเก็บ</h1>
-          <p className="text-xs text-on-surface-variant">
-            ตามระเบียบสำนักนายกรัฐมนตรี ว่าด้วยงานสารบรรณ ข้อ ๕๗ — พบ {toThaiNumerals(docs.length)} รายการ
-          </p>
-        </div>
+        <button onClick={() => window.print()} className="btn-ghost flex items-center gap-2 no-print">
+          <Printer size={16} />
+          <span className="text-sm">พิมพ์ทะเบียน</span>
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-outline-variant/20 bg-surface-lowest shadow-sm">

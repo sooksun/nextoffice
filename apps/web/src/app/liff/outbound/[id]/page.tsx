@@ -6,6 +6,8 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import { useLiff } from "../../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
+import type { AuthUser } from "@/lib/auth";
 
 interface OutboundDoc {
   id: number;
@@ -63,7 +65,7 @@ export default function LiffOutboundDetailPage() {
   const docId = params.id as string;
 
   const [doc, setDoc] = useState<OutboundDoc | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [rejectMode, setRejectMode] = useState(false);
@@ -102,8 +104,8 @@ export default function LiffOutboundDetailPage() {
       );
       toast.success(`อนุมัติสำเร็จ — เลขที่ ${res.documentNo}`);
       await reload();
-    } catch (e: any) {
-      toast.error(e.message ?? "อนุมัติไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "อนุมัติไม่สำเร็จ");
     } finally {
       setActing(false);
     }
@@ -122,8 +124,8 @@ export default function LiffOutboundDetailPage() {
       });
       toast.info("ตีกลับเรียบร้อย เอกสารกลับไปเป็นร่าง");
       router.push("/liff");
-    } catch (e: any) {
-      toast.error(e.message ?? "ตีกลับไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ตีกลับไม่สำเร็จ");
     } finally {
       setActing(false);
     }

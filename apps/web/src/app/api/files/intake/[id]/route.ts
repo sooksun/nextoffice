@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getErrorMessage } from "@/lib/errors";
 
 /**
  * Proxy endpoint: GET /api/files/intake/:id
@@ -45,7 +46,7 @@ export async function GET(
     if (contentLength) responseHeaders["Content-Length"] = contentLength;
 
     return new NextResponse(res.body, { status: 200, headers: responseHeaders });
-  } catch (err: any) {
-    return new NextResponse(`เกิดข้อผิดพลาด: ${err.message}`, { status: 502 });
+  } catch (err: unknown) {
+    return new NextResponse(`เกิดข้อผิดพลาด: ${getErrorMessage(err)}`, { status: 502 });
   }
 }

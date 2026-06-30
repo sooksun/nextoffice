@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
+import type { AuthUser } from "@/lib/auth";
 import { toast } from "react-toastify";
 import { useLiff } from "../../LiffBoot";
 import ShareButton from "../../ShareButton";
+import { getErrorMessage } from "@/lib/errors";
 
 interface IntakeFile {
   id: number;
@@ -47,7 +50,7 @@ interface Assignment {
 interface CaseActivity {
   id: number;
   action: string;
-  detail: any;
+  detail: unknown;
   createdAt: string;
   user?: { id: number; fullName: string; roleCode: string } | null;
 }
@@ -155,20 +158,20 @@ export default function LiffCaseDetailPage() {
   const [showActivities, setShowActivities] = useState(false);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportText, setReportText] = useState("");
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     const [d, a, act] = await Promise.all([
       apiFetch<CaseDetail>(`/cases/${caseId}`),
       apiFetch<Assignment[] | { data: Assignment[] }>(`/cases/${caseId}/assignments`).catch(() => [] as Assignment[]),
       apiFetch<CaseActivity[] | { data: CaseActivity[] }>(`/cases/${caseId}/activities`).catch(() => [] as CaseActivity[]),
     ]);
     setData(d);
-    setAssignments(Array.isArray(a) ? a : (a as any).data ?? []);
-    setActivities(Array.isArray(act) ? act : (act as any).data ?? []);
-  };
+    setAssignments(unwrapList(a));
+    setActivities(unwrapList(act));
+  }, [caseId]);
 
   useEffect(() => {
     if (liffStatus !== "ready") return;
@@ -176,9 +179,9 @@ export default function LiffCaseDetailPage() {
     fetchAll()
       .catch(() => toast.error("ไม่พบข้อมูลหนังสือ"))
       .finally(() => setLoading(false));
-  }, [caseId, liffStatus]);
+  }, [fetchAll, liffStatus]);
 
-  const intakeId = data?.intake?.id ?? (data?.description?.match(/intake:(\d+)/)?.[1] as any);
+  const intakeId = data?.intake?.id ?? data?.description?.match(/intake:(\d+)/)?.[1] ?? null;
   // File route authenticates via the httpOnly cookie (sent automatically on same-origin requests)
   const pdfUrl = intakeId
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/files/intake/${intakeId}?stamped=true`
@@ -205,8 +208,8 @@ export default function LiffCaseDetailPage() {
       await apiFetch(`/cases/${caseId}/register`, { method: "POST", body: "{}" });
       toast.success("ลงรับสำเร็จ");
       await fetchAll();
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     } finally {
       setActing(false);
     }
@@ -222,8 +225,8 @@ export default function LiffCaseDetailPage() {
       });
       toast.success(successMsg);
       await fetchAll();
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     } finally {
       setActing(false);
     }
@@ -241,8 +244,8 @@ export default function LiffCaseDetailPage() {
       setReportOpen(false);
       setReportText("");
       await fetchAll();
-    } catch (e: any) {
-      toast.error(e.message ?? "ไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "ไม่สำเร็จ");
     } finally {
       setActing(false);
     }
@@ -554,7 +557,7 @@ export default function LiffCaseDetailPage() {
           >
             <h3 className="mb-2 text-sm font-semibold">รายงานความคืบหน้า</h3>
             <p className="mb-3 text-[11px] text-slate-500">
-              บันทึกสิ่งที่ดำเนินการไปแล้ว ระบบจะอัปเดตสถานะงานเป็น "กำลังดำเนินการ" อัตโนมัติ
+              บันทึกสิ่งที่ดำเนินการไปแล้ว ระบบจะอัปเดตสถานะงานเป็น &quot;กำลังดำเนินการ&quot; อัตโนมัติ
             </p>
             <textarea
               value={reportText}

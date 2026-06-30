@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
+import { getErrorMessage } from "@/lib/errors";
 
 type FaceConfig = {
   acceptThreshold: number;
@@ -52,8 +53,8 @@ export default function FaceConfigPage() {
       setConfig(updated);
       setForm(updated);
       toast.success("บันทึก config สำเร็จ");
-    } catch (e: any) {
-      toast.error(e.message ?? "บันทึกไม่สำเร็จ");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "บันทึกไม่สำเร็จ");
     } finally {
       setSaving(false);
     }

@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { unwrapList } from "@/lib/api-shapes";
 import { toast } from "react-toastify";
 import SignaturePad from "@/components/SignaturePad";
 import { useLiff } from "../../LiffBoot";
+import { getErrorMessage } from "@/lib/errors";
 
 interface CaseDetail {
   id: number;
@@ -17,6 +19,12 @@ interface CaseDetail {
   description: string | null;
   status: string;
   intake?: { id: number };
+}
+
+interface StaffSignatureItem {
+  id: number;
+  roleCode: string;
+  hasSignature?: boolean;
 }
 
 export default function LiffSignPage() {
@@ -44,10 +52,10 @@ export default function LiffSignPage() {
       .catch(() => toast.error("ไม่พบข้อมูล"))
       .finally(() => setLoading(false));
 
-    apiFetch<any[]>("/staff-config")
+    apiFetch<StaffSignatureItem[] | { data?: StaffSignatureItem[] }>("/staff-config")
       .then((list) => {
-        const arr = Array.isArray(list) ? list : (list as any).data ?? [];
-        const me = arr.find((s: any) => s.roleCode === "DIRECTOR" || s.roleCode === "VICE_DIRECTOR");
+        const arr = unwrapList(list);
+        const me = arr.find((s) => s.roleCode === "DIRECTOR" || s.roleCode === "VICE_DIRECTOR");
         if (me?.hasSignature) setHasElectronicSig(true);
       })
       .catch(() => {});
@@ -77,8 +85,8 @@ export default function LiffSignPage() {
       });
       toast.success("ลงนามสำเร็จ");
       router.push("/liff");
-    } catch (e: any) {
-      toast.error(e.message ?? "เกิดข้อผิดพลาด");
+    } catch (e: unknown) {
+      toast.error(getErrorMessage(e) ?? "เกิดข้อผิดพลาด");
     } finally {
       setSubmitting(false);
     }

@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
+import type { AuthUser } from "@/lib/auth";
 
 type LiffStatus = "initializing" | "need-login" | "pairing-required" | "ready" | "error";
 
@@ -76,7 +78,7 @@ export default function LiffBoot({ liffId, children }: Props) {
 
         // Exchange for system JWT
         try {
-          const resp = await apiFetch<{ token: string; user: any }>("/line-auth/verify", {
+          const resp = await apiFetch<{ token: string; user: AuthUser }>("/line-auth/verify", {
             method: "POST",
             body: JSON.stringify({ accessToken }),
           });
@@ -84,8 +86,8 @@ export default function LiffBoot({ liffId, children }: Props) {
           localStorage.removeItem("token");
           localStorage.setItem("user", JSON.stringify(resp.user));
           setStatus("ready");
-        } catch (err: any) {
-          const msg = String(err?.message ?? "");
+        } catch (err: unknown) {
+          const msg = getErrorMessage(err, "");
           if (msg.includes("401")) {
             setStatus("pairing-required");
           } else {
@@ -93,10 +95,10 @@ export default function LiffBoot({ liffId, children }: Props) {
             setError(msg || "เชื่อมระบบไม่สำเร็จ");
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
         setStatus("error");
-        setError(err?.message ?? "LIFF init ล้มเหลว");
+        setError(getErrorMessage(err, "LIFF init ล้มเหลว"));
       }
     })();
 

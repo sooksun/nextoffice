@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { formatThaiDateShort } from "@/lib/thai-date";
 import { Send, Plus, X } from "lucide-react";
@@ -51,7 +51,7 @@ export default function CircularPage() {
   });
   const [saving, setSaving] = useState(false);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ take: "100" });
@@ -64,9 +64,11 @@ export default function CircularPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [search]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -87,7 +89,7 @@ export default function CircularPage() {
       toastSuccess("ออกเลขหนังสือเวียนสำเร็จ");
       setShowForm(false);
       setForm({ circularNo: "", subject: "", body: "", urgencyLevel: "normal", issuedDate: new Date().toISOString().slice(0, 10), recipients: "" });
-      fetchData();
+      void fetchData();
     } catch {
       toastError("บันทึกไม่สำเร็จ");
     } finally {
@@ -121,9 +123,9 @@ export default function CircularPage() {
           className="input-text flex-1"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && fetchData()}
+          onKeyDown={(e) => e.key === "Enter" && void fetchData()}
         />
-        <button onClick={fetchData} className="btn-primary">ค้นหา</button>
+        <button onClick={() => void fetchData()} className="btn-primary">ค้นหา</button>
       </div>
 
       {/* Table */}

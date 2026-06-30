@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -121,6 +121,37 @@ export class ArchiveService {
       include: { folder: { select: { name: true } } },
       orderBy: { retentionEndDate: 'asc' },
     });
+  }
+
+  /**
+   * Move an archived document into a 20-year retention account:
+   *   keep_self → บัญชีหนังสือครบ ๒๐ ปีที่ขอเก็บเอง (แบบ ๒๒)
+   *   deposit   → บัญชีฝากหนังสือ (แบบ ๒๓)
+   *   archive   → revert back to the ordinary stored register (แบบ ๒๐)
+   */
+  async setDisposition(
+    registryId: number,
+    disposition: 'keep_self' | 'deposit' | 'archive',
+    organizationId: number,
+    remarks?: string,
+  ) {
+    const registry = await this.prisma.documentRegistry.findFirst({
+      where: { id: BigInt(registryId), organizationId: BigInt(organizationId) },
+      select: { id: true, archivedAt: true, registryType: true },
+    });
+    if (!registry) throw new NotFoundException('Document not found');
+    if (!registry.archivedAt) {
+      throw new BadRequestException('เอกสารยังไม่ได้จัดเก็บเข้าแฟ้ม จึงยังกำหนดการจัดเก็บครบ ๒๐ ปีไม่ได้');
+    }
+
+    const updated = await this.prisma.documentRegistry.update({
+      where: { id: BigInt(registryId) },
+      data: {
+        registryType: disposition,
+        remarks: remarks ?? undefined,
+      },
+    });
+    return { id: Number(updated.id), registryType: updated.registryType };
   }
 
   // ─── Destruction Workflow ──────────────────

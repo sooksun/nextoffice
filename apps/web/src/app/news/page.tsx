@@ -110,6 +110,7 @@ export default function NewsPage() {
                   <p className="text-sm text-on-surface-variant line-clamp-3 leading-relaxed">{item.content}</p>
                 </div>
                 {item.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- Admin-entered remote URLs are not constrained to Next image domains.
                   <img src={item.imageUrl} alt={item.title} className="w-24 h-20 object-cover rounded-xl shrink-0" />
                 )}
               </div>
@@ -132,7 +133,10 @@ export default function NewsPage() {
               <button onClick={() => setSelected(null)} className="btn-ghost p-2"><X size={18} /></button>
             </div>
             <h2 className="text-xl font-bold text-on-surface mb-3">{selected.title}</h2>
-            {selected.imageUrl && <img src={selected.imageUrl} alt={selected.title} className="w-full h-48 object-cover rounded-xl mb-4" />}
+            {selected.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element -- Admin-entered remote URLs are not constrained to Next image domains.
+              <img src={selected.imageUrl} alt={selected.title} className="w-full h-48 object-cover rounded-xl mb-4" />
+            )}
             <div className="text-sm text-on-surface-variant leading-relaxed whitespace-pre-wrap">{selected.content}</div>
           </div>
         </div>

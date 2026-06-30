@@ -12,7 +12,6 @@ import {
   startOfMonth,
   endOfMonth,
   endOfWeek,
-  format,
   parseISO,
   differenceInMinutes,
   eachDayOfInterval,
@@ -28,7 +27,7 @@ import {
 
 import type { ICalendarCell, IEvent } from "@/calendar/interfaces";
 import type { TCalendarView, TVisibleHours, TWorkingHours } from "@/calendar/types";
-import { formatThaiShort, formatThaiMonthYear, toBE } from "@/calendar/thai-locale";
+import { formatThaiShort } from "@/calendar/thai-locale";
 
 // ================ Header helper functions ================ //
 
