@@ -37,8 +37,13 @@ const securityHeaders = [
     ].join("; "),
   },
   {
+    // "same-origin-allow-popups" still severs window.opener for the cross-origin
+    // Google Sign-In popup, so @react-oauth/google's popup ux_mode can't
+    // postMessage the credential back ("COOP would block the window.postMessage
+    // call") and login fails. "unsafe-none" restores the OAuth popup callback.
+    // XS-Leak exposure is minimal here; the other headers (CSP, XFO, HSTS) stay.
     key: "Cross-Origin-Opener-Policy",
-    value: "same-origin-allow-popups",
+    value: "unsafe-none",
   },
   {
     key: "X-Powered-By",
