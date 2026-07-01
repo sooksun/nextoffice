@@ -19,6 +19,7 @@ export class TravelService {
     purpose: string;
     departureTime?: string;
     returnTime?: string;
+    returnSameDay?: boolean;
   }) {
     const req = await this.prisma.travelRequest.create({
       data: {
@@ -29,10 +30,38 @@ export class TravelService {
         purpose: data.purpose,
         departureTime: data.departureTime,
         returnTime: data.returnTime,
+        // undefined → ปล่อยให้ schema @default(true) ทำงาน
+        returnSameDay: data.returnSameDay,
         status: 'draft',
       },
     });
     return this.serialize(req);
+  }
+
+  async update(requestId: number, userId: number, data: {
+    travelDate?: string;
+    destination?: string;
+    purpose?: string;
+    departureTime?: string;
+    returnTime?: string;
+  }) {
+    const req = await this.findOrFail(requestId);
+    if (Number(req.userId) !== userId) throw new ForbiddenException('ไม่ใช่คำขอของคุณ');
+    if (req.status !== 'draft') {
+      throw new BadRequestException('แก้ไขได้เฉพาะคำขอที่ยังเป็นร่าง (draft) เท่านั้น');
+    }
+
+    const updated = await this.prisma.travelRequest.update({
+      where: { id: BigInt(requestId) },
+      data: {
+        ...(data.travelDate && { travelDate: new Date(data.travelDate) }),
+        ...(data.destination !== undefined && { destination: data.destination }),
+        ...(data.purpose !== undefined && { purpose: data.purpose }),
+        ...(data.departureTime !== undefined && { departureTime: data.departureTime }),
+        ...(data.returnTime !== undefined && { returnTime: data.returnTime }),
+      },
+    });
+    return this.serialize(updated);
   }
 
   async submit(requestId: number, userId: number) {

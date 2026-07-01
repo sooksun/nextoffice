@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Send, AlertCircle, CalendarDays, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Send, AlertCircle, CalendarDays, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getUser } from "@/lib/auth";
@@ -32,6 +32,18 @@ interface LeaveBalance {
   remaining: number;
 }
 
+interface LeaveDraft {
+  id: number;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  reason?: string | null;
+  contactPhone?: string | null;
+  contactAddress?: string | null;
+  positionTitle?: string | null;
+  status: string;
+}
+
 /** พ.ศ. date string for display */
 function formatBE(iso: string): string {
   if (!iso) return "";
@@ -53,8 +65,24 @@ function daysBetween(startIso: string, endIso: string): number {
 
 export default function NewLeavePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const draftId = searchParams.get("draftId");
+  // ฟิลด์ที่ AI ระบุว่ายังขาด (มากับ query string) — ต้อง "ไม่" prefill ฟิลด์เหล่านี้
+  // เพราะค่าที่ persist ไว้ในร่างเป็นแค่ placeholder (เช่น วันที่ = วันนี้) ไม่ใช่ค่าจริง
+  const missingKeys = useMemo(
+    () => new Set((searchParams.get("missing") ?? "").split(",").filter(Boolean)),
+    [searchParams],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // block-render จนกว่าจะโหลด draft เสร็จ (หรือไม่มี draftId) — กัน race:
+  // ผู้ใช้พิมพ์ทับ prefill / กดส่งก่อน editingDraftId ถูกตั้งค่า (จะเข้า POST ผิดสาขา)
+  const [prefillReady, setPrefillReady] = useState(!draftId);
+  // ถ้ามาจากร่างที่ AI สร้าง — แก้ไข draft เดิมแล้ว submit (ไม่สร้างใหม่)
+  const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
+  const [prefilledFromAi, setPrefilledFromAi] = useState(false);
+  // true เมื่อ draftId ที่ระบุมาถูกส่ง/ดำเนินการไปแล้ว — ล็อกปุ่มส่งกันสร้างซ้ำ
+  const [draftLocked, setDraftLocked] = useState(false);
 
   // user info
   const [userName, setUserName]     = useState("");
@@ -88,8 +116,39 @@ export default function NewLeavePage() {
       .finally(() => setBalanceLoading(false));
   }, []);
 
+  // Prefill จากร่างที่ AI สร้าง (?draftId=) — โหลดค่าที่กรอกไว้แล้วมาให้กรอกต่อ
+  // block-render (prefillReady) จนกว่า effect นี้จะจบ กันผู้ใช้แก้ไข/ส่งฟอร์มก่อน
+  // editingDraftId ถูกตั้งค่า (ไม่งั้น submit จะเข้าใจผิดว่าต้องสร้างใหม่ = POST ซ้ำ)
+  useEffect(() => {
+    if (!draftId) return;
+    apiFetch<LeaveDraft>(`/attendance/leave/${draftId}`)
+      .then((d) => {
+        if (d.status !== "draft") {
+          // ร่างนี้ถูกส่ง/ดำเนินการไปแล้ว — เตือนแทนที่จะเปิดฟอร์มเปล่าเงียบ ๆ
+          // (ไม่งั้นกดส่งจะ POST สร้างใบลาซ้ำโดยผู้ใช้ไม่รู้ตัว)
+          setError("ร่างใบลานี้ถูกส่งไปแล้ว ไม่สามารถแก้ไขซ้ำได้ — ตรวจสอบสถานะที่หน้ารายการใบลา");
+          setDraftLocked(true);
+          return;
+        }
+        if (d.leaveType) setLeaveType(d.leaveType);
+        if (d.startDate && !missingKeys.has("startDate")) setStartDate(d.startDate.slice(0, 10));
+        if (d.endDate && !missingKeys.has("endDate")) setEndDate(d.endDate.slice(0, 10));
+        if (d.positionTitle) setPosition(d.positionTitle);
+        if (d.reason) setReason(d.reason);
+        if (d.contactAddress) setAddress(d.contactAddress);
+        if (d.contactPhone) setPhone(d.contactPhone);
+        setEditingDraftId(d.id);
+        setPrefilledFromAi(true);
+      })
+      .catch(() => {
+        // ร่างหาไม่เจอ/ไม่มีสิทธิ์ — เปิดฟอร์มเปล่าตามปกติ
+      })
+      .finally(() => setPrefillReady(true));
+  }, [draftId, missingKeys]);
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (draftLocked) return; // ร่างถูกใช้ไปแล้ว — กันสร้างใบลาซ้ำ
     setError(null);
 
     if (!startDate || !endDate) {
@@ -103,27 +162,45 @@ export default function NewLeavePage() {
 
     setLoading(true);
     try {
-      const leave = await apiFetch<{ id: number }>("/attendance/leave", {
-        method: "POST",
-        body: JSON.stringify({
-          leaveType,
-          startDate,
-          endDate,
-          totalDays,
-          reason: reason || undefined,
-          contactPhone: contactPhone || undefined,
-          contactAddress: contactAddress || undefined,
-          positionTitle: positionTitle || undefined,
-        }),
-      });
+      const payload = {
+        leaveType,
+        startDate,
+        endDate,
+        totalDays,
+        reason: reason || undefined,
+        contactPhone: contactPhone || undefined,
+        contactAddress: contactAddress || undefined,
+        positionTitle: positionTitle || undefined,
+      };
 
-      await apiFetch(`/attendance/leave/${leave.id}/submit`, { method: "PATCH" });
+      // แก้ไขร่างเดิม (จาก AI) → PATCH; ไม่งั้นสร้างใหม่ → POST
+      const leaveId = editingDraftId
+        ? (await apiFetch<{ id: number }>(`/attendance/leave/${editingDraftId}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          })).id
+        : (await apiFetch<{ id: number }>("/attendance/leave", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          })).id;
+
+      await apiFetch(`/attendance/leave/${leaveId}/submit`, { method: "PATCH" });
       router.push("/leave");
     } catch (err) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด กรุณาลองใหม่");
     } finally {
       setLoading(false);
     }
+  }
+
+  // block-render จนกว่า prefill (ถ้ามี draftId) จะเสร็จ — กันผู้ใช้แก้/ส่งฟอร์ม
+  // ก่อน editingDraftId ถูกตั้งค่า (ไม่งั้น submit จะเข้าใจผิดว่าต้องสร้างใหม่)
+  if (!prefillReady) {
+    return (
+      <div className="flex justify-center items-center py-20 text-on-surface-variant">
+        <Loader2 size={24} className="animate-spin mr-2" /> กำลังโหลดร่างเอกสาร...
+      </div>
+    );
   }
 
   return (
@@ -137,6 +214,15 @@ export default function NewLeavePage() {
         ใบลา
       </h1>
       <p className="text-sm text-on-surface-variant mb-6">กรอกข้อมูลการขอลา แล้วกดส่งเพื่อส่งให้ผู้บังคับบัญชาอนุมัติ</p>
+
+      {prefilledFromAi && (
+        <Alert variant="info" className="mb-4">
+          <Sparkles size={16} />
+          <AlertDescription>
+            AI กรอกข้อมูลเบื้องต้นให้แล้วจากที่คุณพิมพ์ในแชท — โปรดตรวจสอบและกรอกส่วนที่ขาดก่อนกดส่ง
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardContent className="p-6">
@@ -324,7 +410,7 @@ export default function NewLeavePage() {
               </Alert>
             )}
 
-            <Button type="submit" size="lg" disabled={loading} className="w-full">
+            <Button type="submit" size="lg" disabled={loading || draftLocked} className="w-full">
               <Send size={16} />
               {loading ? "กำลังส่ง..." : "ส่งใบลา"}
             </Button>

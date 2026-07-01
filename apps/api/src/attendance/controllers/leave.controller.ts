@@ -125,6 +125,16 @@ export class LeaveController {
     return this.travelSvc.getById(id, Number(user.organizationId));
   }
 
+  @Patch('travel/:id')
+  @ApiOperation({ summary: 'แก้ไขคำขอไปราชการ (draft เท่านั้น)' })
+  updateTravel(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Body() body: any,
+  ) {
+    return this.travelSvc.update(id, Number(user.id), body);
+  }
+
   @Patch('travel/:id/submit')
   @ApiOperation({ summary: 'ส่งคำขอไปราชการ' })
   submitTravel(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: any) {

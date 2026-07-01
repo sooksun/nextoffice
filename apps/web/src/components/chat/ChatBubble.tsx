@@ -17,6 +17,23 @@ import { renderMarkdown } from "./renderMarkdown";
 
 export type FeedbackRating = "up" | "down";
 
+export interface DocDraftField {
+  key: string;
+  label: string;
+  value?: string;
+}
+
+/** payload การ์ด "ร่างเอกสาร" ที่ AI สร้างจากแชท (kind: document_draft) */
+export interface DocDraftPayload {
+  docType: string;
+  docLabel: string;
+  draftId: number;
+  formUrl: string;
+  missingFields: DocDraftField[];
+  filledFields: DocDraftField[];
+  warnings?: string[];
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -26,6 +43,8 @@ export interface ChatMessage {
   userQuery?: string;
   feedback?: FeedbackRating;
   feedbackPending?: boolean;
+  /** ถ้ามี = แสดงการ์ดร่างเอกสารแทน bubble ปกติ */
+  docDraft?: DocDraftPayload;
 }
 
 interface Props {

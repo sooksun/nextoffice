@@ -2,17 +2,32 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import {
   Send,
   Loader2,
   X,
   MessageSquareText,
   MapPin,
+  FileText,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { ChatBubble, type ChatMessage, type FeedbackRating } from "./chat/ChatBubble";
+import {
+  ChatBubble,
+  type ChatMessage,
+  type FeedbackRating,
+  type DocDraftPayload,
+} from "./chat/ChatBubble";
+import { DocDraftCard } from "./chat/DocDraftCard";
 import type { Citation } from "./chat/CitationCard";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +40,12 @@ interface PageContext {
   searchQuery?: string;
   filters?: Record<string, string>;
 }
+
+/** union ที่ POST /chat/compose คืนกลับ (แยกตาม kind) */
+type ComposeResponse =
+  | { kind: "answer"; answer: string; sources?: Source[]; queryId?: string }
+  | { kind: "document_unsupported"; message: string }
+  | ({ kind: "document_draft"; message: string } & DocDraftPayload);
 
 // ─── page-aware suggestions ──────────────────────────────────────────────────
 
@@ -174,13 +195,21 @@ function getSuggestions(pathname: string): string[] {
 export default function ChatPanel() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  // ร่างเอกสารที่ยังขาดข้อมูล → เปิด popup แจ้งเตือนก่อน redirect
+  const [pendingDraft, setPendingDraft] = useState<DocDraftPayload | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function openDraftForm(draft: DocDraftPayload) {
+    setPendingDraft(null);
+    router.push(draft.formUrl);
+  }
 
   // Build page context from current route
   const pageContext = useMemo<PageContext>(() => {
@@ -277,28 +306,54 @@ export default function ChatPanel() {
     setLoading(true);
 
     try {
-      const data = await apiFetch<{ answer: string; sources: Source[]; queryId?: string }>(
-        "/chat/message",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            query: trimmed,
-            pageContext,
-            history,
-          }),
-        },
-      );
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: "assistant",
-          content: data.answer ?? "ขออภัย ไม่สามารถตอบได้",
-          sources: data.sources ?? [],
-          queryId: data.queryId,
-          userQuery: trimmed,
-        },
-      ]);
+      const data = await apiFetch<ComposeResponse>("/chat/compose", {
+        method: "POST",
+        body: JSON.stringify({
+          query: trimmed,
+          pageContext,
+          history,
+        }),
+      });
+
+      if (data.kind === "document_draft") {
+        const draft: DocDraftPayload = {
+          docType: data.docType,
+          docLabel: data.docLabel,
+          draftId: data.draftId,
+          formUrl: data.formUrl,
+          missingFields: data.missingFields,
+          filledFields: data.filledFields,
+          warnings: data.warnings,
+        };
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            content: data.message ?? "",
+            docDraft: draft,
+          },
+        ]);
+        // ยังขาดข้อมูลจำเป็น → เด้ง popup แจ้งก่อนพาไปกรอกต่อ
+        if (draft.missingFields.length > 0) setPendingDraft(draft);
+      } else if (data.kind === "document_unsupported") {
+        setMessages((prev) => [
+          ...prev,
+          { id: `a-${Date.now()}`, role: "assistant", content: data.message },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            content: data.answer ?? "ขออภัย ไม่สามารถตอบได้",
+            sources: data.sources ?? [],
+            queryId: data.queryId,
+            userQuery: trimmed,
+          },
+        ]);
+      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -402,9 +457,13 @@ export default function ChatPanel() {
             </div>
           ) : (
             <div className="space-y-3">
-              {messages.map((msg) => (
-                <ChatBubble key={msg.id} message={msg} onFeedback={submitFeedback} />
-              ))}
+              {messages.map((msg) =>
+                msg.docDraft ? (
+                  <DocDraftCard key={msg.id} draft={msg.docDraft} onOpen={openDraftForm} />
+                ) : (
+                  <ChatBubble key={msg.id} message={msg} onFeedback={submitFeedback} />
+                ),
+              )}
               {loading && (
                 <div className="flex items-start gap-2">
                   <div className="w-6 h-6 rounded-lg bg-secondary flex items-center justify-center shrink-0">
@@ -468,6 +527,53 @@ export default function ChatPanel() {
           </div>
         </div>
       </aside>
+
+      {/* Alert popup — แจ้งข้อมูลที่ขาด ก่อน redirect ไปหน้าฟอร์ม */}
+      <Dialog
+        open={!!pendingDraft}
+        onOpenChange={(o) => {
+          if (!o) setPendingDraft(null);
+        }}
+      >
+        <DialogContent className="max-w-sm bg-surface-lowest border-outline-variant/20">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <FileText size={18} />
+              ต้องการข้อมูลเพิ่มเติม
+            </DialogTitle>
+            <DialogDescription className="text-on-surface-variant">
+              ผมร่าง{pendingDraft?.docLabel}ให้เรียบร้อยแล้ว แต่ยังขาดข้อมูลที่จำเป็นดังนี้
+              กรุณากรอกให้ครบในหน้าฟอร์มแล้วกดส่ง
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="space-y-1.5">
+            {pendingDraft?.missingFields.map((m) => (
+              <li key={m.key} className="flex items-center gap-2 text-sm text-on-surface">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                {m.label}
+              </li>
+            ))}
+          </ul>
+
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setPendingDraft(null)}
+              className="px-4 py-2 text-sm font-medium text-on-surface-variant hover:text-on-surface rounded-lg transition-colors"
+            >
+              ภายหลัง
+            </button>
+            <button
+              type="button"
+              onClick={() => pendingDraft && openDraftForm(pendingDraft)}
+              className="px-4 py-2 text-sm font-bold text-on-primary bg-primary hover:brightness-110 rounded-lg transition-all"
+            >
+              รับทราบ ไปกรอกต่อ
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
