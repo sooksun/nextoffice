@@ -732,24 +732,13 @@ html, body { transition: background-color 180ms ease, color 180ms ease; }
 .side-menu__sub .side-menu__link { padding: 0.5rem 0.75rem; font-size: 0.8125rem; }
 .side-menu__sub .side-menu__link__icon { width: 0.9375rem; height: 0.9375rem; }
 
-/* ─── Compact / collapse behaviour ─── */
+/* ─── Compact / collapse behaviour (toggled only by explicit button click) ─── */
 .side-menu--collapsed .side-menu__link__title,
 .side-menu--collapsed .side-menu__link__badge,
 .side-menu--collapsed .side-menu__link__chevron,
 .side-menu--collapsed .side-menu__group-label,
 .side-menu--collapsed .side-menu__sub { opacity: 0; pointer-events: none; }
 .side-menu--collapsed .side-menu__sub { max-height: 0; overflow: hidden; }
-
-/* Expand on hover */
-.side-menu--collapsed.side-menu--on-hover .side-menu__link__title,
-.side-menu--collapsed.side-menu--on-hover .side-menu__link__badge,
-.side-menu--collapsed.side-menu--on-hover .side-menu__link__chevron,
-.side-menu--collapsed.side-menu--on-hover .side-menu__group-label,
-.side-menu--collapsed.side-menu--on-hover .side-menu__sub {
-  opacity: 1;
-  pointer-events: auto;
-}
-.side-menu--collapsed.side-menu--on-hover .side-menu__sub { max-height: none; overflow: visible; }
 
 /* ─── Top-bar scrolled state ─── */
 .top-bar { transition: all 180ms ease; }

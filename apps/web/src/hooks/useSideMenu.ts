@@ -35,12 +35,14 @@ function writeCompact(next: boolean) {
 }
 
 /**
- * Rubick SideMenu behaviour (ported from midone-vue).
+ * Rubick SideMenu behaviour (ported from midone-vue), modified so the
+ * compact state only toggles via explicit user click (no hover-to-expand /
+ * auto-collapse-on-mouse-out — that was confusing to use).
  *
  * compactMenu is persisted via localStorage and synced with useSyncExternalStore
  * (no setState-in-effect — satisfies React 19 strict lint).
  *
- * Transient UI state (hover, mobile drawer, scroll flag) uses plain useState
+ * Transient UI state (mobile drawer, scroll flag) uses plain useState
  * since it is inherently client-only interaction state.
  */
 export function useSideMenu() {
@@ -50,7 +52,6 @@ export function useSideMenu() {
     () => false, // SSR default
   );
 
-  const [compactMenuOnHover, setCompactMenuOnHover] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -67,8 +68,6 @@ export function useSideMenu() {
     () => writeCompact(!getCompactSnapshot()),
     [],
   );
-  const onMouseEnterSideMenu = useCallback(() => setCompactMenuOnHover(true), []);
-  const onMouseLeaveSideMenu = useCallback(() => setCompactMenuOnHover(false), []);
   const openMobileMenu = useCallback(() => setMobileMenuOpen(true), []);
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
@@ -79,12 +78,9 @@ export function useSideMenu() {
 
   return {
     compactMenu,
-    compactMenuOnHover,
     mobileMenuOpen,
     scrolled,
     toggleCompactMenu,
-    onMouseEnterSideMenu,
-    onMouseLeaveSideMenu,
     openMobileMenu,
     closeMobileMenu,
     onScrollContent,

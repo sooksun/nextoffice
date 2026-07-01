@@ -17,12 +17,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const {
     compactMenu,
-    compactMenuOnHover,
     mobileMenuOpen,
     scrolled,
     toggleCompactMenu,
-    onMouseEnterSideMenu,
-    onMouseLeaveSideMenu,
     openMobileMenu,
     closeMobileMenu,
     onScrollContent,
@@ -32,8 +29,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const contentMargin =
-    compactMenu && !compactMenuOnHover ? "xl:ml-[80px]" : "xl:ml-[275px]";
+  const contentMargin = compactMenu ? "xl:ml-[80px]" : "xl:ml-[275px]";
 
   return (
     <div className="min-h-screen w-full relative">
@@ -48,10 +44,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       <Sidebar
         compactMenu={compactMenu}
-        compactMenuOnHover={compactMenuOnHover}
         mobileMenuOpen={mobileMenuOpen}
-        onMouseEnter={onMouseEnterSideMenu}
-        onMouseLeave={onMouseLeaveSideMenu}
         onToggleCompact={toggleCompactMenu}
         onCloseMobile={closeMobileMenu}
       />

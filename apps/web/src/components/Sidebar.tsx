@@ -313,10 +313,7 @@ function SideMenuItem({
 
 export interface SidebarProps {
   compactMenu: boolean;
-  compactMenuOnHover: boolean;
   mobileMenuOpen: boolean;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
   onToggleCompact: () => void;
   onCloseMobile: () => void;
 }
@@ -332,10 +329,7 @@ function getRoleCode(): string {
 
 export default function Sidebar({
   compactMenu,
-  compactMenuOnHover,
   mobileMenuOpen,
-  onMouseEnter,
-  onMouseLeave,
   onToggleCompact,
   onCloseMobile,
 }: SidebarProps) {
@@ -352,19 +346,16 @@ export default function Sidebar({
     [roleCode],
   );
 
-  // Collapse state — hide text when compact & not hovered
-  const showText = !compactMenu || compactMenuOnHover;
+  // Collapse state — hide text when compact; toggled only via the explicit button click
+  const showText = !compactMenu;
 
   return (
     <>
       <aside
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
         className={clsx(
           "rubick-sidebar side-menu fixed top-0 left-0 z-50 h-screen flex flex-col overflow-hidden transition-[width,transform] duration-200",
           "w-[275px] xl:translate-x-0",
-          compactMenu && !compactMenuOnHover && "xl:w-[80px] side-menu--collapsed",
-          compactMenu && compactMenuOnHover && "xl:w-[275px] side-menu--collapsed side-menu--on-hover",
+          compactMenu && "xl:w-[80px] side-menu--collapsed",
           // Mobile drawer
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0",
         )}
@@ -381,12 +372,17 @@ export default function Sidebar({
       )}
 
       {/* Brand */}
-      <div className="relative flex items-center gap-3 px-5 h-[65px] flex-none">
+      <div
+        className={clsx(
+          "relative flex items-center h-[65px] flex-none",
+          showText ? "gap-3 px-5" : "flex-col justify-center gap-1.5 px-2",
+        )}
+      >
         <Image
           src="/Favicon.png"
           alt="NextOffice"
-          width={34}
-          height={34}
+          width={showText ? 34 : 28}
+          height={showText ? 34 : 28}
           className="relative rounded-xl shadow-lg flex-none"
         />
         {showText && (
@@ -410,11 +406,15 @@ export default function Sidebar({
             </div>
           </div>
         )}
-        {/* Compact toggle — xl+ only */}
+        {/* Compact toggle — explicit click only, no hover-to-expand */}
         <button
           onClick={onToggleCompact}
           title={compactMenu ? "ขยายเมนู" : "ย่อเมนู"}
-          className="ml-auto hidden 2xl:flex items-center justify-center w-7 h-7 rounded-md border border-white/15 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label={compactMenu ? "ขยายเมนู" : "ย่อเมนู"}
+          className={clsx(
+            "flex items-center justify-center w-7 h-7 rounded-md border border-white/15 bg-white/5 text-white/60 hover:text-white hover:bg-white/10 transition-colors flex-none",
+            showText && "ml-auto",
+          )}
         >
           <ChevronLeft
             size={14}
