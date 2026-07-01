@@ -226,6 +226,56 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 ---
 
+## AI Chat Document Assistant + Sidebar UX Fix (session 2026-07-01)
+
+### Sidebar — เลิก auto-collapse เมื่อ mouse out
+`hooks/useSideMenu.ts` / `components/Sidebar.tsx` / `components/AppShell.tsx` — ลบ hover-to-expand/auto-collapse behavior (`compactMenuOnHover`, `onMouseEnter`/`onMouseLeave`) ทิ้งทั้งหมด เหลือปุ่ม toggle เดียว (ChevronLeft บนแถบโลโก้) เป็นตัวควบคุม compact mode + ทำให้ปุ่มแสดงตลอด (เดิมซ่อนจนกว่าจะถึงจอ `2xl`) — CSS rule `.side-menu--on-hover` ที่ไม่ใช้แล้วก็ลบออกจาก `globals.css`
+
+### AI Assistant สร้างร่างใบลา/ไปราชการจากแชท — NEW
+
+**Flow:**
+```
+ChatPanel → POST /chat/compose
+  → keyword gate (looksLikeDocumentRequest — คำถามทั่วไปข้ามไป RAG ทันที)
+  → DocumentIntentService.classify() — LLM 1 call, แยก ask vs create_document + สกัดฟิลด์ (disableThinking:true)
+  → DocumentDraftService.build() — autofill จาก JWT (user/org) + สร้าง draft ผ่าน LeaveService/TravelService เดิม
+  → คืน { kind, missingFields, formUrl, warnings }
+  → ถ้าขาดข้อมูลบังคับ: ChatPanel เปิด popup (Radix Dialog) → กด "รับทราบ" → redirect ไป formUrl (?draftId=...&missing=...)
+  → หน้าฟอร์ม (leave/new, leave/travel/new) prefill จาก draft, ข้ามฟิลด์ที่อยู่ใน "missing"
+    (กัน placeholder ทับข้อมูลจริง), PATCH-then-submit แทน POST สร้างซ้ำ
+```
+
+**ขอบเขต MVP:** ใบลา (LeaveRequest) + ใบไปราชการ (TravelRequest) เท่านั้น — ยังไม่รองรับหนังสือส่งออก/เอกสารประเภทอื่น. `/chat/message` (RAG Q&A เดิม) ไม่ถูกแตะ — `/chat/compose` เป็น endpoint ใหม่แยกต่างหาก
+
+**Critical Files:**
+| File | หน้าที่ |
+|---|---|
+| `chat/document/document-spec.ts` | field metadata กลาง (label/required/source ต่อ doc type), leave-type Thai synonym map, keyword gate regex |
+| `chat/document/date.util.ts` | normalize วันที่ พ.ศ./ค.ศ./เลขไทย → ISO CE, `bangkokTodayIso`, `daysBetweenInclusive` |
+| `chat/services/document-intent.service.ts` | LLM classify+extract รวมใน call เดียว (ลด latency), parse JSON แบบทนทาน (fullwidth normalize + boundary extract) |
+| `chat/services/document-draft.service.ts` | `AutoFillContext` (user/org จาก JWT เท่านั้น) + สร้าง draft + คำนวณ missing/warning |
+| `chat/controllers/chat.controller.ts` | `POST /chat/compose` |
+| `web/components/ChatPanel.tsx` + `web/components/chat/DocDraftCard.tsx` | UI การ์ดร่างเอกสารในแชท + alert popup + redirect |
+| `web/app/leave/new/page.tsx`, `web/app/leave/travel/new/page.tsx` | รับ `?draftId=&missing=` แล้ว prefill |
+| `attendance/services/travel.service.ts` | เพิ่ม `update()` (เดิมมีแต่ `LeaveService.update()` — travel ขาด PATCH ทำให้แก้ draft ต่อไม่ได้) |
+
+**กฎสำคัญที่ยึดตอน implement (เจอจาก adversarial review 2 รอบ, 6 บั๊กจริง — กันไม่ให้พลาดซ้ำ):**
+- userId/organizationId **มาจาก JWT เท่านั้น** ห้ามรับค่าจาก LLM เด็ดขาด (กัน IDOR — AI ห้ามสร้างเอกสารแทนคนอื่นแม้ user จะสั่งในแชท)
+- ฟิลด์ที่ backend ต้องเขียน placeholder ลง DB (เช่นวันที่=วันนี้ เพื่อผ่าน NOT NULL constraint) เพราะ AI ไม่รู้ค่าจริง **ต้อง flag เป็น "missing" แล้วส่ง key ไปกับ `formUrl`** (`&missing=startDate,leaveType`) — ฝั่งฟอร์ม **ห้าม prefill** ฟิลด์เหล่านั้น ไม่งั้น user จะเห็นฟอร์มดูครบแล้วส่งข้อมูลผิดโดยไม่รู้ตัว (เจอเป็น high-severity finding)
+- หน้าฟอร์มที่รับ `?draftId=` **ต้อง block-render จนกว่า prefill fetch จะเสร็จ** (`prefillReady` guard แบบเดียวกับที่ `travel/new` มีอยู่แล้ว) — ไม่งั้น user กด submit ก่อน `editingDraftId` ถูกตั้งค่า จะหลุดไป POST branch แทน PATCH สร้าง record ซ้ำ
+- เปิด draft ที่ status ≠ `draft` (ถูก submit ไปแล้ว) ผ่าน `?draftId=` เดิมซ้ำ (เช่นกดปุ่มในแชทซ้ำ) ต้อง **แจ้ง error + ล็อกปุ่มส่ง** (`draftLocked`) ห้ามเปิดฟอร์มเปล่าเงียบๆ แล้วปล่อยให้ submit สร้างซ้ำ
+- ก่อน commit ทุก endpoint ใหม่ผ่าน multi-agent adversarial review (แยกมิติ review → verify แบบ refute-first) อย่างน้อย 1 รอบ — คุ้มเวลาเพราะเจอบั๊ก logic ที่ `tsc`/unit test ปกติจับไม่ได้ (เช่น date-comparison เทียบกับ placeholder ผิด, field ที่ intent service สกัดมาแต่ service ปลายทางไม่รับ)
+
+**Deploy note:** feature นี้ **ไม่มี schema change** (ใช้ตาราง `leave_requests`/`travel_requests` เดิม) → deploy แค่ rebuild `api`+`web`:
+```bash
+git pull origin main
+docker compose build api web
+docker compose up -d --force-recreate --no-deps api web
+```
+ไม่ต้องรัน `prisma db push`
+
+---
+
 ## Security Hardening (session 2026-06-22) — RESOLVED
 
 ตรวจ codebase ทั้งระบบ (security + performance) แล้วแก้กลุ่มมั่นใจสูง/เสี่ยงต่ำ. `tsc --noEmit` ผ่านทั้งหมด.
