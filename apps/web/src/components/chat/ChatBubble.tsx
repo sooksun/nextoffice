@@ -45,6 +45,10 @@ export interface ChatMessage {
   feedbackPending?: boolean;
   /** ถ้ามี = แสดงการ์ดร่างเอกสารแทน bubble ปกติ */
   docDraft?: DocDraftPayload;
+  /** Phase 3: which backend produced the answer */
+  provider?: "rag" | "dify";
+  /** Optional small meta line (latency, cache) */
+  meta?: string;
 }
 
 interface Props {
@@ -103,6 +107,16 @@ export function ChatBubble({ message, onFeedback }: Props) {
                   : "bg-surface-low border border-outline-variant/10 text-on-surface rounded-tl-sm"
               }`}
             >
+              {!isUser && (message.provider === "dify" || message.meta) && (
+                <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[9px] font-bold uppercase tracking-wide text-violet-600 dark:text-violet-300">
+                  {message.provider === "dify" && <span>Dify</span>}
+                  {message.meta && (
+                    <span className="font-medium normal-case tracking-normal text-outline">
+                      {message.meta}
+                    </span>
+                  )}
+                </div>
+              )}
               {isUser ? (
                 message.content
               ) : (

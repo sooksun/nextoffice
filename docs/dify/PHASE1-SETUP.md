@@ -144,11 +144,11 @@ Or open **Web** → sidebar **ถาม AI หนังสือ/นโยบา
 
 ---
 
-## Next phases (not in Phase 1)
+## Next phases
 
-| Phase | Work |
-|-------|------|
-| 2 | Deeper module options, workflow apps, caching |
-| 3 | Embed in ChatPanel / case page |
-| 4 | Outbound draft outline workflow |
-| 5 | Agent tools → read-only NextOffice APIs |
+| Phase | Work | Status |
+|-------|------|--------|
+| 2 | Multi-app, workflow, case context, caching | See [PHASE2-SETUP.md](./PHASE2-SETUP.md) |
+| 3 | Embed in ChatPanel / case page | See [PHASE3-SETUP.md](./PHASE3-SETUP.md) |
+| 4 | Outbound draft outline workflow | pending |
+| 5 | Agent tools → read-only NextOffice APIs | pending |

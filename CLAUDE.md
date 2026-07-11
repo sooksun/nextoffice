@@ -226,19 +226,20 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 ---
 
-## Dify integration Phase 1 (session 2026-07)
+## Dify integration Phase 1–3 (session 2026-07)
 
-Optional **Dify Chat** for “ถามเกี่ยวกับหนังสือ/นโยบาย” — does **not** replace Gemini intake/RAG/outbound.
+Optional **Dify** for “ถามเกี่ยวกับหนังสือ/นโยบาย” — does **not** replace Gemini intake/RAG/outbound.
 
 | Piece | Path |
 |-------|------|
-| Module | `apps/api/src/dify/` (`DifyModule`, `DifyApiService`, `DifyController`) |
-| Endpoints | `GET /dify/status`, `POST /dify/chat` (JWT) |
-| UI | `apps/web/src/app/dify/page.tsx` + Sidebar “ถาม AI หนังสือ/นโยบาย” |
-| Setup | `docs/dify/PHASE1-SETUP.md`, prompt `docs/dify/chat-app-prompt.md` |
+| Module | `apps/api/src/dify/` (`DifyModule`, `DifyApiService`, `DifyContextService`, `DifyController`) |
+| Endpoints | `GET /dify/status`, `GET /dify/parameters`, `POST /dify/chat` (optional `caseId`), `POST /dify/workflows/run`, `POST /dify/completion` |
+| UI Phase 1–2 | `apps/web/src/app/dify/page.tsx` + Sidebar |
+| UI Phase 3 | `ChatPanel` RAG\|Dify toggle; `CaseDifyAsk` on `cases/[id]`; bubble `provider`/`meta` |
+| Setup | `docs/dify/PHASE1-SETUP.md`, `PHASE2-SETUP.md`, `PHASE3-SETUP.md`, `chat-app-prompt.md` |
 
-Env: `ENABLE_DIFY`, `DIFY_API_BASE` (ends with `/v1`), `DIFY_API_KEY_CHAT` (or `DIFY_API_KEY`).  
-Proxy allowlist includes `dify`. When disabled, UI shows “ยังไม่พร้อม”; chat returns 503.
+Env: `ENABLE_DIFY`, `DIFY_API_BASE` (`…/v1`), `DIFY_API_KEY_CHAT`, optional workflow/completion keys, `DIFY_CHAT_CACHE`.  
+Phase 3: embed only — no new backend routes; on `/cases/:id` ChatPanel auto-selects Dify + sends `caseId`.
 
 ---
 

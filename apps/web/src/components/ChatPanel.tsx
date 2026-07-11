@@ -10,6 +10,8 @@ import {
   MessageSquareText,
   MapPin,
   FileText,
+  Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import {
@@ -28,6 +30,23 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
+
+type ChatMode = "rag" | "dify";
+
+interface DifyStatus {
+  enabled: boolean;
+  configured: boolean;
+  apps?: { chat?: boolean };
+}
+
+interface DifyChatResponse {
+  answer: string;
+  conversationId: string | null;
+  messageId: string | null;
+  cached?: boolean;
+  latencyMs?: number;
+  hasLetterContext?: boolean;
+}
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -203,6 +222,10 @@ export default function ChatPanel() {
   const [loading, setLoading] = useState(false);
   // ร่างเอกสารที่ยังขาดข้อมูล → เปิด popup แจ้งเตือนก่อน redirect
   const [pendingDraft, setPendingDraft] = useState<DocDraftPayload | null>(null);
+  /** Phase 3: RAG (NextOffice compose) vs Dify policy chat */
+  const [mode, setMode] = useState<ChatMode>("rag");
+  const [difyReady, setDifyReady] = useState(false);
+  const [difyConversationId, setDifyConversationId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -238,6 +261,36 @@ export default function ChatPanel() {
 
   const pageLabel = getPageLabel(pathname);
   const suggestions = getSuggestions(pathname);
+  const caseIdFromRoute = useMemo(() => {
+    const m = pathname.match(/^\/cases\/(\d+)$/);
+    return m ? Number(m[1]) : undefined;
+  }, [pathname]);
+
+  // Probe Dify when panel opens (Phase 3)
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    apiFetch<DifyStatus>("/dify/status")
+      .then((s) => {
+        if (cancelled) return;
+        const ok = !!(s.enabled && (s.apps?.chat ?? s.configured));
+        setDifyReady(ok);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDifyReady(false);
+          setMode("rag");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // On case detail pages, prefer Dify once available (letter-focused Q&A)
+  useEffect(() => {
+    if (difyReady && caseIdFromRoute) setMode("dify");
+  }, [difyReady, caseIdFromRoute]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -249,8 +302,18 @@ export default function ChatPanel() {
     if (prevPathRef.current !== pathname) {
       prevPathRef.current = pathname;
       // Don't auto-clear — keep history but user can clear manually
+      setDifyConversationId(null);
     }
   }, [pathname]);
+
+  function switchMode(next: ChatMode) {
+    if (next === mode) return;
+    if (next === "dify" && !difyReady) return;
+    setMode(next);
+    setMessages([]);
+    setDifyConversationId(null);
+    setPendingDraft(null);
+  }
 
   async function submitFeedback(messageId: string, rating: FeedbackRating) {
     const target = messages.find((m) => m.id === messageId);
@@ -288,6 +351,95 @@ export default function ChatPanel() {
     }
   }
 
+  async function sendDify(trimmed: string) {
+    const res = await apiFetch<DifyChatResponse>("/dify/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        query: trimmed,
+        conversationId: difyConversationId || undefined,
+        caseId: caseIdFromRoute,
+      }),
+    });
+    if (res.conversationId) setDifyConversationId(res.conversationId);
+    const bits: string[] = [];
+    if (res.cached) bits.push("cache");
+    if (res.latencyMs != null) bits.push(`${res.latencyMs}ms`);
+    if (res.hasLetterContext) bits.push("บริบทเคส");
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: res.messageId || `a-${Date.now()}`,
+        role: "assistant",
+        content: res.answer ?? "ขออภัย ไม่สามารถตอบได้",
+        provider: "dify",
+        meta: bits.length ? bits.join(" · ") : undefined,
+        userQuery: trimmed,
+      },
+    ]);
+  }
+
+  async function sendRag(trimmed: string) {
+    // Snapshot recent turns (pre-append) — the new user msg is sent as `query`,
+    // not history. Keep last 6 turns (≈ 3 exchanges) to stay under backend's
+    // 10-turn cap and control prompt cost.
+    const history = messages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
+    const data = await apiFetch<ComposeResponse>("/chat/compose", {
+      method: "POST",
+      body: JSON.stringify({
+        query: trimmed,
+        pageContext,
+        history,
+      }),
+    });
+
+    if (data.kind === "document_draft") {
+      const draft: DocDraftPayload = {
+        docType: data.docType,
+        docLabel: data.docLabel,
+        draftId: data.draftId,
+        formUrl: data.formUrl,
+        missingFields: data.missingFields,
+        filledFields: data.filledFields,
+        warnings: data.warnings,
+      };
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          content: data.message ?? "",
+          docDraft: draft,
+          provider: "rag",
+        },
+      ]);
+      // ยังขาดข้อมูลจำเป็น → เด้ง popup แจ้งก่อนพาไปกรอกต่อ
+      if (draft.missingFields.length > 0) setPendingDraft(draft);
+    } else if (data.kind === "document_unsupported") {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          content: data.message,
+          provider: "rag",
+        },
+      ]);
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          content: data.answer ?? "ขออภัย ไม่สามารถตอบได้",
+          sources: data.sources ?? [],
+          queryId: data.queryId,
+          userQuery: trimmed,
+          provider: "rag",
+        },
+      ]);
+    }
+  }
+
   async function send(query: string) {
     const trimmed = query.trim();
     if (!trimmed || loading) return;
@@ -297,62 +449,15 @@ export default function ChatPanel() {
       role: "user",
       content: trimmed,
     };
-    // Snapshot recent turns (pre-append) — the new user msg is sent as `query`,
-    // not history. Keep last 6 turns (≈ 3 exchanges) to stay under backend's
-    // 10-turn cap and control prompt cost.
-    const history = messages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setLoading(true);
 
     try {
-      const data = await apiFetch<ComposeResponse>("/chat/compose", {
-        method: "POST",
-        body: JSON.stringify({
-          query: trimmed,
-          pageContext,
-          history,
-        }),
-      });
-
-      if (data.kind === "document_draft") {
-        const draft: DocDraftPayload = {
-          docType: data.docType,
-          docLabel: data.docLabel,
-          draftId: data.draftId,
-          formUrl: data.formUrl,
-          missingFields: data.missingFields,
-          filledFields: data.filledFields,
-          warnings: data.warnings,
-        };
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `a-${Date.now()}`,
-            role: "assistant",
-            content: data.message ?? "",
-            docDraft: draft,
-          },
-        ]);
-        // ยังขาดข้อมูลจำเป็น → เด้ง popup แจ้งก่อนพาไปกรอกต่อ
-        if (draft.missingFields.length > 0) setPendingDraft(draft);
-      } else if (data.kind === "document_unsupported") {
-        setMessages((prev) => [
-          ...prev,
-          { id: `a-${Date.now()}`, role: "assistant", content: data.message },
-        ]);
+      if (mode === "dify" && difyReady) {
+        await sendDify(trimmed);
       } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `a-${Date.now()}`,
-            role: "assistant",
-            content: data.answer ?? "ขออภัย ไม่สามารถตอบได้",
-            sources: data.sources ?? [],
-            queryId: data.queryId,
-            userQuery: trimmed,
-          },
-        ]);
+        await sendRag(trimmed);
       }
     } catch (err) {
       setMessages((prev) => [
@@ -361,6 +466,7 @@ export default function ChatPanel() {
           id: `err-${Date.now()}`,
           role: "assistant",
           content: `เกิดข้อผิดพลาด (${err instanceof Error ? err.message : "unknown"})`,
+          provider: mode,
         },
       ]);
     } finally {
@@ -397,12 +503,26 @@ export default function ChatPanel() {
             <div className="flex-1 min-w-0">
               <h3 className="text-xs font-black text-primary uppercase tracking-wider">AI NextOffice</h3>
               <p className="text-[10px] text-on-surface-variant truncate">
-                ถามเรื่องระเบียบ + ข้อมูลในหน้านี้
+                {mode === "dify"
+                  ? caseIdFromRoute
+                    ? `Dify · ถามเกี่ยวกับเคส #${caseIdFromRoute}`
+                    : "Dify · หนังสือ / นโยบาย"
+                  : "ถามเรื่องระเบียบ + ข้อมูลในหน้านี้"}
               </p>
             </div>
             <div className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-[10px] text-emerald-600 font-bold">RAG</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                  mode === "dify" ? "bg-violet-400" : "bg-emerald-400"
+                }`}
+              />
+              <span
+                className={`text-[10px] font-bold ${
+                  mode === "dify" ? "text-violet-600" : "text-emerald-600"
+                }`}
+              >
+                {mode === "dify" ? "Dify" : "RAG"}
+              </span>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -412,12 +532,43 @@ export default function ChatPanel() {
             </button>
           </div>
 
+          {/* Phase 3: mode toggle RAG | Dify */}
+          {difyReady && (
+            <div className="mt-2 flex gap-1 rounded-lg bg-surface-low p-0.5">
+              <button
+                type="button"
+                onClick={() => switchMode("rag")}
+                className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors ${
+                  mode === "rag"
+                    ? "bg-surface-lowest text-emerald-700 shadow-sm"
+                    : "text-on-surface-variant hover:text-primary"
+                }`}
+              >
+                <BookOpen size={10} />
+                RAG
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode("dify")}
+                className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-colors ${
+                  mode === "dify"
+                    ? "bg-surface-lowest text-violet-700 shadow-sm"
+                    : "text-on-surface-variant hover:text-primary"
+                }`}
+              >
+                <Sparkles size={10} />
+                Dify
+              </button>
+            </div>
+          )}
+
           {/* Page context indicator */}
           {pageLabel && (
             <div className="mt-2 flex items-center gap-1.5 px-2 py-1 bg-primary-fixed/20 rounded-lg">
               <MapPin size={10} className="text-primary shrink-0" />
               <span className="text-[10px] font-semibold text-primary truncate">
                 {pageLabel}
+                {mode === "dify" && caseIdFromRoute ? " · ส่งบริบทเคสให้ Dify" : ""}
               </span>
             </div>
           )}
@@ -491,7 +642,10 @@ export default function ChatPanel() {
         <div className="shrink-0 px-3 py-3 border-t border-outline-variant/10">
           {messages.length > 0 && (
             <button
-              onClick={() => setMessages([])}
+              onClick={() => {
+                setMessages([]);
+                setDifyConversationId(null);
+              }}
               className="text-[10px] text-outline hover:text-primary mb-2 font-medium"
             >
               ล้างแชท
@@ -509,7 +663,15 @@ export default function ChatPanel() {
                   send(input);
                 }
               }}
-              placeholder={pageLabel ? `ถามเกี่ยวกับ ${pageLabel}...` : "พิมพ์คำถามของคุณ..."}
+              placeholder={
+                mode === "dify"
+                  ? caseIdFromRoute
+                    ? `ถาม Dify เกี่ยวกับเคส #${caseIdFromRoute}...`
+                    : "ถาม Dify เรื่องหนังสือ/นโยบาย..."
+                  : pageLabel
+                    ? `ถามเกี่ยวกับ ${pageLabel}...`
+                    : "พิมพ์คำถามของคุณ..."
+              }
               disabled={loading}
               className="w-full text-xs bg-surface-low border border-outline-variant/20 rounded-xl py-2.5 pl-3 pr-10 focus:ring-2 focus:ring-primary/20 focus:border-primary/30 outline-none disabled:opacity-50 transition-all"
             />

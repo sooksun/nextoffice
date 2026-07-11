@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AcknowledgeButton from "@/components/actions/AcknowledgeButton";
 import CompleteButton from "@/components/actions/CompleteButton";
 import CreateResponseDocButton from "@/components/actions/CreateResponseDocButton";
+import CaseDifyAsk from "@/components/chat/CaseDifyAsk";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="space-y-4">
+        {/* Phase 3: Ask Dify about this letter (hidden if ENABLE_DIFY off) */}
+        <CaseDifyAsk caseId={c.id} caseTitle={c.title} />
+
         {/* Summary from intake */}
         {c.intake?.summaryText && (
           <Card>
