@@ -226,6 +226,22 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 ---
 
+## Dify integration Phase 1 (session 2026-07)
+
+Optional **Dify Chat** for “ถามเกี่ยวกับหนังสือ/นโยบาย” — does **not** replace Gemini intake/RAG/outbound.
+
+| Piece | Path |
+|-------|------|
+| Module | `apps/api/src/dify/` (`DifyModule`, `DifyApiService`, `DifyController`) |
+| Endpoints | `GET /dify/status`, `POST /dify/chat` (JWT) |
+| UI | `apps/web/src/app/dify/page.tsx` + Sidebar “ถาม AI หนังสือ/นโยบาย” |
+| Setup | `docs/dify/PHASE1-SETUP.md`, prompt `docs/dify/chat-app-prompt.md` |
+
+Env: `ENABLE_DIFY`, `DIFY_API_BASE` (ends with `/v1`), `DIFY_API_KEY_CHAT` (or `DIFY_API_KEY`).  
+Proxy allowlist includes `dify`. When disabled, UI shows “ยังไม่พร้อม”; chat returns 503.
+
+---
+
 ## AI Chat Document Assistant + Sidebar UX Fix (session 2026-07-01)
 
 ### Sidebar — เลิก auto-collapse เมื่อ mouse out

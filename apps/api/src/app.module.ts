@@ -45,6 +45,7 @@ import { MessagesModule } from './messages/messages.module';
 import { SearchModule } from './search/search.module';
 import { AdminModule } from './admin/admin.module';
 import { DriveImportModule } from './drive-import/drive-import.module';
+import { DifyModule } from './dify/dify.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { DriveImportModule } from './drive-import/drive-import.module';
     CasesModule,
     DocumentsModule,
     ChatModule,
+    DifyModule,
     AcademicYearsModule,
     KnowledgeModule,
     CalendarModule,

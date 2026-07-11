@@ -163,6 +163,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/horizon/agendas", label: "วาระนโยบาย", icon: CalendarClock, roles: MANAGER },
       { href: "/horizon/signals", label: "สัญญาณ", icon: Newspaper, roles: MANAGER },
       { href: "/knowledge/import", label: "นำเข้าความรู้", icon: Upload },
+      { href: "/dify", label: "ถาม AI หนังสือ/นโยบาย", icon: Sparkles },
       { href: "/vault", label: "บันทึกความรู้", icon: BookOpen },
       { href: "/vault/graph", label: "Knowledge Graph", icon: GitFork },
       { href: "/vault/settings", label: "ตั้งค่า Vault", icon: SlidersHorizontal, roles: ["ADMIN"] },
