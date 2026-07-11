@@ -226,20 +226,21 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 
 ---
 
-## Dify integration Phase 1–3 (session 2026-07)
+## Dify integration Phase 1–6 (session 2026-07)
 
-Optional **Dify** for “ถามเกี่ยวกับหนังสือ/นโยบาย” — does **not** replace Gemini intake/RAG/outbound.
+Optional **Dify** — does **not** replace Gemini intake/RAG; outbound **numbers** still only on approve; tools are **read-only**.
 
 | Piece | Path |
 |-------|------|
-| Module | `apps/api/src/dify/` (`DifyModule`, `DifyApiService`, `DifyContextService`, `DifyController`) |
-| Endpoints | `GET /dify/status`, `GET /dify/parameters`, `POST /dify/chat` (optional `caseId`), `POST /dify/workflows/run`, `POST /dify/completion` |
-| UI Phase 1–2 | `apps/web/src/app/dify/page.tsx` + Sidebar |
-| UI Phase 3 | `ChatPanel` RAG\|Dify toggle; `CaseDifyAsk` on `cases/[id]`; bubble `provider`/`meta` |
-| Setup | `docs/dify/PHASE1-SETUP.md`, `PHASE2-SETUP.md`, `PHASE3-SETUP.md`, `chat-app-prompt.md` |
+| Module | `apps/api/src/dify/` + OutboundService Dify outline methods |
+| Chat/workflow | `GET /dify/status`, `POST /dify/chat`, `POST /dify/workflows/run`, … |
+| Phase 4 | `POST /outbound/dify-outline`, `POST /outbound/dify-outline-from-case` |
+| Phase 5 tools | `GET /dify-tools/*` — search, cases, outbound, registry (API key auth) |
+| Phase 6 ops | rate limit, IP allowlist, audit buffer, `GET /dify/admin/*`, UI `/admin/dify` |
+| UI | `/dify`, ChatPanel, CaseDifyAsk, outbound Dify outline, **Dify Ops** admin |
+| Setup | `docs/dify/PHASE1–6-SETUP.md`, `dify-tools.openapi.yaml` |
 
-Env: `ENABLE_DIFY`, `DIFY_API_BASE` (`…/v1`), `DIFY_API_KEY_CHAT`, optional workflow/completion keys, `DIFY_CHAT_CACHE`.  
-Phase 3: embed only — no new backend routes; on `/cases/:id` ChatPanel auto-selects Dify + sends `caseId`.
+Env: `ENABLE_DIFY`, app keys, `DIFY_TOOLS_*`, `DIFY_TOOLS_RATE_LIMIT`, `DIFY_CHAT_RATE_LIMIT`, optional `DIFY_TOOLS_IP_ALLOWLIST`.
 
 ---
 

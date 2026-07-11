@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: NextOffice Dify Tools (read-only)
+  version: "5.0.0"
+  description: |
+    Custom tools for Dify Agent. Authenticate with Bearer DIFY_TOOLS_API_KEY
+    or header X-Dify-Tool-Key. Scope with X-Org-Id or server DIFY_TOOLS_ORG_ID.
+servers:
+  - url: http://host.docker.internal:3001
+    description: Local API (adjust for your deploy)
+  - url: https://nextoffice.cnppai.com/api/proxy
+    description: Example via Next proxy (path still /dify-tools/...)
+paths:
+  /dify-tools/health:
+    get:
+      operationId: health
+      summary: Health check
+      security:
+        - DifyToolKey: []
+      responses:
+        "200":
+          description: OK
+  /dify-tools/search:
+    get:
+      operationId: search
+      summary: Search cases and outbound documents
+      security:
+        - DifyToolKey: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 8
+        - name: X-Org-Id
+          in: header
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Search hits
+  /dify-tools/cases:
+    get:
+      operationId: listCases
+      summary: List recent inbound cases
+      security:
+        - DifyToolKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: urgency
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: X-Org-Id
+          in: header
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Case list
+  /dify-tools/cases/{id}:
+    get:
+      operationId: getCase
+      summary: Get inbound case by id
+      security:
+        - DifyToolKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-Org-Id
+          in: header
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Case detail
+        "404":
+          description: Not found
+  /dify-tools/outbound/{id}:
+    get:
+      operationId: getOutbound
+      summary: Get outbound document by id
+      security:
+        - DifyToolKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: X-Org-Id
+          in: header
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Outbound detail
+  /dify-tools/registry/search:
+    get:
+      operationId: searchRegistry
+      summary: Search document registry
+      security:
+        - DifyToolKey: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: X-Org-Id
+          in: header
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registry entries
+components:
+  securitySchemes:
+    DifyToolKey:
+      type: http
+      scheme: bearer
+      description: Use DIFY_TOOLS_API_KEY (or send as X-Dify-Tool-Key)

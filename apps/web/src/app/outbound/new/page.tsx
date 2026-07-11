@@ -7,7 +7,7 @@ import { toastError, toastWarning, toastSuccess } from "@/lib/toast";
 import Link from "next/link";
 import {
   ArrowLeft, SendHorizontal, Upload, Loader2, FileText, Paperclip,
-  CheckCircle, Sparkles, Wand2, FileInput,
+  CheckCircle, Sparkles, Wand2, FileInput, Workflow,
 } from "lucide-react";
 import clsx from "clsx";
 import { getUser } from "@/lib/auth";
@@ -45,7 +45,7 @@ const AI_PROMPT_PLACEHOLDER: Record<string, string> = {
 };
 const CONFIDENTIAL_ROLES = ["ADMIN", "DIRECTOR", "VICE_DIRECTOR", "CLERK"];
 
-type CreateMode = "manual" | "ai_prompt" | "ai_inbound";
+type CreateMode = "manual" | "ai_prompt" | "ai_inbound" | "dify_outline";
 
 interface InboundCase {
   id: number;
@@ -218,6 +218,63 @@ export default function NewOutboundPage() {
     }
   };
 
+  /** Phase 4: Dify Workflow outline → draft (no documentNo until approve) */
+  const handleDifyOutline = async () => {
+    if (!aiPrompt.trim()) {
+      toastWarning("กรุณาพิมพ์คำสั่งให้ Dify");
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const res = await apiFetch<AiDraftResponse>("/outbound/dify-outline", {
+        method: "POST",
+        body: JSON.stringify({
+          letterType: form.letterType,
+          prompt: aiPrompt,
+        }),
+      });
+      if (res.id) {
+        toastSuccess("Dify สร้างร่างหนังสือแล้ว — เปิดหน้าแก้ไข (ยังไม่มีเลขที่)");
+        router.push(`/outbound/${res.id}`);
+        return;
+      }
+      toastError("Dify ไม่คืน draft id");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "Dify outline ไม่สำเร็จ");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleDifyOutlineFromCase = async () => {
+    if (!selectedCaseId) {
+      toastWarning("กรุณาเลือกหนังสือรับ");
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const res = await apiFetch<AiDraftResponse>("/outbound/dify-outline-from-case", {
+        method: "POST",
+        body: JSON.stringify({
+          caseId: selectedCaseId,
+          draftType,
+          letterType: form.letterType,
+          additionalContext: additionalContext || undefined,
+        }),
+      });
+      if (res.id) {
+        toastSuccess("Dify ร่างจากหนังสือรับแล้ว — เปิดหน้าแก้ไข");
+        router.push(`/outbound/${res.id}`);
+        return;
+      }
+      toastError("Dify ไม่คืน draft id");
+    } catch (err: unknown) {
+      toastError((err as Error).message || "Dify outline จากเคสไม่สำเร็จ");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   const handleFileUpload = async (file: File) => {
     setUploading(true);
     try {
@@ -271,9 +328,10 @@ export default function NewOutboundPage() {
   };
 
   const MODE_OPTIONS: Array<{ key: CreateMode; label: string; icon: React.ElementType }> = [
-    { key: "manual",     label: "สร้างเอง",              icon: FileText  },
-    { key: "ai_prompt",  label: "AI สร้างจาก Prompt",    icon: Sparkles  },
-    { key: "ai_inbound", label: "AI สร้างจากหนังสือรับ", icon: FileInput },
+    { key: "manual",      label: "สร้างเอง",                 icon: FileText  },
+    { key: "ai_prompt",   label: "AI สร้างจาก Prompt",       icon: Sparkles  },
+    { key: "ai_inbound",  label: "AI สร้างจากหนังสือรับ",    icon: FileInput },
+    { key: "dify_outline", label: "Dify ร่างโครงหนังสือ",    icon: Workflow },
   ];
 
   return (
@@ -316,6 +374,103 @@ export default function NewOutboundPage() {
           );
         })}
       </div>
+
+      {/* Phase 4: Dify Workflow outline */}
+      {mode === "dify_outline" && (
+        <div className="rounded-2xl border border-violet-500/30 bg-violet-500/5 p-6 space-y-4">
+          <div className="flex items-center gap-2 font-bold text-violet-800 dark:text-violet-200">
+            <Workflow size={18} /> Dify Workflow — ร่างโครงหนังสือส่ง
+          </div>
+          <p className="text-xs text-on-surface-variant">
+            ใช้ Dify Workflow สร้างร่าง (subject / ผู้รับ / เนื้อหา) แล้วบันทึกเป็น OutboundDocument
+            สถานะ draft — <strong>ยังไม่ออกเลขที่</strong> จนกว่าจะอนุมัติ
+            ต้องตั้ง <code className="font-mono text-[11px]">DIFY_API_KEY_OUTBOUND_OUTLINE</code> หรือ{" "}
+            <code className="font-mono text-[11px]">DIFY_API_KEY_WORKFLOW</code>
+          </p>
+          <div className="grid grid-cols-1 gap-4">
+            <Field>
+              <FieldLabel htmlFor="dify-letter-type">ประเภทหนังสือ</FieldLabel>
+              <NativeSelect
+                id="dify-letter-type"
+                value={form.letterType}
+                onChange={(e) => update("letterType", e.target.value)}
+              >
+                {AI_LETTER_TYPES.map((v) => (
+                  <option key={v} value={v}>{LETTER_TYPE_LABEL[v]}</option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="dify-prompt" required>คำสั่ง / โครงเรื่อง</FieldLabel>
+              <Textarea
+                id="dify-prompt"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder={AI_PROMPT_PLACEHOLDER[form.letterType] ?? AI_PROMPT_PLACEHOLDER.external_letter}
+                rows={4}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="dify-case">หรือเลือกหนังสือรับ (ถ้ามี)</FieldLabel>
+              <NativeSelect
+                id="dify-case"
+                value={selectedCaseId ?? ""}
+                onChange={(e) => setSelectedCaseId(e.target.value ? Number(e.target.value) : null)}
+                onFocus={() => {
+                  if (inboundCases.length === 0) {
+                    const user = getUser();
+                    if (!user?.organizationId) return;
+                    const params = new URLSearchParams({
+                      organizationId: String(user.organizationId),
+                      take: "50",
+                    });
+                    apiFetch<{ total: number; data: InboundCase[] }>(`/cases?${params}`)
+                      .then((res) => setInboundCases(res.data ?? []))
+                      .catch(() => setInboundCases([]));
+                  }
+                }}
+              >
+                <option value="">— ใช้เฉพาะคำสั่งด้านบน —</option>
+                {inboundCases.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    #{c.id} {c.registrationNo ? `[${c.registrationNo}] ` : ""}
+                    {c.title}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              size="lg"
+              onClick={handleDifyOutline}
+              disabled={aiGenerating || !aiPrompt.trim()}
+              className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
+            >
+              {aiGenerating ? (
+                <><Loader2 className="animate-spin" size={16} /> กำลังรัน Dify…</>
+              ) : (
+                <><Workflow size={16} /> ร่างจากคำสั่ง (Dify)</>
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              onClick={handleDifyOutlineFromCase}
+              disabled={aiGenerating || !selectedCaseId}
+              className="flex-1 border-violet-500/40"
+            >
+              {aiGenerating ? (
+                <><Loader2 className="animate-spin" size={16} /> กำลังรัน…</>
+              ) : (
+                <><FileInput size={16} /> ร่างจากหนังสือรับ (Dify)</>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* AI Prompt panel */}
       {mode === "ai_prompt" && (

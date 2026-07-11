@@ -8,9 +8,19 @@ import { TemplatesModule } from '../templates/templates.module';
 import { AuthModule } from '../auth/auth.module';
 import { GeminiModule } from '../gemini/gemini.module';
 import { RagModule } from '../rag/rag.module';
+import { DifyModule } from '../dify/dify.module';
 
 @Module({
-  imports: [QueueModule, DigitalSignatureModule, IntakeModule, TemplatesModule, AuthModule, GeminiModule, RagModule],
+  imports: [
+    QueueModule,
+    DigitalSignatureModule,
+    IntakeModule,
+    TemplatesModule,
+    AuthModule,
+    GeminiModule,
+    RagModule,
+    DifyModule,
+  ],
   controllers: [OutboundController],
   providers: [OutboundService],
   exports: [OutboundService],

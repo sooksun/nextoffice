@@ -26,6 +26,7 @@ const ALLOWED_SEGMENTS = new Set([
   "work-groups", "staff-config", "attendance", "vault", "knowledge", "knowledge-import",
   "horizon", "digital-signature", "system-prompts", "notifications", "drive-import", "admin",
   "dify",
+  "dify-tools",
 ]);
 
 async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {

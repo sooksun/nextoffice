@@ -7,8 +7,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { createHash } from 'crypto';
+import { DifyAuditService } from './dify-audit.service';
+import { DifyRateLimitService } from './dify-rate-limit.service';
 
-export type DifyAppKind = 'chat' | 'workflow' | 'completion';
+export type DifyAppKind = 'chat' | 'workflow' | 'completion' | 'outbound_outline';
 
 export type DifyChatResult = {
   answer: string;
@@ -55,7 +57,11 @@ export class DifyApiService {
     null;
   private readonly answerCache = new Map<string, CacheEntry>();
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly audit: DifyAuditService,
+    private readonly rateLimit: DifyRateLimitService,
+  ) {}
 
   isEnabled(): boolean {
     return this.config.get<string>('ENABLE_DIFY') === 'true';
@@ -75,6 +81,14 @@ export class DifyApiService {
     }
     if (kind === 'workflow') {
       return this.config.get<string>('DIFY_API_KEY_WORKFLOW')?.trim() || '';
+    }
+    if (kind === 'outbound_outline') {
+      // Dedicated outline workflow key, else fall back to generic workflow app
+      return (
+        this.config.get<string>('DIFY_API_KEY_OUTBOUND_OUTLINE')?.trim() ||
+        this.config.get<string>('DIFY_API_KEY_WORKFLOW')?.trim() ||
+        ''
+      );
     }
     return this.config.get<string>('DIFY_API_KEY_COMPLETION')?.trim() || '';
   }
@@ -101,7 +115,9 @@ export class DifyApiService {
           ? 'DIFY_API_BASE + DIFY_API_KEY_CHAT'
           : kind === 'workflow'
             ? 'DIFY_API_BASE + DIFY_API_KEY_WORKFLOW'
-            : 'DIFY_API_BASE + DIFY_API_KEY_COMPLETION';
+            : kind === 'outbound_outline'
+              ? 'DIFY_API_BASE + DIFY_API_KEY_OUTBOUND_OUTLINE (หรือ DIFY_API_KEY_WORKFLOW)'
+              : 'DIFY_API_BASE + DIFY_API_KEY_COMPLETION';
       throw new ServiceUnavailableException(`Dify ${kind} ยังไม่ได้ตั้งค่า (${envHint})`);
     }
   }
@@ -154,6 +170,7 @@ export class DifyApiService {
     skipCache?: boolean;
   }): Promise<DifyChatResult> {
     this.assertReady('chat');
+    this.assertUserRateLimit('chat', opts.user, opts.organizationId);
     const base = this.getApiBase();
     const apiKey = this.getKey('chat');
     const t0 = Date.now();
@@ -167,7 +184,7 @@ export class DifyApiService {
     if (cacheable) {
       const hit = this.getAnswerCache(opts.query, opts.organizationId);
       if (hit) {
-        return {
+        const result: DifyChatResult = {
           answer: hit.answer,
           conversationId: hit.conversationId,
           messageId: null,
@@ -175,6 +192,16 @@ export class DifyApiService {
           cached: true,
           latencyMs: Date.now() - t0,
         };
+        this.audit.record({
+          kind: 'chat',
+          action: 'chat-messages',
+          organizationId: opts.organizationId,
+          userKey: opts.user,
+          ok: true,
+          latencyMs: result.latencyMs,
+          detail: 'cache-hit',
+        });
+        return result;
       }
     }
 
@@ -204,22 +231,44 @@ export class DifyApiService {
       if (cacheable && result.answer) {
         this.setAnswerCache(opts.query, opts.organizationId, result.answer, result.conversationId);
       }
+      this.audit.record({
+        kind: 'chat',
+        action: 'chat-messages',
+        organizationId: opts.organizationId,
+        userKey: opts.user,
+        ok: true,
+        latencyMs: result.latencyMs,
+        detail: opts.inputs?.case_id ? `case=${opts.inputs.case_id}` : undefined,
+      });
       return result;
     } catch (err) {
+      this.audit.record({
+        kind: 'chat',
+        action: 'chat-messages',
+        organizationId: opts.organizationId,
+        userKey: opts.user,
+        ok: false,
+        latencyMs: Date.now() - t0,
+        detail: err instanceof Error ? err.message.slice(0, 200) : 'error',
+      });
       this.rethrow(err);
     }
   }
 
   /**
    * Workflow app — POST /workflows/run
+   * @param kind default `workflow`; use `outbound_outline` for Phase 4 draft outline app
    */
   async runWorkflow(opts: {
     inputs: Record<string, string | number | boolean>;
     user: string;
+    kind?: Extract<DifyAppKind, 'workflow' | 'outbound_outline'>;
   }): Promise<DifyWorkflowResult> {
-    this.assertReady('workflow');
+    const kind = opts.kind ?? 'workflow';
+    this.assertReady(kind);
+    this.assertUserRateLimit(kind, opts.user);
     const base = this.getApiBase();
-    const apiKey = this.getKey('workflow');
+    const apiKey = this.getKey(kind);
     const t0 = Date.now();
     const url = `${base}/workflows/run`;
     const body = {
@@ -229,11 +278,11 @@ export class DifyApiService {
     };
 
     try {
-      const data = await this.postWithRetry(url, body, apiKey, 'dify.workflow');
+      const data = await this.postWithRetry(url, body, apiKey, `dify.${kind}`);
       // Shape: { workflow_run_id, task_id, data: { status, outputs, ... } }
       const run = data?.data ?? data;
       const outputs = (run?.outputs ?? data?.outputs ?? {}) as Record<string, unknown>;
-      return {
+      const result: DifyWorkflowResult = {
         workflowRunId: data?.workflow_run_id ?? run?.id ?? null,
         taskId: data?.task_id ?? null,
         status: run?.status ?? data?.status ?? null,
@@ -242,7 +291,24 @@ export class DifyApiService {
         provider: 'dify',
         latencyMs: Date.now() - t0,
       };
+      this.audit.record({
+        kind: kind === 'outbound_outline' ? 'outbound_outline' : 'workflow',
+        action: 'workflows/run',
+        userKey: opts.user,
+        ok: true,
+        latencyMs: result.latencyMs,
+        detail: result.workflowRunId ? `run=${result.workflowRunId}` : undefined,
+      });
+      return result;
     } catch (err) {
+      this.audit.record({
+        kind: kind === 'outbound_outline' ? 'outbound_outline' : 'workflow',
+        action: 'workflows/run',
+        userKey: opts.user,
+        ok: false,
+        latencyMs: Date.now() - t0,
+        detail: err instanceof Error ? err.message.slice(0, 200) : 'error',
+      });
       this.rethrow(err);
     }
   }
@@ -313,13 +379,43 @@ export class DifyApiService {
         chat: this.isAppConfigured('chat'),
         workflow: this.isAppConfigured('workflow'),
         completion: this.isAppConfigured('completion'),
+        outboundOutline: this.isAppConfigured('outbound_outline'),
       },
       cache: {
         answerCacheEnabled: this.config.get('DIFY_CHAT_CACHE') !== 'false',
         answerCacheSize: this.answerCache.size,
       },
-      phase: 2,
+      tools: {
+        enabled:
+          this.config.get('ENABLE_DIFY_TOOLS') === 'true' || this.isEnabled(),
+        keyConfigured: !!(
+          this.config.get<string>('DIFY_TOOLS_API_KEY')?.trim() &&
+          (this.config.get<string>('DIFY_TOOLS_API_KEY')?.trim().length ?? 0) >= 16
+        ),
+        defaultOrgId: Number(this.config.get('DIFY_TOOLS_ORG_ID') || 0) || null,
+      },
+      rateLimit: {
+        chatPerUser: Number(this.config.get('DIFY_CHAT_RATE_LIMIT') ?? 30),
+        toolsPerOrg: Number(this.config.get('DIFY_TOOLS_RATE_LIMIT') ?? 60),
+      },
+      phase: 6,
     };
+  }
+
+  private assertUserRateLimit(
+    kind: string,
+    user: string,
+    organizationId?: number | null,
+  ) {
+    const limit = Number(this.config.get('DIFY_CHAT_RATE_LIMIT') ?? 30);
+    const windowMs = Number(this.config.get('DIFY_CHAT_RATE_WINDOW_MS') ?? 60_000);
+    const key = `${kind}:${organizationId ?? 0}:${user}`;
+    const rl = this.rateLimit.check(key, limit, windowMs);
+    if (!rl.allowed) {
+      throw new ServiceUnavailableException(
+        `Dify rate limit (${limit}/window). ลองใหม่ใน ${rl.retryAfterSec}s`,
+      );
+    }
   }
 
   private extractAnswer(data: any): string {

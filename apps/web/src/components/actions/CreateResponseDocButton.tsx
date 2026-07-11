@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError } from "@/lib/toast";
-import { FileText, Sparkles, X, Loader2 } from "lucide-react";
+import { FileText, Sparkles, X, Loader2, Workflow } from "lucide-react";
 import { getErrorMessage } from "@/lib/errors";
 
 interface Props {
@@ -20,6 +20,7 @@ interface AiDraftResponse {
   recipientName?: string;
   letterType?: string;
   status?: string;
+  provider?: string;
 }
 
 const DOC_TYPES = [
@@ -35,6 +36,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
   const [recipientName, setRecipientName] = useState("ผู้อำนวยการโรงเรียน");
   const [bodyText, setBodyText] = useState(directorNote ? `ตามคำสั่ง: ${directorNote}\n\nผลการดำเนินการ:\n` : "");
   const [aiLoading, setAiLoading] = useState(false);
+  const [difyLoading, setDifyLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   /**
@@ -66,6 +68,32 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
       toastError(getErrorMessage(e, "AI ร่างไม่สำเร็จ"));
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  /** Phase 4: Dify Workflow outline → draft linked to this case */
+  const handleDifyOutline = async () => {
+    setDifyLoading(true);
+    try {
+      const res = await apiFetch<AiDraftResponse>("/outbound/dify-outline-from-case", {
+        method: "POST",
+        body: JSON.stringify({
+          caseId,
+          draftType: letterType === "internal_memo" ? "memo" : "reply",
+          letterType,
+        }),
+      });
+      if (res.id) {
+        toastSuccess("Dify ร่างหนังสือตอบแล้ว — เปิดหน้าแก้ไข (ยังไม่มีเลขที่)");
+        setOpen(false);
+        router.push(`/outbound/${res.id}`);
+        return;
+      }
+      toastError("Dify ไม่คืน draft id");
+    } catch (e: unknown) {
+      toastError(getErrorMessage(e, "Dify outline ไม่สำเร็จ — ตรวจ ENABLE_DIFY + workflow key"));
+    } finally {
+      setDifyLoading(false);
     }
   };
 
@@ -106,7 +134,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => !submitting && !aiLoading && setOpen(false)}
+          onClick={() => !submitting && !aiLoading && !difyLoading && setOpen(false)}
         >
           <div
             className="w-full max-w-lg rounded-2xl bg-white shadow-2xl p-6"
@@ -116,7 +144,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
               <h2 className="text-base font-bold text-slate-800">สร้างเอกสารรายงาน / ตอบหนังสือ</h2>
               <button
                 onClick={() => setOpen(false)}
-                disabled={submitting || aiLoading}
+                disabled={submitting || aiLoading || difyLoading}
                 className="rounded-full p-1 hover:bg-slate-100 disabled:opacity-50"
               >
                 <X size={18} />
@@ -167,17 +195,28 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
               </div>
 
               <div>
-                <div className="mb-1 flex items-center justify-between">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
                   <label className="text-xs font-semibold text-slate-600">เนื้อหา</label>
-                  <button
-                    type="button"
-                    onClick={handleAiDraft}
-                    disabled={aiLoading || submitting}
-                    className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
-                  >
-                    {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                    {aiLoading ? "AI กำลังร่าง…" : "AI ร่างให้ (สร้าง draft)"}
-                  </button>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={handleAiDraft}
+                      disabled={aiLoading || difyLoading || submitting}
+                      className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                      {aiLoading ? "AI กำลังร่าง…" : "Gemini ร่าง"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDifyOutline}
+                      disabled={aiLoading || difyLoading || submitting}
+                      className="inline-flex items-center gap-1 rounded-lg bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+                    >
+                      {difyLoading ? <Loader2 size={12} className="animate-spin" /> : <Workflow size={12} />}
+                      {difyLoading ? "Dify…" : "Dify ร่างโครง"}
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   value={bodyText}
@@ -187,7 +226,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
                   placeholder="รายงานผลการดำเนินการ..."
                 />
                 <p className="mt-1 text-[11px] text-slate-500">
-                  ปุ่ม AI จะสร้างร่างหนังสือส่งทันทีแล้วเปิดหน้าแก้ไข — ไม่สร้างเอกสารซ้ำ
+                  Gemini / Dify จะสร้างร่างหนังสือส่งทันทีแล้วเปิดหน้าแก้ไข — ยังไม่ออกเลขที่จนกว่าจะอนุมัติ
                 </p>
               </div>
             </div>
@@ -196,7 +235,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                disabled={submitting || aiLoading}
+                disabled={submitting || aiLoading || difyLoading}
                 className="flex-1 rounded-xl border border-slate-300 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 ยกเลิก
@@ -204,7 +243,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting || aiLoading || !subject.trim()}
+                disabled={submitting || aiLoading || difyLoading || !subject.trim()}
                 className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
               >
                 {submitting ? (

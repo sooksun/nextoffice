@@ -240,6 +240,52 @@ export class OutboundController {
     });
   }
 
+  @Post('dify-outline')
+  @ApiOperation({
+    summary:
+      'Phase 4: Dify Workflow outline → OutboundDocument draft (no documentNo). Requires DIFY_API_KEY_OUTBOUND_OUTLINE or WORKFLOW.',
+  })
+  generateDifyOutline(
+    @CurrentUser() user: any,
+    @Body()
+    dto: {
+      letterType: string;
+      prompt: string;
+    },
+  ) {
+    return this.svc.generateDifyOutlineFromPrompt({
+      organizationId: Number(user.organizationId),
+      userId: Number(user.id),
+      letterType: dto.letterType || 'external_letter',
+      prompt: dto.prompt,
+    });
+  }
+
+  @Post('dify-outline-from-case')
+  @ApiOperation({
+    summary:
+      'Phase 4: Dify Workflow outline from inbound case → OutboundDocument draft linked to case',
+  })
+  generateDifyOutlineFromCase(
+    @CurrentUser() user: any,
+    @Body()
+    dto: {
+      caseId: number;
+      draftType?: string;
+      letterType?: string;
+      additionalContext?: string;
+    },
+  ) {
+    return this.svc.generateDifyOutlineFromCase({
+      caseId: Number(dto.caseId),
+      userId: Number(user.id),
+      userOrgId: Number(user.organizationId),
+      draftType: dto.draftType,
+      letterType: dto.letterType,
+      additionalContext: dto.additionalContext,
+    });
+  }
+
   @Post('registry/inbound/:caseId')
   @ApiOperation({ summary: 'Create inbound registry entry for a case' })
   registerInbound(

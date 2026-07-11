@@ -39,7 +39,9 @@ No new API routes (uses Phase 2 endpoints).
 - [ ] Case page shows violet “ถาม AI เกี่ยวกับหนังสือฉบับนี้” card  
 - [ ] RAG mode still drafts leave/travel via compose  
 
-## Next (Phase 4+)
+## Next
 
-- Outbound draft outline workflow via Dify  
-- Agent tools → read-only NextOffice APIs  
+| Phase | Work | Status |
+|-------|------|--------|
+| 4 | Outbound draft outline workflow | See [PHASE4-SETUP.md](./PHASE4-SETUP.md) |
+| 5 | Agent tools → read-only NextOffice APIs | See [PHASE5-SETUP.md](./PHASE5-SETUP.md) |

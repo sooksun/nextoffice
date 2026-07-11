@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, Optional, ForbiddenException, NotFoundException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -10,6 +10,18 @@ import { TemplatesService } from '../templates/templates.service';
 import { GeminiApiService } from '../gemini/gemini-api.service';
 import { QueryCacheService } from '../rag/services/query-cache.service';
 import { nextRegistrationSeq } from '../common/registration-counter';
+import { DifyApiService } from '../dify/dify-api.service';
+
+export type OutboundOutlineFields = {
+  subject?: string;
+  bodyText?: string;
+  recipientOrg?: string;
+  recipientName?: string;
+  reference?: string;
+  attachments?: string;
+  closing?: string;
+  letterType?: string;
+};
 
 @Injectable()
 export class OutboundService {
@@ -24,6 +36,7 @@ export class OutboundService {
     private readonly templates: TemplatesService,
     private readonly gemini: GeminiApiService,
     @Optional() private readonly queryCache: QueryCacheService,
+    @Optional() private readonly dify: DifyApiService,
   ) {}
 
   private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
@@ -784,6 +797,345 @@ ${typePrompt}
       this.gemini.logAxiosError('generateAiDraft', error);
       throw error;
     }
+  }
+
+  /**
+   * Phase 4: Dify Workflow → outbound draft outline (no documentNo).
+   * Free-form user prompt → structured fields → OutboundDocument draft.
+   */
+  async generateDifyOutlineFromPrompt(dto: {
+    organizationId: number;
+    userId: number;
+    letterType: string;
+    prompt: string;
+  }) {
+    this.assertDifyOutlineReady();
+    const org = await this.prisma.organization.findUnique({
+      where: { id: BigInt(dto.organizationId) },
+      select: { id: true, name: true, orgCode: true, address: true, areaCode: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const userKey = `user:${dto.userId}:org:${dto.organizationId}`;
+    const wf = await this.dify!.runWorkflow({
+      kind: 'outbound_outline',
+      user: userKey,
+      inputs: {
+        prompt: dto.prompt,
+        letter_type: dto.letterType,
+        org_name: org.name ?? '',
+        org_address: org.address ?? '',
+        org_area: org.areaCode ?? '',
+        org_id: String(dto.organizationId),
+      },
+    });
+
+    const parsed = this.parseDifyOutline(wf.outputs, wf.text);
+    const letterType = this.normalizeLetterType(parsed.letterType ?? dto.letterType);
+    const fields = this.cleanOutlineFields(parsed);
+
+    const doc = await this.prisma.outboundDocument.create({
+      data: {
+        organizationId: BigInt(dto.organizationId),
+        createdByUserId: BigInt(dto.userId),
+        subject: fields.subject ?? dto.prompt.substring(0, 200),
+        bodyText: fields.bodyText ?? '',
+        recipientOrg: fields.recipientOrg ?? null,
+        recipientName: fields.recipientName ?? null,
+        letterType,
+        status: 'draft',
+        // documentNo intentionally null — only assigned on approve
+      },
+    });
+
+    this.logger.log(
+      `Dify outline draft #${doc.id} from prompt (workflowRun=${wf.workflowRunId})`,
+    );
+
+    return {
+      id: Number(doc.id),
+      subject: fields.subject,
+      bodyText: fields.bodyText,
+      recipientOrg: fields.recipientOrg,
+      recipientName: fields.recipientName,
+      reference: fields.reference,
+      attachments: fields.attachments,
+      closing: fields.closing,
+      letterType,
+      status: 'draft' as const,
+      provider: 'dify' as const,
+      workflowRunId: wf.workflowRunId,
+      latencyMs: wf.latencyMs,
+    };
+  }
+
+  /**
+   * Phase 4: Dify Workflow outline from inbound case → OutboundDocument draft.
+   * Links relatedInboundCaseId; never invents registration/document numbers.
+   */
+  async generateDifyOutlineFromCase(dto: {
+    caseId: number;
+    userId: number;
+    userOrgId?: number;
+    draftType?: string;
+    letterType?: string;
+    additionalContext?: string;
+  }) {
+    this.assertDifyOutlineReady();
+
+    const cas = await this.prisma.inboundCase.findUnique({
+      where: { id: BigInt(dto.caseId) },
+      include: {
+        organization: { select: { id: true, name: true, orgCode: true, address: true, areaCode: true } },
+        sourceDocument: true,
+        topics: true,
+      },
+    });
+    if (!cas) throw new NotFoundException(`Inbound case #${dto.caseId} not found`);
+    if (dto.userOrgId !== undefined && Number(cas.organizationId) !== Number(dto.userOrgId)) {
+      throw new ForbiddenException('ไม่สามารถสร้างร่างจากเคสขององค์กรอื่น');
+    }
+
+    const intakeMatch = cas.description?.match(/intake:(\d+)/);
+    const aiResult = intakeMatch
+      ? await this.prisma.documentAiResult.findUnique({
+          where: { documentIntakeId: BigInt(intakeMatch[1]) },
+        })
+      : null;
+
+    const draftTypeToLetter: Record<string, string> = {
+      memo: 'internal_memo',
+      reply: 'external_letter',
+      report: 'external_letter',
+      order: 'order',
+      announcement: 'announcement',
+    };
+    const letterType = this.normalizeLetterType(
+      dto.letterType ??
+        (dto.draftType ? draftTypeToLetter[dto.draftType] : undefined) ??
+        'external_letter',
+    );
+
+    const letterContext = [
+      `เรื่อง: ${aiResult?.subjectText ?? cas.title}`,
+      `เลขที่: ${aiResult?.documentNo ?? '—'}`,
+      `จาก: ${aiResult?.issuingAuthority ?? '—'}`,
+      `สรุป: ${aiResult?.summaryText ?? cas.description ?? '—'}`,
+      aiResult?.nextActionJson ? `สิ่งที่ต้องทำ: ${this.formatActions(aiResult.nextActionJson)}` : '',
+      dto.additionalContext ? `บริบทเพิ่ม: ${dto.additionalContext}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 6000);
+
+    const org = cas.organization;
+    const userKey = `user:${dto.userId}:org:${cas.organizationId}`;
+    const wf = await this.dify!.runWorkflow({
+      kind: 'outbound_outline',
+      user: userKey,
+      inputs: {
+        prompt: `ร่างหนังสือตอบ/รายงานผลต่อหนังสือต้นเรื่องต่อไปนี้\n${letterContext}`,
+        letter_type: letterType,
+        letter_context: letterContext,
+        case_id: String(dto.caseId),
+        case_title: cas.title ?? '',
+        org_name: org?.name ?? '',
+        org_address: org?.address ?? '',
+        org_area: org?.areaCode ?? '',
+        org_id: String(cas.organizationId),
+        draft_type: dto.draftType ?? 'reply',
+      },
+    });
+
+    const parsed = this.parseDifyOutline(wf.outputs, wf.text);
+    const fields = this.cleanOutlineFields(parsed);
+    const resolvedType = this.normalizeLetterType(parsed.letterType ?? letterType);
+
+    const doc = await this.prisma.outboundDocument.create({
+      data: {
+        organizationId: cas.organizationId,
+        createdByUserId: BigInt(dto.userId),
+        subject: fields.subject ?? `ตอบ: ${cas.title}`,
+        bodyText: fields.bodyText ?? '',
+        recipientOrg: fields.recipientOrg ?? aiResult?.issuingAuthority ?? null,
+        recipientName: fields.recipientName ?? null,
+        letterType: resolvedType,
+        status: 'draft',
+        relatedInboundCaseId: cas.id,
+        urgencyLevel: cas.urgencyLevel ?? 'normal',
+        securityLevel: cas.securityLevel ?? 'normal',
+      },
+    });
+
+    await this.markCaseAsReplied(cas.id);
+
+    this.logger.log(
+      `Dify outline draft #${doc.id} from case #${dto.caseId} (workflowRun=${wf.workflowRunId})`,
+    );
+
+    return {
+      id: Number(doc.id),
+      subject: fields.subject,
+      bodyText: fields.bodyText,
+      recipientOrg: fields.recipientOrg,
+      recipientName: fields.recipientName,
+      reference: fields.reference,
+      attachments: fields.attachments,
+      closing: fields.closing,
+      letterType: resolvedType,
+      status: 'draft' as const,
+      relatedInboundCaseId: Number(cas.id),
+      provider: 'dify' as const,
+      workflowRunId: wf.workflowRunId,
+      latencyMs: wf.latencyMs,
+    };
+  }
+
+  private assertDifyOutlineReady() {
+    if (!this.dify) {
+      throw new ServiceUnavailableException('Dify module ไม่พร้อม');
+    }
+    if (!this.dify.isEnabled() || !this.dify.isAppConfigured('outbound_outline')) {
+      throw new ServiceUnavailableException(
+        'Dify outbound outline ยังไม่พร้อม (ENABLE_DIFY + DIFY_API_KEY_OUTBOUND_OUTLINE หรือ DIFY_API_KEY_WORKFLOW)',
+      );
+    }
+  }
+
+  /** Parse workflow outputs into outline fields (JSON object or JSON-in-text). */
+  private parseDifyOutline(
+    outputs: Record<string, unknown>,
+    text: string,
+  ): OutboundOutlineFields {
+    // Prefer structured fields on outputs
+    if (outputs && typeof outputs === 'object') {
+      if (
+        typeof outputs.subject === 'string' ||
+        typeof outputs.bodyText === 'string' ||
+        typeof outputs.body_text === 'string'
+      ) {
+        return {
+          subject: typeof outputs.subject === 'string' ? outputs.subject : undefined,
+          bodyText:
+            typeof outputs.bodyText === 'string'
+              ? outputs.bodyText
+              : typeof outputs.body_text === 'string'
+                ? outputs.body_text
+                : undefined,
+          recipientOrg:
+            typeof outputs.recipientOrg === 'string'
+              ? outputs.recipientOrg
+              : typeof outputs.recipient_org === 'string'
+                ? outputs.recipient_org
+                : undefined,
+          recipientName:
+            typeof outputs.recipientName === 'string'
+              ? outputs.recipientName
+              : typeof outputs.recipient_name === 'string'
+                ? outputs.recipient_name
+                : undefined,
+          reference: typeof outputs.reference === 'string' ? outputs.reference : undefined,
+          attachments:
+            typeof outputs.attachments === 'string' ? outputs.attachments : undefined,
+          closing: typeof outputs.closing === 'string' ? outputs.closing : undefined,
+          letterType:
+            typeof outputs.letterType === 'string'
+              ? outputs.letterType
+              : typeof outputs.letter_type === 'string'
+                ? outputs.letter_type
+                : undefined,
+        };
+      }
+      // outputs.result / outputs.outline as JSON string
+      for (const key of ['result', 'outline', 'json', 'text', 'answer', 'output']) {
+        const v = outputs[key];
+        if (typeof v === 'string') {
+          const fromStr = this.tryParseJsonObject(v);
+          if (fromStr) return fromStr;
+        }
+      }
+    }
+    const fromText = this.tryParseJsonObject(text);
+    if (fromText) return fromText;
+    // Fallback: treat whole text as body
+    return { bodyText: text || '' };
+  }
+
+  private tryParseJsonObject(raw: string): OutboundOutlineFields | null {
+    if (!raw?.trim()) return null;
+    const normalized = raw
+      .replace(/｛/g, '{')
+      .replace(/｝/g, '}')
+      .replace(/：/g, ':')
+      .replace(/，/g, ',');
+    const start = normalized.indexOf('{');
+    const end = normalized.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    try {
+      const obj = JSON.parse(normalized.slice(start, end + 1));
+      if (!obj || typeof obj !== 'object') return null;
+      return {
+        subject: obj.subject != null ? String(obj.subject) : undefined,
+        bodyText:
+          obj.bodyText != null
+            ? String(obj.bodyText)
+            : obj.body_text != null
+              ? String(obj.body_text)
+              : undefined,
+        recipientOrg:
+          obj.recipientOrg != null
+            ? String(obj.recipientOrg)
+            : obj.recipient_org != null
+              ? String(obj.recipient_org)
+              : undefined,
+        recipientName:
+          obj.recipientName != null
+            ? String(obj.recipientName)
+            : obj.recipient_name != null
+              ? String(obj.recipient_name)
+              : undefined,
+        reference: obj.reference != null ? String(obj.reference) : undefined,
+        attachments: obj.attachments != null ? String(obj.attachments) : undefined,
+        closing: obj.closing != null ? String(obj.closing) : undefined,
+        letterType:
+          obj.letterType != null
+            ? String(obj.letterType)
+            : obj.letter_type != null
+              ? String(obj.letter_type)
+              : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private cleanOutlineFields(parsed: OutboundOutlineFields): OutboundOutlineFields {
+    return {
+      subject: this.stripFieldPrefix(parsed.subject, 'เรื่อง') ?? undefined,
+      bodyText: parsed.bodyText?.trim() || undefined,
+      recipientOrg: this.stripFieldPrefix(parsed.recipientOrg, 'ถึง') ?? undefined,
+      recipientName: this.stripFieldPrefix(parsed.recipientName, '(?:เรียน|ถึง)') ?? undefined,
+      reference: parsed.reference?.trim() || undefined,
+      attachments: parsed.attachments?.trim() || undefined,
+      closing: parsed.closing?.trim() || undefined,
+      letterType: parsed.letterType,
+    };
+  }
+
+  private normalizeLetterType(raw?: string): string {
+    const allowed = new Set([
+      'external_letter',
+      'internal_memo',
+      'stamp_letter',
+      'order',
+      'announcement',
+      'pr_letter',
+      'official_record',
+      'secret_letter',
+      'directive',
+    ]);
+    const t = (raw || 'external_letter').trim();
+    return allowed.has(t) ? t : 'external_letter';
   }
 
   /**

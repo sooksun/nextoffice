@@ -28,7 +28,7 @@ interface DifyStatus {
   enabled: boolean;
   configured: boolean;
   apiBase: string | null;
-  apps?: { chat: boolean; workflow: boolean; completion: boolean };
+  apps?: { chat: boolean; workflow: boolean; completion: boolean; outboundOutline?: boolean };
   cache?: { answerCacheEnabled: boolean; answerCacheSize: number };
   phase?: number;
   cached?: boolean;
@@ -224,6 +224,7 @@ export default function DifyPolicyChatPage() {
         <div className="mb-3 flex flex-wrap gap-2 text-[11px]">
           <AppBadge label="Chat" on={!!status.apps.chat} />
           <AppBadge label="Workflow" on={!!status.apps.workflow} />
+          <AppBadge label="Outline" on={!!status.apps.outboundOutline} />
           <AppBadge label="Completion" on={!!status.apps.completion} />
           {status.cache?.answerCacheEnabled && (
             <span className="rounded-full bg-surface-bright px-2 py-0.5 text-on-surface-variant">

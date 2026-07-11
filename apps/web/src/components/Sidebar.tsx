@@ -179,6 +179,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/settings/staff", label: "บุคลากรผู้ลงนาม", icon: Users, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/settings/prompts", label: "ตั้งค่า AI Prompts", icon: SlidersHorizontal, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/admin/chat-analytics", label: "Chat Analytics", icon: Sparkles, roles: ["ADMIN", "DIRECTOR"] },
+      { href: "/admin/dify", label: "Dify Ops", icon: Sparkles, roles: ["ADMIN", "DIRECTOR"] },
       { href: "/admin/system", label: "จัดการระบบ", icon: Database, roles: ["ADMIN"] },
       { href: "/organizations", label: "หน่วยงาน", icon: Building2, roles: ["ADMIN"] },
       { href: "/settings/line-accounts", label: "เชื่อมต่อ LINE", icon: MessageCircle, roles: ["ADMIN", "DIRECTOR"] },

@@ -68,5 +68,5 @@ Answer cache is **skipped** when `caseId` or `letterContext` is present.
 | Phase | Work | Status |
 |-------|------|--------|
 | 3 | Embed ChatPanel + case page | See [PHASE3-SETUP.md](./PHASE3-SETUP.md) |
-| 4 | Outbound draft outline workflow | pending |
-| 5 | Agent tools → read-only NextOffice APIs | pending |
+| 4 | Outbound draft outline workflow | See [PHASE4-SETUP.md](./PHASE4-SETUP.md) |
+| 5 | Agent tools → read-only NextOffice APIs | See [PHASE5-SETUP.md](./PHASE5-SETUP.md) |
