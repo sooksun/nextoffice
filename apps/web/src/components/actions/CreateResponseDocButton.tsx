@@ -14,9 +14,12 @@ interface Props {
 }
 
 interface AiDraftResponse {
+  id?: number;
   subject?: string;
   bodyText?: string;
   recipientName?: string;
+  letterType?: string;
+  status?: string;
 }
 
 const DOC_TYPES = [
@@ -34,18 +37,33 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
   const [aiLoading, setAiLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  /**
+   * AI endpoint creates an OutboundDocument draft server-side.
+   * Redirect to that draft — never POST another document (double-create bug).
+   */
   const handleAiDraft = async () => {
     setAiLoading(true);
     try {
       const res = await apiFetch<AiDraftResponse>("/outbound/ai-draft", {
         method: "POST",
-        body: JSON.stringify({ caseId, draftType: letterType === "internal_memo" ? "memo" : "reply" }),
+        body: JSON.stringify({
+          caseId,
+          draftType: letterType === "internal_memo" ? "memo" : "reply",
+        }),
       });
+      if (res.id) {
+        toastSuccess("AI สร้างร่างเอกสารแล้ว — เปิดหน้าแก้ไข");
+        setOpen(false);
+        router.push(`/outbound/${res.id}`);
+        return;
+      }
+      // Fallback if API returns fields only (legacy)
       if (res.subject) setSubject(res.subject);
       if (res.bodyText) setBodyText(res.bodyText);
       if (res.recipientName) setRecipientName(res.recipientName);
+      toastSuccess("AI ร่างเนื้อหาแล้ว — ตรวจแล้วกดสร้างเอกสาร");
     } catch (e: unknown) {
-      toastError(getErrorMessage(e) ?? "AI ร่างไม่สำเร็จ");
+      toastError(getErrorMessage(e, "AI ร่างไม่สำเร็จ"));
     } finally {
       setAiLoading(false);
     }
@@ -69,7 +87,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
       setOpen(false);
       router.push(`/outbound/${res.id}`);
     } catch (e: unknown) {
-      toastError(getErrorMessage(e) ?? "สร้างไม่สำเร็จ");
+      toastError(getErrorMessage(e, "สร้างไม่สำเร็จ"));
     } finally {
       setSubmitting(false);
     }
@@ -106,13 +124,13 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
             </div>
 
             <div className="space-y-4">
-              {/* Document type */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">ประเภทเอกสาร</label>
                 <div className="flex gap-2">
                   {DOC_TYPES.map((t) => (
                     <button
                       key={t.value}
+                      type="button"
                       onClick={() => setLetterType(t.value)}
                       className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
                         letterType === t.value
@@ -126,7 +144,6 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
                 </div>
               </div>
 
-              {/* Recipient */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">
                   {letterType === "internal_memo" ? "เรียน / ถึง" : "ผู้รับ / หน่วยงาน"}
@@ -139,7 +156,6 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
                 />
               </div>
 
-              {/* Subject */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">เรื่อง</label>
                 <input
@@ -150,17 +166,17 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
                 />
               </div>
 
-              {/* Body */}
               <div>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="text-xs font-semibold text-slate-600">เนื้อหา</label>
                   <button
+                    type="button"
                     onClick={handleAiDraft}
                     disabled={aiLoading || submitting}
                     className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
                   >
                     {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                    AI ร่างให้
+                    {aiLoading ? "AI กำลังร่าง…" : "AI ร่างให้ (สร้าง draft)"}
                   </button>
                 </div>
                 <textarea
@@ -170,11 +186,15 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-violet-500 focus:outline-none"
                   placeholder="รายงานผลการดำเนินการ..."
                 />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  ปุ่ม AI จะสร้างร่างหนังสือส่งทันทีแล้วเปิดหน้าแก้ไข — ไม่สร้างเอกสารซ้ำ
+                </p>
               </div>
             </div>
 
             <div className="mt-5 flex gap-3">
               <button
+                type="button"
                 onClick={() => setOpen(false)}
                 disabled={submitting || aiLoading}
                 className="flex-1 rounded-xl border border-slate-300 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
@@ -182,6 +202,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
                 ยกเลิก
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={submitting || aiLoading || !subject.trim()}
                 className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
@@ -191,7 +212,7 @@ export default function CreateResponseDocButton({ caseId, caseTitle, directorNot
                     <Loader2 size={14} className="animate-spin" /> กำลังสร้าง…
                   </span>
                 ) : (
-                  "สร้างเอกสารร่าง"
+                  "สร้างเอกสารร่าง (มือ)"
                 )}
               </button>
             </div>

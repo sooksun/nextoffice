@@ -116,33 +116,34 @@
 ### Phase 1: ปรับปรุง AI Draft Generation (Backend)
 
 **แก้ไข: `outbound.service.ts`**
-- [ ] เพิ่ม method `generateFromPrompt(letterType, prompt, orgId)` — สร้างจาก prompt ตรง
-- [ ] ปรับ `generateAiDraft()` — เพิ่ม letterType-aware prompt templates
-- [ ] สร้าง prompt templates สำหรับ 4 ประเภทหนังสือตามรูปแบบราชการ
-- [ ] Return structured JSON แทน plain text เพื่อ pre-fill form fields
+- [x] เพิ่ม method `generateFromPrompt(letterType, prompt, orgId)` — สร้างจาก prompt ตรง
+- [x] ปรับ `generateAiDraft()` — เพิ่ม letterType-aware prompt templates
+- [x] สร้าง prompt templates สำหรับ 4 ประเภทหนังสือตามรูปแบบราชการ
+- [x] Return structured JSON + **persist OutboundDocument draft** (client ต้อง redirect ไป `id` ไม่สร้างซ้ำ)
 
 **แก้ไข: `outbound.controller.ts`**
-- [ ] เพิ่ม `POST /outbound/ai-generate` — endpoint ใหม่สำหรับ prompt-based generation
+- [x] เพิ่ม `POST /outbound/ai-generate` — endpoint ใหม่สำหรับ prompt-based generation
+- [x] `POST /outbound/ai-draft` — จาก inbound case + set `createdByUserId` จาก JWT
 
 ### Phase 2: PDF Generation (Backend)
 
 **แก้ไข: `templates.service.ts`**
-- [ ] เพิ่ม `generateDirective()` — template สำหรับประกาศ/คำสั่ง
-- [ ] ปรับ `generateKrut()` — เพิ่ม fields: อ้างถึง, สิ่งที่ส่งมาด้วย
+- [x] เพิ่ม `generateDirective()` — template สำหรับประกาศ/คำสั่ง
+- [x] ปรับ `generateKrut()` — เพิ่ม fields: อ้างถึง, สิ่งที่ส่งมาด้วย
 
 **แก้ไข: `outbound.service.ts`**
-- [ ] เพิ่ม `generatePdf(id)` — auto-select template ตาม letterType → generate → upload to MinIO
+- [x] เพิ่ม `generatePdf(id)` — auto-select template ตาม letterType → generate → upload to MinIO
 
 ### Phase 3: Frontend (Web)
 
 **แก้ไข: `/outbound/new/page.tsx`**
-- [ ] เพิ่ม toggle: "สร้างด้วย AI" / "สร้างเอง"
-- [ ] เพิ่ม AI prompt input
-- [ ] เพิ่ม "สร้างจากหนังสือรับ" button (เลือก InboundCase)
-- [ ] Preview generated draft ก่อนบันทึก
+- [x] เพิ่ม toggle: "สร้างด้วย AI" / "สร้างเอง"
+- [x] เพิ่ม AI prompt input
+- [x] เพิ่ม "สร้างจากหนังสือรับ" button (เลือก InboundCase)
+- [x] หลัง AI สำเร็จ → redirect ไป `/outbound/:id` (draft ที่ API สร้างแล้ว — กัน double-create)
 
 **แก้ไข: `/cases/[id]/page.tsx`**
-- [ ] เพิ่มปุ่ม "สร้างหนังสือตอบด้วย AI"
+- [x] เพิ่มปุ่ม "สร้างเอกสารตอบสนอง" (`CreateResponseDocButton`) — AI ร่าง → redirect ไป draft
 
 ---
 

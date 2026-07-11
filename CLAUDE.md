@@ -316,8 +316,10 @@ docker compose up -d --force-recreate --no-deps api web
 ### ยังเป็นข้อเสนอ (ยังไม่ทำ)
 - ถอด JWT ออกจาก localStorage ทั้งหมด (uploads/PDF/LIFF ต้องเปลี่ยนมาใช้ cookie) — ต้องรันแอปทดสอบ
 - พลิก CSP `reportOnly:false` หลัง report สะอาด
-- MinIO default cred `minioadmin:minioadmin` ใน `docker-compose.yml` → ตั้ง `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` ใน `.env.production`
-- `reports.service` หลาย query ต่อ status/stage → รวมเป็น `groupBy` (index ใหม่ช่วยลดผลกระทบแล้ว)
+
+### ปิดแล้ว (เดิมอยู่ในข้อเสนอ)
+- MinIO default cred — `docker-compose.yml` บังคับ `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` จาก env แล้ว (ไม่มี default minioadmin)
+- `reports.service` — `getSummary` / workload ใช้ `groupBy` แล้ว
 
 ---
 

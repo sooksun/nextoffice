@@ -409,6 +409,7 @@ export class EmptySpaceService {
         ],
         maxOutputTokens: 64,
         temperature: 0,
+        disableThinking: true, // JSON task — avoid thinking tokens eating output budget
       });
       const match = raw.match(/\{[\s\S]*\}/);
       if (!match) return null;

@@ -44,7 +44,11 @@ ${truncated}
 ถ้าไม่มีสัญญาณ ให้ตอบ []`;
 
     try {
-      const rawContent = await this.gemini.generateText({ user: prompt, maxOutputTokens: 2048 }) || '[]';
+      const rawContent = await this.gemini.generateText({
+        user: prompt,
+        maxOutputTokens: 2048,
+        disableThinking: true,
+      }) || '[]';
       const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
       const signals = JSON.parse(jsonMatch?.[0] || '[]');
 

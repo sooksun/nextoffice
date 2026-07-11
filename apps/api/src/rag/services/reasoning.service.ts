@@ -101,6 +101,7 @@ export class ReasoningService {
           user: prompt,
           maxOutputTokens: cfg.maxTokens,
           temperature: cfg.temperature,
+          disableThinking: true,
         })) || '[]';
       const jsonMatch = rawText.match(/\[[\s\S]*\]/);
       return JSON.parse(jsonMatch?.[0] || '[]');

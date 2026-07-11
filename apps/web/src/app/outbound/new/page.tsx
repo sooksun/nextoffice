@@ -60,11 +60,14 @@ interface InboundCase {
 }
 
 interface AiDraftResponse {
+  /** Present when API already persisted an OutboundDocument draft */
+  id?: number;
   subject?: string;
   bodyText?: string;
   recipientOrg?: string;
   recipientName?: string;
   letterType?: string;
+  status?: string;
 }
 
 const RESPONSE_TYPE_LABEL_TH: Record<string, string> = {
@@ -154,10 +157,16 @@ export default function NewOutboundPage() {
     if (!aiPrompt.trim()) { toastWarning("กรุณาพิมพ์คำสั่งให้ AI"); return; }
     setAiGenerating(true);
     try {
+      // API persists a draft OutboundDocument — open it instead of creating again on submit
       const res = await apiFetch<AiDraftResponse>("/outbound/ai-generate", {
         method: "POST",
         body: JSON.stringify({ letterType: form.letterType, prompt: aiPrompt }),
       });
+      if (res.id) {
+        toastSuccess("AI สร้างร่างแล้ว — เปิดหน้าแก้ไข");
+        router.push(`/outbound/${res.id}`);
+        return;
+      }
       setForm((prev) => ({
         ...prev,
         subject: res.subject ?? prev.subject,
@@ -178,6 +187,7 @@ export default function NewOutboundPage() {
     if (!selectedCaseId) { toastWarning("กรุณาเลือกหนังสือรับ"); return; }
     setAiGenerating(true);
     try {
+      // API creates draft + links relatedInboundCaseId — redirect (no second POST)
       const res = await apiFetch<AiDraftResponse>("/outbound/ai-draft", {
         method: "POST",
         body: JSON.stringify({
@@ -186,6 +196,11 @@ export default function NewOutboundPage() {
           additionalContext: additionalContext || undefined,
         }),
       });
+      if (res.id) {
+        toastSuccess("AI สร้างร่างจากหนังสือรับแล้ว — เปิดหน้าแก้ไข");
+        router.push(`/outbound/${res.id}`);
+        return;
+      }
       setForm((prev) => ({
         ...prev,
         subject: res.subject ?? prev.subject,
@@ -427,7 +442,12 @@ export default function NewOutboundPage() {
             </Field>
             <Field>
               <FieldLabel>เลขที่หนังสือ</FieldLabel>
-              <Input type="text" value={form.documentNo} placeholder="อัตโนมัติเมื่ออนุมัติ" disabled />
+              <Input
+                type="text"
+                value={form.documentNo}
+                placeholder="ออกเลขอัตโนมัติเมื่ออนุมัติ (ทะเบียนส่ง)"
+                disabled
+              />
             </Field>
           </div>
 

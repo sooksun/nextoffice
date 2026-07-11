@@ -10,6 +10,7 @@ import { StampStorageService } from '../../stamps/services/stamp-storage.service
 import { FileStorageService } from '../../intake/services/file-storage.service';
 import { PdfSigningService } from '../../digital-signature/pdf-signing.service';
 import { QueryCacheService } from '../../rag/services/query-cache.service';
+import { nextRegistrationSeq } from '../../common/registration-counter';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ['registered'],
@@ -681,31 +682,9 @@ export class CaseWorkflowService {
   }
 
   private async generateRegistrationNo(organizationId: bigint): Promise<string> {
-    // Resolve Buddhist year: org's active academic year → global current → calculated
-    const org = await this.prisma.organization.findUnique({
-      where: { id: organizationId },
-      include: { activeAcademicYear: { select: { year: true } } },
-    });
-
-    let buddhistYear: number;
-    if (org?.activeAcademicYear?.year) {
-      buddhistYear = org.activeAcademicYear.year;
-    } else {
-      const globalYear = await this.prisma.academicYear.findFirst({
-        where: { isCurrent: true },
-        select: { year: true },
-      });
-      buddhistYear = globalYear?.year ?? (new Date().getFullYear() + 543);
-    }
-
-    // Atomic upsert keyed by Buddhist year (พ.ศ.) — shared by web and LINE
-    const counter = await this.prisma.registrationCounter.upsert({
-      where: { organizationId_year_counterType: { organizationId, year: buddhistYear, counterType: 'inbound' } },
-      create: { organizationId, year: buddhistYear, counterType: 'inbound', lastSeq: 1 },
-      update: { lastSeq: { increment: 1 } },
-    });
-
-    return `${String(counter.lastSeq).padStart(3, '0')}/${buddhistYear}`;
+    // Atomic RegistrationCounter (พ.ศ. from org year) — shared by web and LINE
+    const next = await nextRegistrationSeq(this.prisma, organizationId, 'inbound', { pad: 3 });
+    return next.formatted;
   }
 
   private async logActivity(caseId: number, userId: number | undefined, action: string, detail: any) {

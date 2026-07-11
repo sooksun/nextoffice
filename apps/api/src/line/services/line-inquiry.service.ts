@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LineMessagingService } from './line-messaging.service';
+import { OutboundService } from '../../outbound/outbound.service';
 
 @Injectable()
 export class LineInquiryService {
@@ -11,6 +12,7 @@ export class LineInquiryService {
     private readonly prisma: PrismaService,
     private readonly messaging: LineMessagingService,
     private readonly config: ConfigService,
+    private readonly outboundService: OutboundService,
   ) {}
 
   // ─── ทะเบียนรับ ─────────────────────────────────────────
@@ -298,9 +300,11 @@ export class LineInquiryService {
       return;
     }
 
+    // Peek subject for reply only — numbering + registry go through OutboundService.approve
+    // so LINE and web share RegistrationCounter + DocumentRegistry logic.
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(docId) },
-      include: { organization: { select: { orgCode: true } } },
+      select: { id: true, subject: true },
     });
 
     if (!doc) {
@@ -310,40 +314,25 @@ export class LineInquiryService {
       return;
     }
 
-    if (doc.status !== 'draft' && doc.status !== 'pending_approval') {
+    try {
+      const orgId = user.organizationId ? Number(user.organizationId) : undefined;
+      const result = await this.outboundService.approve(docId, Number(user.id), orgId);
+      this.logger.log(
+        `Director ${user.fullName} approved outbound doc #${docId} as ${result.documentNo}`,
+      );
+
       await this.messaging.reply(replyToken, [
-        this.messaging.buildTextMessage(`หนังสือออก #${docId} มีสถานะ "${doc.status}" ไม่สามารถอนุมัติได้`),
+        this.messaging.buildTextMessage(
+          `✅ อนุมัติหนังสือออกสำเร็จ\n\nเลขที่หนังสือ: ${result.documentNo}\nเรื่อง: ${doc.subject}\n\nพิมพ์ "ทะเบียนส่ง" เพื่อดูรายการทั้งหมด`,
+        ),
       ]);
-      return;
+    } catch (err: any) {
+      const msg = err?.message || 'เกิดข้อผิดพลาด';
+      this.logger.warn(`LINE outbound approve #${docId} failed: ${msg}`);
+      await this.messaging.reply(replyToken, [
+        this.messaging.buildTextMessage(`❌ ไม่สามารถอนุมัติหนังสือออก #${docId}\n${msg}`),
+      ]);
     }
-
-    // Generate document number
-    const now = new Date();
-    const buddhistYear = now.getFullYear() + 543;
-    const orgCode = doc.organization?.orgCode ?? 'ORG';
-    const count = await this.prisma.outboundDocument.count({
-      where: { organizationId: doc.organizationId, documentNo: { not: null } },
-    });
-    const documentNo = `${orgCode} ${String(count + 1).padStart(4, '0')}/${buddhistYear}`;
-
-    await this.prisma.outboundDocument.update({
-      where: { id: BigInt(docId) },
-      data: {
-        status: 'approved',
-        documentNo,
-        approvedByUserId: user.id,
-        approvedAt: new Date(),
-        documentDate: new Date(),
-      },
-    });
-
-    this.logger.log(`Director ${user.fullName} approved outbound doc #${docId} as ${documentNo}`);
-
-    await this.messaging.reply(replyToken, [
-      this.messaging.buildTextMessage(
-        `✅ อนุมัติหนังสือออกสำเร็จ\n\nเลขที่หนังสือ: ${documentNo}\nเรื่อง: ${doc.subject}\n\nพิมพ์ "ทะเบียนส่ง" เพื่อดูรายการทั้งหมด`,
-      ),
-    ]);
   }
 
   // ─── รายการหนังสือออกรออนุมัติ (DIRECTOR) ─────────────

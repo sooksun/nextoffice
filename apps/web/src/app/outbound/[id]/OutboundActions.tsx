@@ -6,6 +6,8 @@ import { apiFetch } from "@/lib/api";
 import { toastSuccess, toastError, confirmToast } from "@/lib/toast";
 import { CheckCircle, Send, SendHorizontal, XCircle } from "lucide-react";
 import { getUser } from "@/lib/auth";
+import { getErrorMessage } from "@/lib/errors";
+import { toThaiNumerals } from "@/lib/thai-date";
 
 const SENT_METHOD_LABEL: Record<string, string> = {
   email: "อีเมล",
@@ -22,6 +24,11 @@ interface Props {
   recipientEmail: string | null;
 }
 
+interface ApproveResult {
+  id: number;
+  documentNo: string;
+}
+
 export default function OutboundActions({ docId, status, sentMethod, recipientEmail }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -31,14 +38,15 @@ export default function OutboundActions({ docId, status, sentMethod, recipientEm
   const roleCode: string = user?.roleCode ?? "TEACHER";
   const isApprover = APPROVER_ROLES.includes(roleCode);
 
-  const call = async (path: string, body?: object) => {
+  const call = async <T = unknown>(path: string, body?: object): Promise<T> => {
     setLoading(true);
     try {
-      await apiFetch(`/outbound/documents/${docId}${path}`, {
+      const result = await apiFetch<T>(`/outbound/documents/${docId}${path}`, {
         method: "POST",
         body: body ? JSON.stringify(body) : undefined,
       });
       router.refresh();
+      return result;
     } finally {
       setLoading(false);
     }
@@ -49,17 +57,29 @@ export default function OutboundActions({ docId, status, sentMethod, recipientEm
       await call("/submit");
       toastSuccess("เสนอขออนุมัติสำเร็จ — รอผู้มีอำนาจอนุมัติ");
     } catch (err: unknown) {
-      toastError((err as Error).message || "เสนอขออนุมัติไม่สำเร็จ");
+      toastError(getErrorMessage(err, "เสนอขออนุมัติไม่สำเร็จ"));
     }
   };
 
   const handleApprove = async () => {
+    if (
+      !(await confirmToast(
+        "ยืนยันอนุมัติหนังสือส่งนี้? ระบบจะออกเลขที่หนังสือและลงทะเบียนส่งให้อัตโนมัติ",
+      ))
+    ) {
+      return;
+    }
     try {
-      const u = JSON.parse(localStorage.getItem("user") || "{}");
-      await call("/approve", { approvedByUserId: u.id });
-      toastSuccess("อนุมัติสำเร็จ — เอกสารได้รับเลขที่แล้ว");
+      // JWT supplies approvedBy + org scope — no body needed
+      const res = await call<ApproveResult>("/approve");
+      const docNo = res?.documentNo ? toThaiNumerals(res.documentNo) : null;
+      toastSuccess(
+        docNo
+          ? `อนุมัติสำเร็จ — เลขที่ ${docNo}`
+          : "อนุมัติสำเร็จ — เอกสารได้รับเลขที่แล้ว",
+      );
     } catch (err: unknown) {
-      toastError((err as Error).message || "อนุมัติไม่สำเร็จ");
+      toastError(getErrorMessage(err, "อนุมัติไม่สำเร็จ"));
     }
   };
 
@@ -74,7 +94,7 @@ export default function OutboundActions({ docId, status, sentMethod, recipientEm
       toastSuccess("ส่งกลับแก้ไขสำเร็จ");
       router.refresh();
     } catch (err: unknown) {
-      toastError((err as Error).message || "ส่งกลับไม่สำเร็จ");
+      toastError(getErrorMessage(err, "ส่งกลับไม่สำเร็จ"));
     }
   };
 
@@ -86,7 +106,7 @@ export default function OutboundActions({ docId, status, sentMethod, recipientEm
       await call("/send", { sentMethod: method });
       toastSuccess("ส่งเอกสารสำเร็จ");
     } catch (err: unknown) {
-      toastError((err as Error).message || "ส่งไม่สำเร็จ");
+      toastError(getErrorMessage(err, "ส่งไม่สำเร็จ"));
     }
   };
 

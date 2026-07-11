@@ -148,6 +148,7 @@ Intent ที่เป็นไปได้:
         user: prompt,
         maxOutputTokens: 256,
         temperature: 0.1,
+        disableThinking: true,
       });
       const jsonMatch = (rawText || '{}').match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch?.[0] || '{}');

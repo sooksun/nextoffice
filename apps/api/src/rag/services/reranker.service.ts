@@ -93,6 +93,7 @@ export class RerankerService {
           user: userPrompt,
           maxOutputTokens: 1000,
           temperature: 0.1,
+          disableThinking: true,
         }),
         options.timeoutMs ?? 20_000,
       );

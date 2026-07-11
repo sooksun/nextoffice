@@ -75,6 +75,7 @@ export class DraftGeneratorService {
         user: prompt,
         maxOutputTokens: 2048,
         temperature: 0.4,
+        disableThinking: true,
       });
 
       const jsonMatch = (rawText || '{}').match(/\{[\s\S]*\}/);

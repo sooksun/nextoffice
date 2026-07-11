@@ -77,6 +77,7 @@ export class QueryRewriterService {
         user: userPrompt,
         maxOutputTokens: 400,
         temperature: 0.2,
+        disableThinking: true,
       });
 
       const parsed = this.parseJson(text);

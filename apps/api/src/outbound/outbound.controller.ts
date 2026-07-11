@@ -205,7 +205,7 @@ export class OutboundController {
   }
 
   @Post('ai-draft')
-  @ApiOperation({ summary: 'V2: Generate AI draft from inbound case' })
+  @ApiOperation({ summary: 'V2: Generate AI draft from inbound case (creates OutboundDocument draft)' })
   generateAiDraft(
     @CurrentUser() user: any,
     @Body() dto: {
@@ -214,7 +214,13 @@ export class OutboundController {
       additionalContext?: string;
     },
   ) {
-    return this.svc.generateAiDraft(dto.caseId, dto.draftType, dto.additionalContext, Number(user?.organizationId));
+    return this.svc.generateAiDraft(
+      dto.caseId,
+      dto.draftType,
+      dto.additionalContext,
+      Number(user?.organizationId),
+      Number(user?.id),
+    );
   }
 
   @Post('ai-generate')

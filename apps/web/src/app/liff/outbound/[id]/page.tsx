@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { toast } from "react-toastify";
 import { useLiff } from "../../LiffBoot";
 import { getErrorMessage } from "@/lib/errors";
+import { toThaiNumerals } from "@/lib/thai-date";
 import type { AuthUser } from "@/lib/auth";
 
 interface OutboundDoc {
@@ -80,10 +81,11 @@ export default function LiffOutboundDetailPage() {
       .finally(() => setLoading(false));
   }, [docId, liffStatus]);
 
+  // Match web/backend: approvers may approve draft or pending_approval
   const canApprove =
-    user &&
+    !!user &&
     ["ADMIN", "DIRECTOR", "VICE_DIRECTOR"].includes(user.roleCode) &&
-    doc?.status === "pending_approval";
+    (doc?.status === "pending_approval" || doc?.status === "draft");
 
   const reload = async () => {
     try {
@@ -95,17 +97,33 @@ export default function LiffOutboundDetailPage() {
   };
 
   const handleApprove = async () => {
-    if (!confirm("ยืนยันอนุมัติหนังสือส่งนี้? ระบบจะสร้างเลขที่หนังสือให้อัตโนมัติ")) return;
+    if (
+      !confirm(
+        "ยืนยันอนุมัติหนังสือส่งนี้? ระบบจะออกเลขที่หนังสือและลงทะเบียนส่งให้อัตโนมัติ",
+      )
+    ) {
+      return;
+    }
     setActing(true);
     try {
+      // JWT supplies actor + org — body not used by API
       const res = await apiFetch<{ id: number; documentNo: string }>(
         `/outbound/documents/${docId}/approve`,
-        { method: "POST", body: "{}" },
+        { method: "POST" },
       );
-      toast.success(`อนุมัติสำเร็จ — เลขที่ ${res.documentNo}`);
+      const docNo = res?.documentNo ? toThaiNumerals(res.documentNo) : null;
+      toast.success(docNo ? `อนุมัติสำเร็จ — เลขที่ ${docNo}` : "อนุมัติสำเร็จ");
+      // Optimistic: show issued number before full reload
+      if (res?.documentNo) {
+        setDoc((prev) =>
+          prev
+            ? { ...prev, status: "approved", documentNo: res.documentNo }
+            : prev,
+        );
+      }
       await reload();
     } catch (e: unknown) {
-      toast.error(getErrorMessage(e) ?? "อนุมัติไม่สำเร็จ");
+      toast.error(getErrorMessage(e, "อนุมัติไม่สำเร็จ"));
     } finally {
       setActing(false);
     }
@@ -162,7 +180,7 @@ export default function LiffOutboundDetailPage() {
           {doc.documentNo && (
             <div>
               <dt className="inline font-medium text-slate-700">เลขที่: </dt>
-              <dd className="inline">{doc.documentNo}</dd>
+              <dd className="inline font-mono">{toThaiNumerals(doc.documentNo)}</dd>
             </div>
           )}
           {(doc.recipientName || doc.recipientOrg) && (

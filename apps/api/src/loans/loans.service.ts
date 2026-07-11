@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { nextRegistrationSeq } from '../common/registration-counter';
 
 @Injectable()
 export class LoansService {
@@ -132,18 +133,7 @@ export class LoansService {
   }
 
   private async getNextSequence(organizationId: bigint, counterType: string): Promise<string> {
-    const buddhistYear = new Date().getFullYear() + 543;
-    const counter = await this.prisma.registrationCounter.upsert({
-      where: {
-        organizationId_year_counterType: {
-          organizationId,
-          year: buddhistYear,
-          counterType,
-        },
-      },
-      create: { organizationId, year: buddhistYear, counterType, lastSeq: 1 },
-      update: { lastSeq: { increment: 1 } },
-    });
-    return `${String(counter.lastSeq).padStart(3, '0')}/${buddhistYear}`;
+    const next = await nextRegistrationSeq(this.prisma, organizationId, counterType, { pad: 3 });
+    return next.formatted;
   }
 }

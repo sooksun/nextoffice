@@ -75,6 +75,7 @@ ${text ? `เนื้อหา (excerpt): ${text}` : ''}
         user: prompt,
         maxOutputTokens: 256,
         temperature: 0.2,
+        disableThinking: true,
       });
 
       const match = raw.match(/\{[\s\S]*\}/);

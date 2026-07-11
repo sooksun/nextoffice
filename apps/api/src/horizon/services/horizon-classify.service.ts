@@ -48,7 +48,11 @@ ${truncated}
 }`;
 
     try {
-      const rawContent = await this.gemini.generateText({ user: prompt, maxOutputTokens: 2048 }) || '{}';
+      const rawContent = await this.gemini.generateText({
+        user: prompt,
+        maxOutputTokens: 2048,
+        disableThinking: true,
+      }) || '{}';
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch?.[0] || '{}');
 

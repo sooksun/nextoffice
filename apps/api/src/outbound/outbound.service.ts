@@ -9,6 +9,7 @@ import { FileStorageService } from '../intake/services/file-storage.service';
 import { TemplatesService } from '../templates/templates.service';
 import { GeminiApiService } from '../gemini/gemini-api.service';
 import { QueryCacheService } from '../rag/services/query-cache.service';
+import { nextRegistrationSeq } from '../common/registration-counter';
 
 @Injectable()
 export class OutboundService {
@@ -213,10 +214,19 @@ export class OutboundService {
   }
 
   async approve(id: number, approvedByUserId: number, userOrgId?: number) {
-    // Generate document number: <orgCode>/<sequence>/<buddhistYear>
+    // Generate document number: <orgCode> <sequence>/<buddhistYear>
     const doc = await this.prisma.outboundDocument.findUnique({
       where: { id: BigInt(id) },
-      include: { organization: { select: { orgCode: true, name: true } } },
+      include: {
+        organization: {
+          select: {
+            orgCode: true,
+            name: true,
+            activeAcademicYearId: true,
+            activeAcademicYear: { select: { id: true, year: true } },
+          },
+        },
+      },
     });
     if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
 
@@ -228,8 +238,20 @@ export class OutboundService {
       throw new BadRequestException(`ไม่สามารถอนุมัติ: สถานะปัจจุบัน "${doc.status}"`);
     }
 
-    // Idempotency: re-use existing documentNo if already assigned (user clicks approve again)
-    const documentNo = doc.documentNo ?? await this.generateDocumentNo(doc.organizationId, doc.organization?.orgCode);
+    // Idempotency: re-use existing documentNo if already assigned (user clicks approve again).
+    // New numbers come from RegistrationCounter (atomic upsert), not count()+1, so concurrent
+    // approvals cannot mint the same official number.
+    let documentNo = doc.documentNo;
+    let registryNo = this.registryNoFromDocumentNo(documentNo);
+    if (!documentNo) {
+      const nextNumber = await this.generateDocumentNo(
+        doc.organizationId,
+        doc.organization?.orgCode,
+        doc.organization?.activeAcademicYear?.year,
+      );
+      documentNo = nextNumber.documentNo;
+      registryNo = nextNumber.registryNo;
+    }
     const now = new Date();
     const updated = await this.prisma.outboundDocument.update({
       where: { id: BigInt(id) },
@@ -248,15 +270,17 @@ export class OutboundService {
       where: { outboundDocId: BigInt(id), registryType: 'outbound' },
     });
     if (!existingReg) {
-      const currentYear = await this.prisma.academicYear.findFirst({ where: { isCurrent: true } });
-      const regCount = await this.prisma.documentRegistry.count({
-        where: { organizationId: doc.organizationId, registryType: 'outbound' },
-      });
+      const academicYearId =
+        doc.organization?.activeAcademicYearId ??
+        (await this.prisma.academicYear.findFirst({
+          where: { isCurrent: true },
+          select: { id: true },
+        }))?.id;
       await this.prisma.documentRegistry.create({
         data: {
           organizationId: doc.organizationId,
           registryType: 'outbound',
-          registryNo: String(regCount + 1).padStart(4, '0'),
+          registryNo: registryNo ?? String(id).padStart(4, '0'),
           documentNo,
           documentDate: updated.documentDate,
           fromOrg: doc.organization?.name,
@@ -264,7 +288,7 @@ export class OutboundService {
           subject: doc.subject,
           urgencyLevel: doc.urgencyLevel,
           outboundDocId: doc.id,
-          academicYearId: currentYear?.id ?? undefined,
+          academicYearId: academicYearId ?? undefined,
         },
       });
       this.logger.log(`DocumentRegistry created for outbound doc #${id} (documentNo=${documentNo})`);
@@ -313,14 +337,11 @@ export class OutboundService {
       });
       if (!existingReg && doc.documentNo) {
         const currentYear = await this.prisma.academicYear.findFirst({ where: { isCurrent: true } });
-        const regCount = await this.prisma.documentRegistry.count({
-          where: { organizationId: doc.organizationId, registryType: 'outbound' },
-        });
         await this.prisma.documentRegistry.create({
           data: {
             organizationId: doc.organizationId,
             registryType: 'outbound',
-            registryNo: String(regCount + 1).padStart(4, '0'),
+            registryNo: this.registryNoFromDocumentNo(doc.documentNo) ?? String(id).padStart(4, '0'),
             documentNo: doc.documentNo,
             documentDate: doc.documentDate,
             fromOrg: doc.organization?.name,
@@ -448,21 +469,33 @@ export class OutboundService {
       throw new ForbiddenException('ไม่สามารถลงทะเบียนเคสขององค์กรอื่น');
     }
 
-    const regCount = await this.prisma.documentRegistry.count({
-      where: { organizationId: cas.organizationId, registryType: 'inbound' },
-    });
+    // Prefer case.registrationNo (minted by CaseWorkflowService). Fallback: same
+    // inbound RegistrationCounter — never count()+1 (race-prone duplicates).
+    let registryNo = cas.registrationNo;
+    if (!registryNo) {
+      const next = await nextRegistrationSeq(this.prisma, cas.organizationId, 'inbound', {
+        knownYear: cas.academicYear?.year,
+        pad: 3,
+      });
+      registryNo = next.formatted;
+      await this.prisma.inboundCase.update({
+        where: { id: cas.id },
+        data: { registrationNo: registryNo },
+      });
+    }
+
     const entry = await this.prisma.documentRegistry.create({
       data: {
         organizationId: cas.organizationId,
         registryType: 'inbound',
-        registryNo: cas.registrationNo ?? String(regCount + 1).padStart(4, '0'),
+        registryNo,
         subject: cas.title,
         urgencyLevel: (cas as any).urgencyLevel ?? 'normal',
         inboundCaseId: cas.id,
         academicYearId: cas.academicYearId ?? undefined,
       },
     });
-    return { id: Number(entry.id) };
+    return { id: Number(entry.id), registryNo };
   }
 
   // ─── V3: AI Document Generation ─────────────────
@@ -557,6 +590,7 @@ export class OutboundService {
         user: userMessage,
         maxOutputTokens: 4096,
         temperature: 0.3,
+        disableThinking: true,
       });
 
       // Extract JSON from response (handle markdown code blocks)
@@ -600,7 +634,13 @@ export class OutboundService {
    * Pulls rich metadata from DocumentAiResult (เลขที่หนังสือ, วันที่, ผู้ส่ง, สรุป, action, deadline)
    * เพื่อให้ Gemini ร่างหนังสือส่งได้ตรงประเด็นและถูกระเบียบ
    */
-  async generateAiDraft(caseId: number, draftType: string, additionalContext?: string, userOrgId?: number) {
+  async generateAiDraft(
+    caseId: number,
+    draftType: string,
+    additionalContext?: string,
+    userOrgId?: number,
+    userId?: number,
+  ) {
     const cas = await this.prisma.inboundCase.findUnique({
       where: { id: BigInt(caseId) },
       include: {
@@ -697,6 +737,7 @@ ${typePrompt}
         user: prompt,
         maxOutputTokens: 4096,
         temperature: 0.3,
+        disableThinking: true,
       });
 
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -710,11 +751,12 @@ ${typePrompt}
       const cleanRecipientName = this.stripFieldPrefix(parsed.recipientName, '(?:เรียน|ถึง)');
       const cleanRecipientOrg = this.stripFieldPrefix(parsed.recipientOrg, 'ถึง');
 
-      // Create OutboundDocument with draft status
+      // Create OutboundDocument with draft status (frontend must open this id —
+      // do not POST /outbound/documents again or a second draft is created).
       const doc = await this.prisma.outboundDocument.create({
         data: {
           organizationId: cas.organizationId,
-          createdByUserId: undefined,
+          createdByUserId: userId ? BigInt(userId) : undefined,
           subject: cleanSubject ?? `[${draftType.toUpperCase()}] ${cas.title}`,
           bodyText: parsed.bodyText ?? rawText,
           recipientOrg: cleanRecipientOrg,
@@ -892,23 +934,30 @@ ${typePrompt}
     return { id: Number(updated.id), status: 'draft' };
   }
 
-  private async generateDocumentNo(organizationId: bigint, orgCode?: string): Promise<string> {
-    const now = new Date();
-    const buddhistYear = now.getFullYear() + 543;
-    const prefix = orgCode ?? 'ORG';
-
-    const count = await this.prisma.outboundDocument.count({
-      where: {
-        organizationId,
-        documentNo: { not: null },
-        documentDate: {
-          gte: new Date(`${now.getFullYear()}-01-01`),
-          lte: new Date(`${now.getFullYear()}-12-31`),
-        },
-      },
+  /**
+   * Atomic sequence via RegistrationCounter (shared helper).
+   * Keyed by org + Buddhist year + counterType='outbound'. Format: "ORG 0007/2569".
+   */
+  private async generateDocumentNo(
+    organizationId: bigint,
+    orgCode?: string | null,
+    knownBuddhistYear?: number | null,
+  ): Promise<{ documentNo: string; registryNo: string }> {
+    const next = await nextRegistrationSeq(this.prisma, organizationId, 'outbound', {
+      knownYear: knownBuddhistYear,
+      pad: 4,
     });
-    const seq = String(count + 1).padStart(4, '0');
-    return `${prefix} ${seq}/${buddhistYear}`;
+    const prefix = orgCode ?? 'ORG';
+    return {
+      documentNo: `${prefix} ${next.padded}/${next.year}`,
+      registryNo: next.padded,
+    };
+  }
+
+  /** Extract sequence from formats like "ORG 0007/2569" or "0007/2569". */
+  private registryNoFromDocumentNo(documentNo: string | null | undefined): string | null {
+    const match = documentNo?.match(/(\d+)\s*\/\s*\d{4}\s*$/);
+    return match ? match[1].padStart(4, '0') : null;
   }
 
   async getByCase(caseId: number, orgId: number) {

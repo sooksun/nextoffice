@@ -4,6 +4,7 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { nextRegistrationSeq } from '../common/registration-counter';
 
 @Injectable()
 export class HandoverService {
@@ -254,18 +255,7 @@ export class HandoverService {
   }
 
   private async getNextSequence(organizationId: bigint, counterType: string): Promise<string> {
-    const buddhistYear = new Date().getFullYear() + 543;
-    const counter = await this.prisma.registrationCounter.upsert({
-      where: {
-        organizationId_year_counterType: {
-          organizationId,
-          year: buddhistYear,
-          counterType,
-        },
-      },
-      create: { organizationId, year: buddhistYear, counterType, lastSeq: 1 },
-      update: { lastSeq: { increment: 1 } },
-    });
-    return `${String(counter.lastSeq).padStart(3, '0')}/${buddhistYear}`;
+    const next = await nextRegistrationSeq(this.prisma, organizationId, counterType, { pad: 3 });
+    return next.formatted;
   }
 }

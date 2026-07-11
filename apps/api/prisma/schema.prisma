@@ -1127,8 +1127,8 @@ model DocumentRegistry {
 model RegistrationCounter {
   id             BigInt   @id @default(autoincrement())
   organizationId BigInt   @map("organization_id")
-  year           Int      // ค.ศ. (Gregorian) — used as key only; display uses พ.ศ.
-  counterType    String   @map("counter_type") @db.VarChar(30) @default("inbound") // inbound | handover | dispatch | loan
+  year           Int      // พ.ศ. (Buddhist year) — matches AcademicYear.year / registration display
+  counterType    String   @map("counter_type") @db.VarChar(30) @default("inbound") // inbound | outbound | handover | dispatch | loan
   lastSeq        Int      @map("last_seq") @default(0)
   updatedAt      DateTime @map("updated_at") @updatedAt
 

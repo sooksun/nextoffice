@@ -136,6 +136,7 @@ ${extractedText.substring(0, 2000)}
         user: prompt,
         maxOutputTokens: 1024,
         temperature: 0.3,
+        disableThinking: true,
       });
       const jsonMatch = (rawText || '[]').match(/\[[\s\S]*\]/);
       const parsed = JSON.parse(jsonMatch?.[0] || '[]');
