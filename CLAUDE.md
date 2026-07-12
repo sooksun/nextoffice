@@ -223,6 +223,7 @@ Do not automatically invoke these unless explicitly called with `/skill-name`:
 - Do not change unrelated files.
 - Database: do not change schema unless necessary; explain migration impact before applying.
 - Before finishing, summarize: files changed, what was implemented, risks remaining, what to test next.
+- **Do NOT commit these untracked paths** (kept local intentionally — noted session 2026-07-11): `docs/nextoffice_db.sql` (DB dump — may contain real/personal data; never push to the public GitHub repo `sooksun/nextoffice` → PDPA/leak risk), `mcps/`, `terminals/`. Leave them untracked unless the user explicitly says to commit them. Not yet in `.gitignore` — treat this note as the guard.
 
 ---
 
