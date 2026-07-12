@@ -33,3 +33,9 @@ QUICK_REFERENCE.md
 # Local runtime logs / boot artifacts (not source)
 apps/api/*.err
 apps/api/*.log
+
+# Local-only — never commit (see CLAUDE.md General Rules)
+# docs/nextoffice_db.sql = DB dump; may contain real/personal data (PDPA/leak risk on public repo)
+docs/nextoffice_db.sql
+mcps/
+terminals/
