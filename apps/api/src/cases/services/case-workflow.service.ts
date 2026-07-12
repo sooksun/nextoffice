@@ -823,7 +823,7 @@ export class CaseWorkflowService {
       data: {
         directorStampStatus: 'pending',
         directorStampZoneJson: stamp3Zone
-          ? JSON.stringify({ ...stamp3Zone, ss: result.scaleFactor })
+          ? JSON.stringify({ ...stamp3Zone, ss: result.scaleFactor, page: result.signaturePageIndex })
           : null,
         directorNote: directorNote ?? undefined,
       },
@@ -894,9 +894,11 @@ export class CaseWorkflowService {
       .filter(Boolean) as string[] | undefined;
 
     const now = new Date();
-    const { ss, ...zoneCoords } = zone;
+    // `page` = signature page index stored by the stamps 1+2 pass. Legacy zones
+    // (saved before this field existed) have no `page` → default 0 (page 1).
+    const { ss, page, ...zoneCoords } = zone;
 
-    // Apply stamp 3
+    // Apply stamp 3 on the signature page (may be page 2 for multi-page letters)
     let finalPdf = await this.pdfStamp.applyStamp3Only(
       stampedPdf,
       {
@@ -909,6 +911,7 @@ export class CaseWorkflowService {
       },
       zoneCoords,
       ss,
+      page ?? 0,
     );
 
     // Apply digital signature (PKI)

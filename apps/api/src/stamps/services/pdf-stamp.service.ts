@@ -48,6 +48,8 @@ export interface StampResult {
   pdfBuffer: Buffer;
   zones: (StampZone | null)[];
   scaleFactor: number;
+  /** 0-based page index where the signature/complimentary-close was found. */
+  signaturePageIndex: number;
 }
 
 // ─── Stamp dimensions ─────────────────────────────────────────────────────────
@@ -174,6 +176,7 @@ export class PdfStampService {
         stamp3Zone,
       ],
       scaleFactor: ss,
+      signaturePageIndex,
     };
   }
 
@@ -186,9 +189,13 @@ export class PdfStampService {
     data: DirectorNoteStampData,
     zone: StampZone,
     scaleFactor: number,
+    signaturePageIndex = 0,
   ): Promise<Buffer> {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const page = pdfDoc.getPages()[0];
+    // Draw on the same page the signature was found on (stamps 1+2 pass stored
+    // this index). Falls back to page 1 for legacy zones without a page index.
+    const pages = pdfDoc.getPages();
+    const page = pages[signaturePageIndex] ?? pages[0];
 
     // Compute stamp 3 content height at A4 width
     const h3Orig = this.stampCanvas.computeDirectorNoteHeight(data, W3);
