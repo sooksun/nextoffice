@@ -115,7 +115,7 @@ export class OutboundController {
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
   ) {
-    const buffer = await this.svc.generatePdf(id, Number(user?.organizationId));
+    const buffer = await this.svc.generateDocx(id, Number(user?.organizationId));
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'Content-Disposition': `attachment; filename="outbound-${id}.docx"`,

@@ -11,6 +11,13 @@ import { GeminiApiService } from '../gemini/gemini-api.service';
 import { QueryCacheService } from '../rag/services/query-cache.service';
 import { nextRegistrationSeq } from '../common/registration-counter';
 import { DifyApiService } from '../dify/dify-api.service';
+import { OutboundPdfRenderer } from './outbound-pdf.renderer';
+import {
+  OUTBOUND_RENDER_INCLUDE,
+  OutboundRenderSource,
+  stripFieldPrefix,
+  toOutboundRenderModel,
+} from './outbound-render.model';
 
 export type OutboundOutlineFields = {
   subject?: string;
@@ -37,6 +44,7 @@ export class OutboundService {
     private readonly gemini: GeminiApiService,
     @Optional() private readonly queryCache: QueryCacheService,
     @Optional() private readonly dify: DifyApiService,
+    private readonly pdfRenderer: OutboundPdfRenderer,
   ) {}
 
   private readonly CONFIDENTIAL_ROLES = ['ADMIN', 'DIRECTOR', 'VICE_DIRECTOR', 'CLERK'];
@@ -424,6 +432,7 @@ export class OutboundService {
     const entries = await this.prisma.documentRegistry.findMany({
       where,
       orderBy: [{ registryType: 'asc' }, { createdAt: 'desc' }],
+      take: 500, // defensive cap — registry list has no cursor pagination yet
       include,
     });
 
@@ -1139,139 +1148,116 @@ ${typePrompt}
   }
 
   /**
-   * Generate PDF from outbound document data using the appropriate template
+   * Generate DOCX from outbound document data using the appropriate template.
+   * Does not write storagePath (archive PDF is generatePdf only).
    */
-  async generatePdf(id: number, userOrgId?: number): Promise<Buffer> {
-    const doc = await this.prisma.outboundDocument.findUnique({
-      where: { id: BigInt(id) },
-      include: {
-        organization: { select: { name: true, address: true, phone: true, orgCode: true } },
-        approvedBy: { select: { fullName: true, positionTitle: true } },
-        createdBy: { select: { fullName: true, positionTitle: true } },
-        relatedInboundCase: {
-          select: {
-            assignedTo: { select: { fullName: true, positionTitle: true } },
-          },
-        },
-      },
-    });
-    if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
+  async generateDocx(id: number, userOrgId?: number): Promise<Buffer> {
+    const doc = await this.loadForRender(id, userOrgId, 'DOCX');
+    const model = toOutboundRenderModel(doc);
+    const org = model.org;
+    const signer = model.signer;
+    const { dateStr, documentNo, subject, bodyOrUndefined } = model;
 
-    if (userOrgId !== undefined && Number(doc.organizationId) !== Number(userOrgId)) {
-      throw new ForbiddenException('ไม่สามารถสร้าง PDF ของเอกสารขององค์กรอื่น');
-    }
-
-    const org = doc.organization;
-    // For internal_memo (หนังสือภายใน): signer = ผู้ได้รับมอบหมายจาก InboundCase.
-    // ผู้ได้รับมอบหมายเป็นผู้ลงนาม ไม่ใช่ ผอ. ที่สั่งมอบหมาย
-    const assignee = doc.relatedInboundCase?.assignedTo;
-    const signer = doc.letterType === 'internal_memo'
-      ? (assignee ?? doc.approvedBy ?? doc.createdBy)
-      : (doc.approvedBy ?? doc.createdBy);
-    const now = new Date();
-    const buddhistYear = now.getFullYear() + 543;
-    const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-    const dateStr = `${now.getDate()} ${thaiMonths[now.getMonth()]} ${buddhistYear}`;
-
-    let pdfBuffer: Buffer;
-
-    // Defensive strip for legacy drafts created before prompt fix — templates
-    // always prepend labels so we must pass bare values.
-    const subj = this.stripFieldPrefix(doc.subject, 'เรื่อง') ?? '';
-    const rcptName = this.stripFieldPrefix(doc.recipientName, '(?:เรียน|ถึง)') ?? undefined;
-    const rcptOrg = this.stripFieldPrefix(doc.recipientOrg, 'ถึง') ?? undefined;
-
-    switch (doc.letterType) {
+    switch (model.letterType) {
       case 'internal_memo':
-        pdfBuffer = await this.templates.generateMemo({
-          department: org?.name,
-          documentNo: doc.documentNo ?? undefined,
+        return this.templates.generateMemo({
+          department: org?.name ?? undefined,
+          documentNo: documentNo ?? undefined,
           date: dateStr,
-          subject: subj,
-          recipient: rcptName,
-          body: doc.bodyText ?? undefined,
+          subject,
+          recipient: model.recipientName,
+          body: bodyOrUndefined,
           signerName: signer?.fullName ?? undefined,
           signerPosition: signer?.positionTitle ?? undefined,
         });
-        break;
 
       case 'stamp_letter':
-        pdfBuffer = await this.templates.generateStampLetter({
-          documentNo: doc.documentNo ?? undefined,
-          recipient: rcptOrg ?? rcptName,
-          body: doc.bodyText ?? undefined,
+        return this.templates.generateStampLetter({
+          documentNo: documentNo ?? undefined,
+          recipient: model.recipientStamp,
+          body: bodyOrUndefined,
           orgName: org?.name ?? '',
           date: dateStr,
         });
-        break;
 
       case 'order':
-        pdfBuffer = await this.templates.generateDirective({
+      case 'directive': // legacy → คำสั่ง
+        return this.templates.generateDirective({
           orgName: org?.name ?? '',
-          subject: subj,
-          body: doc.bodyText ?? undefined,
+          subject,
+          body: bodyOrUndefined,
           date: dateStr,
           signerName: signer?.fullName ?? undefined,
           signerPosition: signer?.positionTitle ?? undefined,
           directiveType: 'คำสั่ง',
         });
-        break;
 
       case 'announcement':
-        pdfBuffer = await this.templates.generatePublicRelation({
+        return this.templates.generatePublicRelation({
           orgName: org?.name ?? '',
-          subject: subj,
-          body: doc.bodyText ?? undefined,
+          subject,
+          body: bodyOrUndefined,
           date: dateStr,
           signerName: signer?.fullName ?? undefined,
           signerPosition: signer?.positionTitle ?? undefined,
           prType: 'ประกาศ',
         });
-        break;
-
-      // Backward compatibility — legacy "directive" type defaults to คำสั่ง
-      case 'directive':
-        pdfBuffer = await this.templates.generateDirective({
-          orgName: org?.name ?? '',
-          subject: subj,
-          body: doc.bodyText ?? undefined,
-          date: dateStr,
-          signerName: signer?.fullName ?? undefined,
-          signerPosition: signer?.positionTitle ?? undefined,
-          directiveType: 'คำสั่ง',
-        });
-        break;
 
       default: // external_letter
-        pdfBuffer = await this.templates.generateKrut({
-          documentNo: doc.documentNo ?? undefined,
+        return this.templates.generateKrut({
+          documentNo: documentNo ?? undefined,
           orgName: org?.name ?? '',
           orgAddress: org?.address ?? undefined,
           date: dateStr,
-          recipient: rcptName,
-          subject: subj,
-          body: doc.bodyText ?? undefined,
+          recipient: model.recipientName,
+          subject,
+          body: bodyOrUndefined,
           closing: 'ขอแสดงความนับถือ',
           signerName: signer?.fullName ?? undefined,
           signerPosition: signer?.positionTitle ?? undefined,
           department: org?.name ?? undefined,
           phone: org?.phone ?? undefined,
         });
-        break;
     }
+  }
 
-    // Save PDF to MinIO
+  /**
+   * Generate a real PDF buffer for outbound documents and persist to MinIO.
+   */
+  async generatePdf(id: number, userOrgId?: number): Promise<Buffer> {
+    const doc = await this.loadForRender(id, userOrgId, 'PDF');
+    const model = toOutboundRenderModel(doc);
+    const pdfBuffer = await this.pdfRenderer.render(model);
+
     if (this.fileStorage) {
-      const storagePath = `outbound/${Number(doc.organizationId)}/${id}.pdf`;
+      const storagePath = `outbound/${model.organizationId}/${id}.pdf`;
       await this.fileStorage.saveBuffer(storagePath, pdfBuffer, 'application/pdf');
       await this.prisma.outboundDocument.update({
         where: { id: BigInt(id) },
         data: { storagePath },
       });
-      this.logger.log(`Generated PDF for outbound doc #${id} → ${storagePath}`);
+      this.logger.log(`Generated PDF for outbound doc #${id} -> ${storagePath}`);
     }
 
     return pdfBuffer;
+  }
+
+  private async loadForRender(
+    id: number,
+    userOrgId: number | undefined,
+    formatLabel: 'DOCX' | 'PDF',
+  ): Promise<OutboundRenderSource> {
+    const doc = await this.prisma.outboundDocument.findUnique({
+      where: { id: BigInt(id) },
+      include: OUTBOUND_RENDER_INCLUDE,
+    });
+    if (!doc) throw new NotFoundException(`Outbound document #${id} not found`);
+
+    if (userOrgId !== undefined && Number(doc.organizationId) !== Number(userOrgId)) {
+      throw new ForbiddenException(`ไม่สามารถสร้าง ${formatLabel} ของเอกสารขององค์กรอื่น`);
+    }
+
+    return doc as OutboundRenderSource;
   }
 
   async reject(id: number, note?: string, userOrgId?: number) {
@@ -1379,9 +1365,6 @@ ${typePrompt}
    * "เรื่อง  เรื่อง ตอบรับ..." in the document.
    */
   private stripFieldPrefix(text: string | null | undefined, prefixRegexSource: string): string | null {
-    if (!text) return null;
-    const re = new RegExp(`^\\s*${prefixRegexSource}[\\s:：]+`, 'i');
-    const cleaned = String(text).replace(re, '').trim();
-    return cleaned || null;
+    return stripFieldPrefix(text, prefixRegexSource);
   }
 }

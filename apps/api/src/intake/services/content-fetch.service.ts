@@ -18,7 +18,13 @@ export class ContentFetchService {
       },
     );
     const buffer = Buffer.from(res.data);
-    const contentType = res.headers['content-type'] || 'application/octet-stream';
+    const rawType = res.headers['content-type'];
+    const contentType =
+      typeof rawType === 'string'
+        ? rawType
+        : Array.isArray(rawType)
+          ? rawType[0] || 'application/octet-stream'
+          : 'application/octet-stream';
     return { buffer, contentType };
   }
 

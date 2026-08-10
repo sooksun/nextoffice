@@ -1,13 +1,17 @@
 import './load-env';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { json } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Nest 11 defaults to Express v5; restore Express v4-style nested query parsing
+  // (?filter[a]=1, ?item[]=1) used by some list/filter endpoints.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.set('query parser', 'extended');
 
   // HSTS is opt-in (ENABLE_HSTS=true) — keep off until HTTPS is stable; NPM can also terminate TLS/HSTS.
   const enableHsts = process.env.ENABLE_HSTS === 'true';

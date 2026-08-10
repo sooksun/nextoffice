@@ -8,9 +8,11 @@
     "build": "npm run build --workspaces"
   },
   "dependencies": {
-    "express": "^4.22.1"
+    "express": "^5.1.0"
   },
   "overrides": {
-    "express": "$express"
+    "express": "$express",
+    "@nestjs/common": "11.1.29",
+    "@nestjs/core": "11.1.29"
   }
 }

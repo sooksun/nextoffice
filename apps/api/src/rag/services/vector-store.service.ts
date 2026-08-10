@@ -148,19 +148,21 @@ export class VectorStoreService implements OnModuleInit {
   ): Promise<VectorSearchResult[]> {
     if (!this.client) return [];
     try {
-      const results = await this.client.search(collection, {
-        vector: queryVector,
+      // Qdrant JS client ≥1.14: `search` removed in favor of universal `query`
+      const results = await this.client.query(collection, {
+        query: queryVector,
         limit,
         with_payload: true,
         filter,
       });
-      return results.map((r) => ({
+      return (results.points ?? []).map((r) => ({
         id: String(r.id),
         score: r.score,
         payload: (r.payload as Record<string, any>) ?? {},
       }));
     } catch (err) {
-      this.logger.warn(`Qdrant search failed: ${err.message}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Qdrant search failed: ${msg}`);
       return [];
     }
   }
