@@ -27,7 +27,10 @@ export function resolveApiRootEnvPath(): string {
  * — ใช้ override: true เพื่อให้ไฟล์เป็นหลัก
  */
 const envPath = resolveApiRootEnvPath();
-const loaded = config({ path: envPath, override: true });
+// quiet: dotenv 17 prints an "injected env (n) from .env" banner on every call
+// by default (it was silent in 16). Nothing should write to stdout before Nest's
+// logger comes up, least of all a line that reports how many secrets were read.
+const loaded = config({ path: envPath, override: true, quiet: true });
 if (loaded.error && process.env.NODE_ENV !== 'production') {
   console.warn(`[load-env] โหลด .env ไม่สำเร็จ: ${envPath} — ${loaded.error.message}`);
 }
