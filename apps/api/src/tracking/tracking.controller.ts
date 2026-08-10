@@ -13,6 +13,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TrackingService } from './tracking.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RateLimit, RateLimitGuard } from '../common/rate-limit.guard';
 
 @ApiTags('tracking')
 @Controller('tracking')
@@ -54,6 +55,9 @@ export class TrackingController {
   }
 
   @Get('public/:trackingCode')
+  @UseGuards(RateLimitGuard)
+  // No auth by design (QR scan) — throttle so codes cannot be enumerated.
+  @RateLimit({ limit: 60, windowSec: 300 })
   @ApiOperation({ summary: 'Public lookup by tracking code (no auth)' })
   async publicLookup(@Param('trackingCode') trackingCode: string) {
     return this.svc.publicLookup(trackingCode);

@@ -13,6 +13,10 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.set('query parser', 'extended');
 
+  // Behind exactly one reverse proxy (nginx-proxy-manager) in prod. Without this
+  // req.ip is the proxy's address and every client shares one rate-limit bucket.
+  app.set('trust proxy', 1);
+
   // HSTS is opt-in (ENABLE_HSTS=true) — keep off until HTTPS is stable; NPM can also terminate TLS/HSTS.
   const enableHsts = process.env.ENABLE_HSTS === 'true';
   app.use(

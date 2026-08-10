@@ -25,6 +25,7 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { CurrentUser } from '../decorators/current-user.decorator';
+import { RateLimit, RateLimitGuard } from '../../common/rate-limit.guard';
 
 const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -49,6 +50,8 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 30, windowSec: 300, identityField: 'email', identityLimit: 8 })
   @ApiOperation({ summary: 'เข้าสู่ระบบด้วยอีเมลและรหัสผ่าน' })
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(dto);
@@ -58,6 +61,8 @@ export class AuthController {
 
   @Post('google')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 30, windowSec: 300 })
   @ApiOperation({ summary: 'เข้าสู่ระบบด้วย Google (ID Token)' })
   async googleLogin(
     @Body() body: GoogleLoginDto,
@@ -122,8 +127,9 @@ export class AuthController {
   // ─── Impersonation (Admin only) ───────────────────────────────────────────
 
   @Post('switch-user')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, RateLimitGuard)
   @Roles('ADMIN')
+  @RateLimit({ limit: 20, windowSec: 300, identityField: 'email', identityLimit: 8 })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin สลับ session เป็น user อื่น โดยกรอก email+password ของ user นั้น' })
   async switchUser(

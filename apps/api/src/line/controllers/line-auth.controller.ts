@@ -1,6 +1,7 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, Post, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { LineAuthService } from '../services/line-auth.service';
+import { RateLimit, RateLimitGuard } from '../../common/rate-limit.guard';
 
 interface LiffLoginDto {
   accessToken: string;
@@ -27,6 +28,10 @@ export class LineAuthController {
    * Called by the LIFF frontend after `liff.init()` + `liff.getAccessToken()`.
    */
   @Post('verify')
+  @UseGuards(RateLimitGuard)
+  // LiffBoot calls this on every LIFF page mount — keep the ceiling generous
+  // enough for normal navigation, low enough to stop token-guessing loops.
+  @RateLimit({ limit: 60, windowSec: 300 })
   async verify(@Body() dto: LiffLoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.lineAuth.loginWithLiffToken(dto.accessToken);
     this.setAuthCookie(res, result.token);
