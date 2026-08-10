@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -162,30 +163,42 @@ export class ReportsService {
     const orgId = BigInt(organizationId);
     const results = [];
 
-    // Fetch case ids (+ createdAt for the first stage) once, instead of per-stage
-    const cases = await this.prisma.inboundCase.findMany({
-      where: { organizationId: orgId },
-      select: { id: true, createdAt: true },
-    });
-
-    if (cases.length === 0) {
-      return stages.map((s) => ({ stage: s.stage, avgDays: 0, medianDays: 0, caseCount: 0 }));
-    }
-
-    const caseIds = cases.map((c) => c.id);
-
-    // Fetch all relevant activities once (avoid omitting the LongText `detail`)
+    // Only the FIRST occurrence of each (case, action) is ever used below, so
+    // collapse to MIN() in SQL. Previously this loaded every case row plus every
+    // matching activity row for the org into Node — unbounded as history grows.
     const actions = Array.from(
       new Set(stages.flatMap((s) => [s.fromAction, s.toAction].filter(Boolean) as string[])),
     );
-    const activities = await this.prisma.caseActivity.findMany({
-      where: {
-        inboundCaseId: { in: caseIds },
-        action: { in: actions },
-      },
-      orderBy: { createdAt: 'asc' },
-      select: { inboundCaseId: true, action: true, createdAt: true },
-    });
+    const rows = await this.prisma.$queryRaw<
+      { case_id: bigint; action: string; first_at: Date; case_created_at: Date }[]
+    >`
+      SELECT a.inbound_case_id AS case_id,
+             a.action          AS action,
+             MIN(a.created_at) AS first_at,
+             c.created_at      AS case_created_at
+      FROM case_activities a
+      JOIN inbound_cases c ON c.id = a.inbound_case_id
+      WHERE c.organization_id = ${orgId}
+        AND a.action IN (${Prisma.join(actions)})
+      GROUP BY a.inbound_case_id, a.action, c.created_at
+    `;
+
+    if (rows.length === 0) {
+      return stages.map((s) => ({ stage: s.stage, avgDays: 0, medianDays: 0, caseCount: 0 }));
+    }
+
+    const activities = rows.map((r) => ({
+      inboundCaseId: r.case_id,
+      action: r.action,
+      createdAt: new Date(r.first_at),
+    }));
+    // Distinct case createdAt, used as the "from" time of the first stage.
+    const cases = Array.from(
+      new Map(rows.map((r) => [r.case_id.toString(), {
+        id: r.case_id,
+        createdAt: new Date(r.case_created_at),
+      }])).values(),
+    );
 
     for (const s of stages) {
       const stageActions = new Set([s.fromAction, s.toAction].filter(Boolean) as string[]);
@@ -296,33 +309,29 @@ export class ReportsService {
     const orgId = BigInt(organizationId);
     const now = new Date();
 
-    // Avg time to register (from createdAt to registeredAt)
-    const registeredCases = await this.prisma.inboundCase.findMany({
-      where: { organizationId: orgId, registeredAt: { not: null } },
-      select: { createdAt: true, registeredAt: true },
-    });
-    const regDurations = registeredCases
-      .filter((c) => c.registeredAt)
-      .map((c) => (c.registeredAt!.getTime() - c.createdAt.getTime()) / (1000 * 60 * 60 * 24));
-    const avgTimeToRegister = regDurations.length > 0
-      ? Math.round((regDurations.reduce((s, d) => s + d, 0) / regDurations.length) * 100) / 100
-      : 0;
+    // Averages are computed in SQL: pulling every case row into Node just to
+    // average two date deltas grew linearly with the org's whole history.
+    const [durations] = await this.prisma.$queryRaw<
+      { avg_register_sec: number | null; avg_complete_sec: number | null; completed_count: bigint }[]
+    >`
+      SELECT
+        AVG(CASE WHEN registered_at IS NOT NULL
+                 THEN TIMESTAMPDIFF(SECOND, created_at, registered_at) END) AS avg_register_sec,
+        AVG(CASE WHEN status IN ('completed', 'archived')
+                 THEN TIMESTAMPDIFF(SECOND, created_at, updated_at) END)    AS avg_complete_sec,
+        SUM(CASE WHEN status IN ('completed', 'archived') THEN 1 ELSE 0 END) AS completed_count
+      FROM inbound_cases
+      WHERE organization_id = ${orgId}
+    `;
 
-    // Avg time to complete
-    const completedCases = await this.prisma.inboundCase.findMany({
-      where: { organizationId: orgId, status: { in: ['completed', 'archived'] } },
-      select: { createdAt: true, updatedAt: true },
-    });
-    const compDurations = completedCases.map(
-      (c) => (c.updatedAt.getTime() - c.createdAt.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    const avgTimeToComplete = compDurations.length > 0
-      ? Math.round((compDurations.reduce((s, d) => s + d, 0) / compDurations.length) * 100) / 100
-      : 0;
+    const secToDays = (sec: number | null | undefined) =>
+      sec == null ? 0 : Math.round((Number(sec) / 86400) * 100) / 100;
+    const avgTimeToRegister = secToDays(durations?.avg_register_sec);
+    const avgTimeToComplete = secToDays(durations?.avg_complete_sec);
 
     // Completion rate
     const totalCases = await this.prisma.inboundCase.count({ where: { organizationId: orgId } });
-    const completedCount = completedCases.length;
+    const completedCount = Number(durations?.completed_count ?? 0);
     const completionRate = totalCases > 0
       ? Math.round((completedCount / totalCases) * 10000) / 100
       : 0;
