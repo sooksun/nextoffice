@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GeminiApiService } from '../../gemini/gemini-api.service';
+import { loadPdfJs, PDFJS_SAFE_DOC_OPTIONS } from '../../common/load-pdfjs';
 
 export interface StampSpec {
   w: number;
@@ -44,14 +45,11 @@ export class EmptySpaceService {
    */
   async findStampZones(pdfBuffer: Buffer, specs: StampSpec[]): Promise<StampZoneResult> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      const pdfjsLib = await loadPdfJs();
 
       const doc = await pdfjsLib.getDocument({
         data: new Uint8Array(pdfBuffer),
-        disableFontFace: true,
-        useSystemFonts: false,
+        ...PDFJS_SAFE_DOC_OPTIONS,
       }).promise;
 
       // Scan up to 4 pages — find the last page containing a complimentary close phrase
@@ -203,16 +201,13 @@ export class EmptySpaceService {
     pdfBuffer: Buffer, pageIndex: number, pageHPt: number,
   ): Promise<number | null> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      const pdfjsLib = await loadPdfJs();
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { createCanvas } = require('@napi-rs/canvas');
 
       const doc = await pdfjsLib.getDocument({
         data: new Uint8Array(pdfBuffer),
-        disableFontFace: true,
-        useSystemFonts: false,
+        ...PDFJS_SAFE_DOC_OPTIONS,
       }).promise;
 
       const page = await doc.getPage(pageIndex + 1);
