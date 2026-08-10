@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-/** Paths that never require authentication */
-const PUBLIC_PREFIXES = ["/login", "/api/", "/_next/", "/favicon"];
+import { INFRA_PREFIXES, isPublicPath } from "@/lib/public-paths";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public paths through without auth check
-  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+  if (INFRA_PREFIXES.some((p) => pathname.startsWith(p)) || isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
